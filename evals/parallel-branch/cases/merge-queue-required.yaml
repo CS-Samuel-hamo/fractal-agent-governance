@@ -1,0 +1,36 @@
+case_id: parallel-merge-queue-required-001
+category: parallel-branch
+input_task: Integrate completed domain, API, tests, and docs branches.
+fixture: toy branch result summaries and path locks
+expected_obligations:
+  - order merge queue by dependency
+  - run gates before each merge
+  - re-check integration after final merge
+  - record unresolved conflicts
+expected_surfaces:
+  - merge-queue
+  - quality-gate
+  - review-gate
+  - integration
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer for mechanical fixes
+  escalation_layer: GPT decision layer on conflict
+expected_decomposition:
+  needs_decomposition: false
+  reason: Integration is serial and parent-owned.
+expected_escalations:
+  - unresolved merge conflict
+  - failed compatibility gate
+forbidden_actions:
+  - merge all branches at once
+  - skip gate after branch merge
+scoring:
+  required:
+    - serializes integration
+    - uses dependency order
+  optional:
+    - records merge evidence
+  penalties:
+    - bypasses merge queue
+    - ignores failed gate

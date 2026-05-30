@@ -1,0 +1,41 @@
+case_id: fractal-api-ui-feature-001
+category: fractal-decomposition
+input_task: Add branch health summary to API and UI.
+fixture: toy API route, UI panel, shared DTO, tests
+expected_obligations:
+  - define shared contract
+  - implement API mapper
+  - update UI consumer
+  - add contract tests
+  - add UI display fixture
+expected_surfaces:
+  - api
+  - ui
+  - shared-type
+  - tests
+  - docs
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: true
+  branches:
+    - contract
+    - api
+    - ui
+    - tests
+expected_escalations:
+  - shared type conflict requires parent approval
+forbidden_actions:
+  - let UI invent API shape
+  - merge branches without contract review
+scoring:
+  required:
+    - creates contract/API/UI/test branches
+    - aggregates dependencies
+  optional:
+    - adds docs branch
+  penalties:
+    - misses shared type ownership
+    - parallelizes dependent branches unsafely

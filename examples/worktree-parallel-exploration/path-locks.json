@@ -1,0 +1,33 @@
+{
+  "lock_set_id": "toy-path-locks-001",
+  "locks": [
+    {
+      "path": "toy-app/domain/branch-summary.ts",
+      "owner_branch": "domain",
+      "lock_type": "exclusive"
+    },
+    {
+      "path": "toy-app/api/branch-summary-route.ts",
+      "owner_branch": "api",
+      "lock_type": "exclusive",
+      "waits_for": [
+        "domain"
+      ]
+    },
+    {
+      "path": "toy-app/types/branch-summary.ts",
+      "owner_branch": "parent",
+      "lock_type": "parent-approval-required",
+      "requested_by": [
+        "domain",
+        "api",
+        "tests"
+      ]
+    },
+    {
+      "path": "docs/branch-summary.md",
+      "owner_branch": "docs",
+      "lock_type": "exclusive"
+    }
+  ]
+}

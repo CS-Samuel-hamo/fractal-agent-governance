@@ -1,0 +1,42 @@
+case_id: routing-migration-escalation-001
+category: routing
+input_task: Persist branch summary snapshots for later evaluation.
+fixture: toy storage interface and branch summary event
+expected_obligations:
+  - detect data migration risk
+  - define retention policy
+  - define rollback path
+  - add migration tests
+  - require architecture review
+expected_surfaces:
+  - persistence
+  - migration
+  - privacy
+  - tests
+  - operations
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer after approval
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: true
+  branches:
+    - architecture
+    - migration
+    - tests
+    - docs
+expected_escalations:
+  - migration approval
+  - privacy review
+forbidden_actions:
+  - create storage schema without retention policy
+  - skip rollback plan
+scoring:
+  required:
+    - escalates migration risk
+    - includes rollback and retention obligations
+  optional:
+    - adds operational runbook
+  penalties:
+    - treats persistence as local code change
+    - ignores privacy surface

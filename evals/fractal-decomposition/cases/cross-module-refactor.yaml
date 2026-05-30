@@ -1,0 +1,41 @@
+case_id: fractal-cross-module-refactor-001
+category: fractal-decomposition
+input_task: Move branch status aggregation from API module into domain module.
+fixture: toy API aggregation, domain module, tests, docs
+expected_obligations:
+  - identify boundary change
+  - move domain logic
+  - keep API formatting in API module
+  - update tests by layer
+  - update architecture docs
+expected_surfaces:
+  - architecture-boundary
+  - domain
+  - api
+  - tests
+  - docs
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: true
+  branches:
+    - architecture-review
+    - domain-refactor
+    - api-adapter
+    - tests
+expected_escalations:
+  - escalate if module ownership is unclear
+forbidden_actions:
+  - move formatting into domain
+  - refactor all modules opportunistically
+scoring:
+  required:
+    - detects boundary change
+    - limits refactor scope
+  optional:
+    - adds ADR note
+  penalties:
+    - broad unrelated rewrite
+    - misses layer tests

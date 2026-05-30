@@ -1,0 +1,37 @@
+case_id: integration-route-registry-provider-001
+category: integration-surface
+input_task: Add a branch summary route that uses a provider registered in the route registry.
+fixture: toy route registry, provider interface, branch summary handler
+expected_obligations:
+  - register route
+  - bind provider
+  - test missing provider behavior
+  - verify route naming convention
+  - update route docs
+expected_surfaces:
+  - route-registry
+  - dependency-injection
+  - api
+  - tests
+  - docs
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: false
+  reason: Several surfaces, but one integration chain.
+expected_escalations:
+  - provider lifetime conflict if registry semantics are unclear
+forbidden_actions:
+  - instantiate provider inline in route
+  - skip missing provider test
+scoring:
+  required:
+    - identifies registry and provider surfaces
+    - includes integration test
+  optional:
+    - adds failure-mode docs
+  penalties:
+    - bypasses registry
+    - hardcodes dependency

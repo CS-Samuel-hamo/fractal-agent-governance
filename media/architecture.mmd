@@ -1,0 +1,13 @@
+flowchart TD
+  Goal["Goal / Run"] --> Profile["Project Profile"]
+  Profile --> Ledger["Obligation Ledger"]
+  Ledger --> BranchTree["Fractal Branch Tree"]
+  BranchTree --> DeepSeek["DeepSeek execution layer"]
+  BranchTree --> GPT["GPT decision layer"]
+  DeepSeek --> Quality["Quality Gate"]
+  GPT --> Review["Review Gate"]
+  Quality --> Worktree["Worktree Runtime"]
+  Review --> Worktree
+  Worktree --> Queue["Merge Queue"]
+  Queue --> Learning["Learning Loop"]
+  Learning --> Ledger

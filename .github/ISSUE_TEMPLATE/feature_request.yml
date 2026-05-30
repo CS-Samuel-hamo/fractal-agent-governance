@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a focused improvement to the governance runtime.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete governance problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful solution.
+    validations:
+      required: true
+  - type: dropdown
+    id: affected_area
+    attributes:
+      label: Affected area
+      options:
+        - Obligation Ledger
+        - Fractal Decomposition
+        - Model Routing
+        - Quality Gates
+        - Worktree Runtime
+        - Eval Suites
+        - Documentation
+        - Adapter Packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk
+      description: What could this make too strict, too loose, slower, or harder to maintain?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What simpler alternatives did you consider?
+    validations:
+      required: false

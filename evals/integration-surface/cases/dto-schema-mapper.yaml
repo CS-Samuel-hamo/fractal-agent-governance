@@ -1,0 +1,37 @@
+case_id: integration-dto-schema-mapper-001
+category: integration-surface
+input_task: Add optional `statusSummary` to BranchSummaryDTO and expose it through API schema.
+fixture: toy DTO, JSON schema, mapper, API fixture
+expected_obligations:
+  - update DTO
+  - update schema
+  - update mapper
+  - update API fixture
+  - add backward compatibility test
+expected_surfaces:
+  - dto
+  - schema
+  - mapper
+  - api
+  - compatibility
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: false
+  reason: Contract propagation is linear.
+expected_escalations:
+  - none expected
+forbidden_actions:
+  - make optional field required
+  - update schema without mapper
+scoring:
+  required:
+    - covers DTO, schema, mapper, API fixture
+    - checks optional compatibility
+  optional:
+    - includes docs update
+  penalties:
+    - misses mapper
+    - breaks clients that omit field

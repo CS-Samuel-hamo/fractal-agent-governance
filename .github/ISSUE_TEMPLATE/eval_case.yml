@@ -1,0 +1,41 @@
+name: Eval case proposal
+description: Propose a new eval case for governance behavior.
+title: "[Eval]: "
+labels:
+  - eval
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Task
+      description: The task the agent should handle.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_obligations
+    attributes:
+      label: Expected obligations
+      description: What implicit work should the agent discover?
+    validations:
+      required: true
+  - type: textarea
+    id: expected_routing
+    attributes:
+      label: Expected routing
+      description: Which work should go to decision, execution, review, or escalation layers?
+    validations:
+      required: true
+  - type: textarea
+    id: expected_gate
+    attributes:
+      label: Expected gate
+      description: Which quality, review, security, or integration gate should apply?
+    validations:
+      required: true
+  - type: textarea
+    id: fixture_idea
+    attributes:
+      label: Fixture idea
+      description: Describe a toy fixture. Do not include real business data or secrets.
+    validations:
+      required: true

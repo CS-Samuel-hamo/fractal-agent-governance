@@ -1,0 +1,3 @@
+# Hybrid Model Routing
+
+Route first-run intake to agent-project-profiler / DeepSeek; low-risk contract draft to agent-plan-drafter / DeepSeek; final approval to agent-planner / GPT; branch state updates to agent-branch-clerk / DeepSeek; branch decisions to agent-branch-manager / GPT; coding to agent-executor / DeepSeek; mechanical review to agent-mechanical-reviewer / DeepSeek; final review to agent-reviewer / GPT; merge readiness to agent-integration-clerk / DeepSeek; final integration to agent-integrator / GPT; failure drafts to agent-curator-draft / DeepSeek; governance approval to agent-curator / GPT.

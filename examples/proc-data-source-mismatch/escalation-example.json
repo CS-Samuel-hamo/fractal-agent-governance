@@ -1,0 +1,26 @@
+{
+  "escalation_id": "toy-escalation-proc-source-001",
+  "trigger": "semantic_uncertainty",
+  "question": "When cached and live branch-state disagree, which value should the live segment expose?",
+  "blocked_obligations": [
+    "obl-002",
+    "obl-004",
+    "obl-006"
+  ],
+  "options": [
+    {
+      "id": "freshness-first",
+      "description": "Use live branch-state for the new segment even if the rest of the summary is cached."
+    },
+    {
+      "id": "consistency-first",
+      "description": "Use a single snapshot source for the whole response."
+    },
+    {
+      "id": "dual-source-explicit",
+      "description": "Return both cached and live values with source metadata."
+    }
+  ],
+  "recommended_default": "freshness-first",
+  "reason": "The task explicitly says the segment must read from live branch-state."
+}

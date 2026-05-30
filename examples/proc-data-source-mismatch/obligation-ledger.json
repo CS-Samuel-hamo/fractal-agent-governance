@@ -1,0 +1,47 @@
+{
+  "ledger_id": "toy-ledger-proc-source-001",
+  "input_task": "Use existing ProcBranchSummary, but one segment must read from live branch-state instead of cached branch-state.",
+  "detected_signals": [
+    "existing_proc_reuse",
+    "data_source_mismatch",
+    "semantic_uncertainty"
+  ],
+  "obligations": [
+    {
+      "id": "obl-001",
+      "description": "detect data_source_mismatch between cached branch-state and live branch-state",
+      "status": "required",
+      "surface": "data-source"
+    },
+    {
+      "id": "obl-002",
+      "description": "choose adapter, source-selector, or provider injection pattern",
+      "status": "required",
+      "surface": "architecture"
+    },
+    {
+      "id": "obl-003",
+      "description": "add old source behavior test",
+      "status": "required",
+      "surface": "test"
+    },
+    {
+      "id": "obl-004",
+      "description": "add new live source behavior test",
+      "status": "required",
+      "surface": "test"
+    },
+    {
+      "id": "obl-005",
+      "description": "document mixed-source semantics",
+      "status": "maybe",
+      "surface": "docs"
+    },
+    {
+      "id": "obl-006",
+      "description": "escalate if freshness or consistency semantics are unknown",
+      "status": "escalated",
+      "surface": "product-semantics"
+    }
+  ]
+}

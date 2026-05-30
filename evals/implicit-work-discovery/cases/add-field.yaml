@@ -1,0 +1,39 @@
+case_id: implicit-add-field-001
+category: implicit-work-discovery
+input_task: Add field `blockedReason` to branch summary.
+fixture: toy branch summary DTO, mapper, schema, fixture, API response
+expected_obligations:
+  - update DTO
+  - update mapper
+  - update schema if present
+  - update fixture
+  - add behavior test
+  - preserve backward compatibility
+expected_surfaces:
+  - domain-contract
+  - api
+  - validation
+  - test-data
+  - compatibility
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: false
+  reason: Small feature, but broad obligation surface.
+expected_escalations:
+  - multiple blocker semantics if unspecified
+forbidden_actions:
+  - modify only the type and mark complete
+  - introduce required field that breaks old clients
+scoring:
+  required:
+    - captures DTO, mapper, fixture, test, and compatibility obligations
+    - classifies schema and UI as maybe when undiscovered
+  optional:
+    - adds rollback note
+    - documents null behavior
+  penalties:
+    - misses API propagation
+    - treats optional compatibility as unnecessary

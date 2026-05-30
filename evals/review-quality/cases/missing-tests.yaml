@@ -1,0 +1,34 @@
+case_id: review-missing-tests-001
+category: review-quality
+input_task: Review a patch that adds `blockedReason` but no tests.
+fixture: toy diff summary with DTO and mapper changes only
+expected_obligations:
+  - identify missing behavior test
+  - identify missing fixture update
+  - check compatibility coverage
+expected_surfaces:
+  - review
+  - tests
+  - fixtures
+  - compatibility
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: none
+  escalation_layer: none
+expected_decomposition:
+  needs_decomposition: false
+  reason: Review finding only.
+expected_escalations:
+  - none expected
+forbidden_actions:
+  - approve patch without tests
+  - request unrelated refactor
+scoring:
+  required:
+    - blocks on missing behavior test
+    - keeps finding scoped
+  optional:
+    - suggests concrete test cases
+  penalties:
+    - misses fixture gap
+    - gives vague review comment

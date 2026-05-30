@@ -1,0 +1,37 @@
+{
+  "schedule_id": "toy-schedule-parallel-001",
+  "branches": [
+    {
+      "branch_id": "domain",
+      "can_start": true,
+      "waits_for": [],
+      "parallel_group": "core-contract"
+    },
+    {
+      "branch_id": "api",
+      "can_start": false,
+      "waits_for": [
+        "domain"
+      ],
+      "parallel_group": "contract-consumer"
+    },
+    {
+      "branch_id": "tests",
+      "can_start": true,
+      "waits_for": [],
+      "parallel_group": "verification"
+    },
+    {
+      "branch_id": "docs",
+      "can_start": true,
+      "waits_for": [],
+      "parallel_group": "documentation"
+    }
+  ],
+  "rules": [
+    "docs and tests can explore concurrently",
+    "api waits for domain contract",
+    "shared type changes require parent approval",
+    "final integration is serial"
+  ]
+}

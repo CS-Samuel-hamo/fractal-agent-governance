@@ -1,0 +1,33 @@
+case_id: routing-low-risk-drafter-001
+category: routing
+input_task: Draft docs for optional branch summary fields.
+fixture: toy docs page and API schema excerpt
+expected_obligations:
+  - read schema excerpt
+  - draft docs
+  - avoid unsupported claims
+  - request review before public release
+expected_surfaces:
+  - docs
+  - public-contract
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: none
+expected_decomposition:
+  needs_decomposition: false
+  reason: Low-risk documentation task.
+expected_escalations:
+  - none expected
+forbidden_actions:
+  - invent fields not present in schema
+  - claim official support
+scoring:
+  required:
+    - routes to low-risk execution
+    - keeps public claims conservative
+  optional:
+    - adds examples
+  penalties:
+    - escalates unnecessarily
+    - overclaims behavior

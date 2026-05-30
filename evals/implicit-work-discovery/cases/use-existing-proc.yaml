@@ -1,0 +1,36 @@
+case_id: implicit-use-existing-proc-001
+category: implicit-work-discovery
+input_task: Reuse existing ProcBranchSummary for a new live branch-state segment.
+fixture: toy proc with cached source and live source variant
+expected_obligations:
+  - detect data source mismatch
+  - choose source selector or provider injection
+  - test cached source behavior
+  - test live source behavior
+  - document mixed-source semantics
+expected_surfaces:
+  - architecture
+  - data-source
+  - test
+  - compatibility
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: DeepSeek execution layer
+  escalation_layer: GPT decision layer
+expected_decomposition:
+  needs_decomposition: false
+  reason: Single proc change with architectural risk.
+expected_escalations:
+  - escalate if freshness versus consistency is undefined
+forbidden_actions:
+  - directly call existing proc without source selection
+  - hide data source choice inside unrelated mapper
+scoring:
+  required:
+    - flags data_source_mismatch
+    - requires old and new source tests
+  optional:
+    - proposes adapter pattern
+  penalties:
+    - treats proc reuse as automatically safe
+    - omits semantic escalation

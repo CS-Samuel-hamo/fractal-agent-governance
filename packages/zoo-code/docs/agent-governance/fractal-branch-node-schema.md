@@ -1,0 +1,47 @@
+# Fractal Branch Node Schema
+
+```yaml
+branch_id:
+parent_branch_id:
+depth:
+branch_type: root|domain|workstream|task|micro
+owner_mode:
+owner_model:
+status:
+objective:
+scope:
+non_goals:
+context_budget:
+complexity_score:
+risk_level:
+owned_paths:
+shared_paths:
+forbidden_paths:
+inputs:
+outputs:
+provides:
+consumes:
+dependencies:
+sibling_contracts:
+acceptance_criteria:
+verification_plan:
+quality_gates:
+decomposition:
+  split_reason:
+  children:
+  recursion_exit_condition:
+  max_depth:
+  stop_conditions:
+integration:
+  merge_contract:
+  integration_order:
+  conflict_paths:
+  parent_actions_required:
+evidence:
+  changed_files:
+  tests_run:
+  checks_run:
+  decisions:
+  unresolved_risks:
+  completion_summary:
+```

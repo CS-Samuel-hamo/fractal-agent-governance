@@ -1,0 +1,36 @@
+{
+  "queue_id": "toy-merge-queue-001",
+  "policy": "serial-integration-after-parallel-exploration",
+  "items": [
+    {
+      "branch_id": "domain",
+      "position": 1,
+      "required_gates": [
+        "quality_gate",
+        "parent_approval_for_shared_type"
+      ]
+    },
+    {
+      "branch_id": "api",
+      "position": 2,
+      "required_gates": [
+        "review_gate",
+        "contract_compatibility_gate"
+      ]
+    },
+    {
+      "branch_id": "tests",
+      "position": 3,
+      "required_gates": [
+        "quality_gate"
+      ]
+    },
+    {
+      "branch_id": "docs",
+      "position": 4,
+      "required_gates": [
+        "review_gate"
+      ]
+    }
+  ]
+}

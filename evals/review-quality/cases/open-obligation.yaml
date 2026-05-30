@@ -1,0 +1,33 @@
+case_id: review-open-obligation-001
+category: review-quality
+input_task: Review a patch with an unresolved obligation ledger item.
+fixture: toy ledger showing docs update deferred without release reason
+expected_obligations:
+  - detect open obligation
+  - require closure, deferral reason, or escalation
+  - block release readiness until classified
+expected_surfaces:
+  - review
+  - obligation-ledger
+  - release
+expected_routing:
+  decision_layer: GPT decision layer
+  execution_layer: none
+  escalation_layer: GPT decision layer if release decision needed
+expected_decomposition:
+  needs_decomposition: false
+  reason: Ledger review task.
+expected_escalations:
+  - release owner decision if docs can be deferred
+forbidden_actions:
+  - ignore open ledger item
+  - mark complete without evidence
+scoring:
+  required:
+    - identifies unclosed obligation
+    - demands evidence or explicit deferral
+  optional:
+    - suggests release checklist update
+  penalties:
+    - treats ledger as optional note
+    - accepts vague completion claim

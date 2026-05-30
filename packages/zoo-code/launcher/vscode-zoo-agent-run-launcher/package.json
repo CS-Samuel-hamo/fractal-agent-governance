@@ -1,0 +1,42 @@
+{
+  "name": "zoo-agent-run-launcher",
+  "displayName": "Zoo Agent Run Launcher",
+  "description": "Starts a read-only v3.7 Zoo Agent first-run governance intake for Git workspaces.",
+  "version": "0.3.7",
+  "publisher": "local",
+  "private": true,
+  "engines": { "vscode": "^1.84.0" },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:zooAgentLauncher.promptNow",
+    "onCommand:zooAgentLauncher.startGovernanceIntake",
+    "onCommand:zooAgentLauncher.copyAgentRun",
+    "onCommand:zooAgentLauncher.openZooCode",
+    "onCommand:zooAgentLauncher.resetWorkspacePrompt"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "zooAgentLauncher.promptNow", "title": "Zoo Agent Launcher: Show Governance Prompt" },
+      { "command": "zooAgentLauncher.startGovernanceIntake", "title": "Zoo Agent Launcher: Start Governance Intake" },
+      { "command": "zooAgentLauncher.copyAgentRun", "title": "Zoo Agent Launcher: Copy /agent-run Command" },
+      { "command": "zooAgentLauncher.openZooCode", "title": "Zoo Agent Launcher: Open Zoo Code" },
+      { "command": "zooAgentLauncher.resetWorkspacePrompt", "title": "Zoo Agent Launcher: Reset Current Workspace Prompt" }
+    ],
+    "configuration": {
+      "title": "Zoo Agent Launcher",
+      "properties": {
+        "zooAgentLauncher.enabled": { "type": "boolean", "default": true },
+        "zooAgentLauncher.onlyGitRepos": { "type": "boolean", "default": true },
+        "zooAgentLauncher.promptMode": { "type": "string", "enum": ["oncePerWorkspace", "everyOpen", "manualOnly"], "default": "oncePerWorkspace" },
+        "zooAgentLauncher.promptDelayMs": { "type": "number", "default": 2500, "minimum": 0, "maximum": 30000 },
+        "zooAgentLauncher.requireAgentRunCommand": { "type": "boolean", "default": true },
+        "zooAgentLauncher.defaultArgument": { "type": "string", "default": "first-run governance intake: read-only project profile discovery, global governance validation, local AGENTS/.roo/.roomodes conflict check, no production code edits, no destructive commands, no secrets." },
+        "zooAgentLauncher.newTab": { "type": "boolean", "default": true },
+        "zooAgentLauncher.zooExtensionIds": { "type": "array", "items": { "type": "string" }, "default": ["ZooCodeOrganization.zoo-code", "RooVeterinaryInc.roo-cline", "RooVeterinaryInc.Roo-Code"] },
+        "zooAgentLauncher.zooOpenCommands": { "type": "array", "items": { "type": "string" }, "default": ["workbench.view.extension.zoo-code-ActivityBar", "zoo-code.plusButtonClicked", "zoo-code.focusInput", "workbench.view.extension.roo-cline-ActivityBar", "roo-cline.plusButtonClicked", "roo-cline.focusInput"] }
+      }
+    }
+  }
+}
