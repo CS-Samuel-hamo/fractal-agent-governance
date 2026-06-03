@@ -1,12 +1,10 @@
-# Codex Task Pack Worker Rule
+# Codex Task Pack Rule
 
-`agent-codex-worker` generates Task Packs, prepares or invokes Codex CLI, collects results, and returns evidence to Zoo.
+Codex workers must execute only within the assigned task scope.
 
-It may edit only:
-
-- `.zoo-agent/runs/**`
-- `docs/agent-governance/**`
-- `templates/codex/**`
-- `scripts/**`
-
-It must not perform final review, integration, merge, push, or global configuration writes. It must not change business project code except inside an explicitly assigned worktree and bounded Task Pack.
+- Fast path uses `CODEX_TASK_PROMPT_FAST.md`.
+- Planned/governed path uses `CODEX_TASK_PROMPT.md`.
+- The runner provides `TASKS.yaml`, `AGENTS.md`, `ACCEPTANCE.md`, `PROGRESS.md`, and `BLOCKERS.md`.
+- When present, the runner also provides `TASK_CONTEXT.json` and `TASK_CONTEXT.md`; treat them as durable background and follow their write policy.
+- Workers do not commit, push, merge, reset, or delete branches.
+- Scope guard and tests are owned by the external harness unless the runtime note explicitly requires otherwise.

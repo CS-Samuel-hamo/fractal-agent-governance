@@ -1,62 +1,74 @@
----
-description: Bootstrap an existing or new project for Zoo Governance + Codex CLI Worker.
-argument-hint: [existing|new] [optional project goal or stack]
-mode: agent-orchestrator
----
+# Agent Bootstrap
 
-# /agent-bootstrap
+Project-only bootstrap for both new and existing projects.
 
-Bootstrap the current project for Zoo Governance + Codex CLI Worker without changing business code.
+For the usual "open a project and make everything ready" flow, prefer
+`agent-setup`. It updates global `.roo`, the installed `agent-governance-kit`,
+and then runs this project bootstrap step.
 
-## Behavior
+Use this command to assemble the minimum Zoo AI-native project setup:
 
-1. Detect project type:
-   - `existing_git_project`
-   - `existing_non_git_project`
-   - `empty_new_project`
-   - `unknown`
-2. For existing Git projects:
-   - perform read-only project scan;
-   - generate `.zoo-agent/project-profile.json`;
-   - generate `.zoo-agent/project-readiness.json`;
-   - generate `.zoo-agent/bootstrap-report.md`;
-   - generate `.zoo-agent/local-rules-summary.md`;
-   - generate or refresh `.zoo-agent/project-map.json`, `.zoo-agent/project-map.md`, and `.zoo-agent/architecture-boundaries.json`;
-   - generate or refresh `.zoo-agent/current-run.json` and `.zoo-agent/TASKS.md` as the project-level task board entry for the current run;
-   - generate or refresh `.zoo-agent/runs/<run-id>/TASKS.md`, `task-board.json`, `progress.json`, `progress.md`, `progress-tree.md`, and `tasks/<branch>.md` for existing runs that do not already have a human-editable task board;
-   - if no run exists, create a bootstrap run with a root planning branch;
-   - report missing project charter instead of inventing one; use `/charter` when durable mission, non-goals, quality bar, or human gates are needed;
-   - create `AGENTS.md`, `.gitignore`, and `.roo/rules/*.md` when they are missing;
-   - leave existing complete local governance files alone;
-   - generate `AGENTS.md.new` only when existing `AGENTS.md` is missing minimum agent safety/routing rules and must not be overwritten;
-   - generate `.gitignore.agent.patch` only when existing `.gitignore` is missing agent runtime ignore rules;
-   - do not modify business code;
-   - do not commit.
-3. For empty new projects:
-   - initialize Git unless disabled;
-   - create `README.md`, `AGENTS.md`, `.gitignore`, `.zoo-agent/project-profile.json`, `.zoo-agent/bootstrap-report.md`, `.zoo-agent/project-map.json`, `.zoo-agent/project-map.md`, `.zoo-agent/architecture-boundaries.json`, `.zoo-agent/current-run.json`, `.zoo-agent/TASKS.md`, a first root `TASKS.md` draft, and a bootstrap run task board under `.zoo-agent/runs/<run-id>/`;
-   - do not write business modules.
-4. For existing non-Git projects:
-   - report recommendations;
-   - do not run `git init` unless the user explicitly chose new project initialization;
-   - do not modify business files.
+- project facts and readiness under `.zoo-agent/`
+- local project rules under `.roo/rules/`
+- inactive proposals under `.zoo-agent/bootstrap/proposals/`
+- architecture compatibility report and upgrade guardrails under `.zoo-agent/`
+- command bridge files under `.roo/commands/`
+- backups for local command files before bridge injection
 
-## Local Command
+## Policy
 
-Run from the project root:
+- Run one unified bootstrap wrapper.
+- Preserve project-specific local command and rule text.
+- Do not overwrite existing project rules; existing rules may produce `.new` proposals.
+- Move inactive `.new` or patch proposals into `.zoo-agent/bootstrap/proposals/`.
+- Do not trust refreshed profile, project map, Graph DB, or runtime readiness
+  claims until `.zoo-agent/architecture-compatibility-report.md` is reviewed.
+- Back up changed local command files.
+- After bootstrap, reload the project so Roo/Zoo re-reads command and rule files.
 
-```bash
-python ~/.roo/agent-governance-kit/scripts/bootstrap_project.py --project . --mode auto --dry-run
+## Command Shape
+
+Prefer the installed global wrapper so old projects do not depend on stale local scripts.
+
+```powershell
+$workspace = "<workspace>"
+$bootstrap = "$env:USERPROFILE\.roo\agent-governance-kit\scripts\agent_bootstrap.py"
+if (-not (Test-Path $bootstrap)) {
+  $bootstrap = if (Test-Path ".\scripts\agent_bootstrap.py") { ".\scripts\agent_bootstrap.py" } else { "" }
+}
+if (-not $bootstrap) {
+  throw "Missing agent_bootstrap.py in global kit and workspace scripts."
+}
+
+python $bootstrap `
+  --project $workspace `
+  --mode auto
 ```
 
-Apply safe governance files after reviewing the report:
+Optional inputs:
 
-```bash
-python ~/.roo/agent-governance-kit/scripts/bootstrap_project.py --project . --mode auto --apply
+```powershell
+--goal "<project goal>"
+--stack "<stack hint>"
+--codex-home "D:\AI_DEV\codex_home"
+--dry-run
 ```
 
-## Required Output
+## Expected Effects
 
-- Next actions.
-- Whether the project is safe for Level 0/1 Codex Worker trial.
-- Items requiring user confirmation.
+- `.zoo-agent/project-profile.json`, `project-readiness.json`, `bootstrap-report.md`, and project map artifacts are created or refreshed
+- `.zoo-agent/agent-bootstrap-report.md` records the combined bootstrap steps
+- `.zoo-agent/bootstrap/proposals/` contains inactive proposal files that were not applied
+- `.zoo-agent/architecture-compatibility-report.md` records profile downgrade,
+  generated-path contamination, source-of-truth, and native dependency findings
+- `.zoo-agent/bootstrap/scan-policy.json` records generated/runtime paths that
+  should be excluded before project mapping
+- `.zoo-agent/bootstrap/source-of-truth-resolver.json` records precedence between
+  `.zoo-agent`, `.steward`, docs, plans, and archives
+- `.zoo-agent/bootstrap/migration-report.md` and `rollback-anchor.md` record the
+  governance-kit upgrade boundary
+- `.roo/commands/agent-run.md` gets the `AI_NATIVE_DISPATCHER_OVERRIDE` block
+- `.roo/commands/progress.md` gets the `AI_NATIVE_PROGRESS_SUMMARY` block
+- `.roo/rules/00-ai-native-global-bridge.md` is added
+- missing lower-level Codex commands and skills are copied in
+- existing local custom command text is preserved

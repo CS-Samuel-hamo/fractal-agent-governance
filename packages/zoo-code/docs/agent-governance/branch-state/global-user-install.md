@@ -2,7 +2,7 @@
 
 - branch_id: global-user-install
 - parent_branch_id: root
-- worktree_path: C:\Users\sheng\zoo-global-agent-kit\zoo-code-agent-governance-kit-v3.3-global-launcher
+- worktree_path: $env:USERPROFILE\zoo-global-agent-kit\zoo-code-agent-governance-kit-v3.3-global-launcher
 - git_branch: n/a
 - owner_agent: agent-executor
 - executor_agent: agent-executor
@@ -26,7 +26,7 @@ Stop after post-install evidence confirms the requested global assets and launch
 | date | agent | evidence |
 |---|---|---|
 | 2026-05-30 | agent-executor | Package validation script passed; package.json JSON validation passed; launcher extension.js Node syntax check passed. |
-| 2026-05-30 | agent-executor | Dry-run targeted only `C:\Users\sheng\.roo`, VS Code/Cursor extension dirs, and Zoo Code global custom modes. |
+| 2026-05-30 | agent-executor | Dry-run targeted only `$env:USERPROFILE\.roo`, VS Code/Cursor extension dirs, and Zoo Code global custom modes. |
 | 2026-05-30 | agent-executor | Formal install completed and post-install checks confirmed global command, rules, skills, launcher directories, and required mode slugs. |
 | 2026-05-30 | agent-executor | Installer updated and re-run so global copy avoids editor `settings.json` parsing and generated Python cache copying. |
 

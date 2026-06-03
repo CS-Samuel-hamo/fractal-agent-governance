@@ -4,6 +4,54 @@ argument-hint: <first-run governance intake | requirement or task id>
 mode: agent-orchestrator
 ---
 
+<!-- BEGIN AI_NATIVE_DISPATCHER_OVERRIDE -->
+## AI-Native Dispatcher Override
+
+This section supersedes older Level 0/1/2/3 Codex routing instructions below when they conflict.
+
+Dispatcher resolution:
+
+- If `<workspace>/scripts/run_ai_native_task.py` exists, use it.
+- Otherwise use `$env:USERPROFILE\.roo\agent-governance-kit\scripts\run_ai_native_task.py`.
+- If neither exists, stop and report the missing dispatcher.
+
+Routing:
+
+- Level 0/1: call the resolved dispatcher; let it choose `optimistic_worker` unless hard-risk rules are hit.
+- Level 2: call the resolved dispatcher with `--governance-level 2`; use `--execute-planned` only when planned Codex execution is authorized.
+- Level 3: call the resolved dispatcher with `--governance-level 3`; do not run the parent as one broad Codex task. Use generated `fractal-workstreams/<task-id>/leaf-tasks/` skeletons, then re-route each leaf through the resolved dispatcher, usually as Level 0/1.
+- Level 4: call the resolved dispatcher with `--governance-level 4` to record the human gate; do not run Codex before approval.
+
+Run status source:
+
+- `.zoo-agent/runs/<run-id>/executor-selection.json`
+- `.zoo-agent/runs/<run-id>/dispatcher-runs/<task-id>.json`
+- `.zoo-agent/runs/<run-id>/task-contexts/<task-id>.json`
+- `.zoo-agent/runs/<run-id>/ai-native-summary.json`
+- `.zoo-agent/runs/<run-id>/task-board-consistency.json`
+- `.zoo-agent/runs/<run-id>/risk-register.json`
+- `.zoo-agent/runs/<run-id>/quality-gate.json`
+- `.zoo-agent/runs/<run-id>/merge-queue-processing.json`
+- `.zoo-agent/locks/resource-locks.json`
+
+Context handling:
+
+- Do not first classify the request as short-term or long-term. Treat the user input as the current task.
+- The dispatcher builds a Task Context envelope from `.zoo-agent/project-charter.json`, `.zoo-agent/current-run.json`, `.zoo-agent/goals/*.json`, and task boards when present.
+- Project charter, goal contract, project profile, and project map are read-only background unless the user explicitly requests a durable update and the command passes `--allow-durable-state-update`.
+
+Execution graph:
+
+- `executor-selection.json.execution_graph` records chain weight, judgment nodes, misroute risk, conflict keys, parallel contract, and rollback contract.
+- Level 3 leaves include their own execution graph; schedule leaves in parallel only when conflict keys do not overlap.
+
+Closure:
+
+- After worker execution, run `check_task_board_consistency.py` and `run_quality_gate.py`.
+- Use `update_risk_register.py` when risks are known.
+- Use `process_merge_queue.py` only after quality gate authorization.
+- If older sections mention `generate-resource-locks.py`, `check-resource-locks.py`, `generate-branch-schedule.py`, or `schedule-parallel-branches.py`, use `check_codex_worker_concurrency.py`, `run_codex_parallel_workers.py`, and `manage_resource_locks.py` for the current Codex worker bridge.
+<!-- END AI_NATIVE_DISPATCHER_OVERRIDE -->
 Run this request through Zoo Code Agent Governance Kit v0.3.9 Codex CLI Worker Bridge + Adaptive Fast Path:
 
 `$ARGUMENTS`

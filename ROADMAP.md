@@ -25,6 +25,13 @@
 - Codex CLI worker bridge for bounded leaf execution.
 - Parallel resource-lock hardening.
 
+## v0.3.11 Governance Closure
+
+- Executable task-board, risk-register, quality-gate, and merge-queue closure checks.
+- Active resource-lock acquisition and release for parallel Codex workers.
+- AI-native run summaries with quality-gate and lock evidence.
+- Expanded smoke coverage for Vibe Coding cross-validation failure modes.
+
 ## v0.4 Dashboard / Metrics
 
 - Add local dashboards.

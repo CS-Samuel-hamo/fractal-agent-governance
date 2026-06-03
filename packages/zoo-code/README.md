@@ -1,14 +1,17 @@
-# Zoo Code Agent Governance Kit v3.10 Project Bootstrap + Codex Worker Bridge
+# Zoo Code Agent Governance Kit v0.3.11 Governance Closure + Codex Worker Bridge
 
 This package contains the Zoo Code adapter. Install it globally; it is not copied into business repositories.
 
-v3.10 adds the Codex CLI worker bridge, one-command project bootstrap for new and existing projects, project-level `TASKS.md` and `current-run.json`, safer `AGENTS.md` / local-rule proposal behavior, runtime consistency compatibility for older artifact graphs, and tighter parallel resource-lock checks.
+Reload VS Code / Zoo Code after installation. Configure provider profiles separately in the local tool UI; this installer does not install API keys.
+
+v0.3.11 keeps the project bootstrap, task-board/runtime layer, Codex CLI worker bridge, and parallel safety checks from v0.3.10, then adds executable governance closure: task-board consistency checks, risk register updates, quality-gate evidence, merge queue processing, active resource-lock acquisition/release for parallel workers, and richer AI-native run summaries.
+
+The package defines source-of-truth hierarchy, project charter, project-level `TASKS.md`, `current-run.json`, three-stage Task Board Apply, resume safety checks, project architecture maps, resource locks, branch schedule denial reasons, aggregation diagnostics, and safer Stop/Progress/Redirect/Resume flow.
 
 It integrates:
 
-- Zoo Boomerang Tasks, custom modes, skills, slash commands, worktrees, checkpoints, diagnostics, codebase indexing, and API/sticky model profiles.
-- Goal contract, run-ledger, artifact-graph, project-charter, project-profile, project-map, architecture-boundaries, obligation-ledger, governance intensity, fractal branch tree, worktree scheduling, path locks, resource locks, checkpoints, diagnostics, quality gate, reviews, parent aggregation, merge queue, metrics, and lessons.
-- Codex CLI worker task packs, scope guards, result collection, and executor comparison smoke tests.
+- Zoo Boomerang Tasks, custom modes, skills, slash commands, worktrees, checkpoints, diagnostics, codebase indexing, and API/sticky model profiles
+- goal contract, run-ledger, artifact-graph, project-charter, project-profile, project-map, architecture-boundaries, obligation-ledger, governance intensity, fractal branch tree, worktree scheduling, path locks, checkpoints, diagnostics, quality gate, reviews, parent aggregation, merge queue, metrics, and lessons
 
 Do not copy the full kit into business repositories. Install globally with:
 
@@ -17,91 +20,11 @@ python scripts/install-global-zoo-agent-kit.py --dry-run
 python scripts/install-global-zoo-agent-kit.py
 ```
 
-Reload VS Code / Zoo Code after installation. Configure provider profiles separately in the local tool UI; this installer does not install API keys.
-
-`/agent-run` is the main workflow bus. `/agent-bootstrap` is the project onboarding entry point. Other slash commands are control-plane, Codex worker, progress, redirect, or evaluation tools.
+`/agent-run` is the only main workflow bus. Other slash commands are control-plane or evaluation tools.
 
 ## Runtime Backbone
 
-`Goal -> Project Bootstrap -> current-run.json -> TASKS.md -> Run -> Project Context -> Obligations -> Branch Tree -> Worktree Schedule -> Execution -> Evidence -> Gates -> Review -> Parent Aggregation -> Merge Queue -> Integration -> Metrics -> Lessons`
-
-Project-level facts live under `.zoo-agent/`:
-
-```text
-.zoo-agent/
-  project-charter.json
-  project-profile.json
-  project-map.json
-  architecture-boundaries.json
-  project-readiness.json
-  current-run.json
-  TASKS.md
-```
-
-Run-level facts live under `.zoo-agent/runs/<run-id>/`:
-
-```text
-run-ledger.json
-branch-state.json
-task-board.json
-TASKS.md
-tasks/<branch-id>.md
-progress.md / progress.json / progress-tree.md
-artifact-graph.json
-branch-schedule.json
-worktree-map.json
-path-locks.json
-resource-locks.json
-merge-queue.json
-```
-
-`TASKS.md` at the project root is the current human-editable task-board entry. The run-local `TASKS.md` is the current run snapshot/archive. `tasks/root.md` is the root branch detail document, not a second global task board.
-
-## Project Bootstrap
-
-Use one operation for new and existing projects:
-
-```powershell
-python scripts/bootstrap_project.py --project . --mode auto --apply
-```
-
-Bootstrap creates or refreshes project facts, local behavior summaries, readiness reports, run task boards, `.zoo-agent/current-run.json`, and `.zoo-agent/TASKS.md`.
-
-Safety rules:
-
-- Missing `AGENTS.md` is created.
-- Existing complete `AGENTS.md` is left unchanged.
-- Existing incomplete `AGENTS.md` gets `AGENTS.md.new`.
-- Missing `.roo/rules/*.md` files are created.
-- Existing rule files are left unchanged.
-- Existing `.gitignore` gets `.gitignore.agent.patch` when agent runtime ignore rules are missing.
-
-## Codex Worker Bridge
-
-Codex worker mode is for bounded leaf tasks. Generate a task pack, run Codex inside the assigned workspace/worktree, check scope, and collect the result:
-
-```powershell
-python scripts/generate-codex-task-pack.py --run-id <run-id> --task-id <task-id> --objective "<objective>" --allowed-file "src/**" --acceptance "<acceptance>" --test-command "<tests>"
-python scripts/run-codex-worker.py --task-dir ".zoo-agent/runs/<run-id>/codex-tasks/<task-id>" --workspace "<worktree>" --sandbox workspace-write --dry-run
-python scripts/check-codex-scope.py --task-id <task-id> --tasks ".zoo-agent/runs/<run-id>/codex-tasks/<task-id>/TASKS.yaml"
-python scripts/collect-codex-result.py --run-id <run-id> --task-id <task-id> --task-dir ".zoo-agent/runs/<run-id>/codex-tasks/<task-id>" --workspace "<worktree>"
-```
-
-Codex workers must not perform final review, integration, merge, push, or global configuration writes.
-
-## Parallel Scheduling
-
-Parallel execution is a safety plan, not automatic background fan-out. After branch contracts exist, run:
-
-```powershell
-python scripts/schedule-parallel-branches.py --run-id <run-id> --goal-id <goal-id> --branch-tree <branch-tree.json>
-python scripts/generate-resource-locks.py --run-id <run-id>
-python scripts/check-parallel-branch-safety.py --run-id <run-id>
-```
-
-The scheduler writes `branch-schedule.json`, `worktree-map.json`, `path-locks.json`, `merge-queue.json`, `parent-aggregation-matrices.json`, `parallel-metrics.json`, and `parallel-execution-report.md`.
-
-Parallel coding requires non-overlapping owned paths, declared shared paths, stable provides/consumes contracts, low/medium risk, worktree isolation, path locks, resource locks, checkpoints, and GPT planner/orchestrator approval. Final integration is always serialized through merge queue and parent aggregation.
+`Goal -> Run -> Project Context -> Obligations -> Branch Tree -> Worktree Schedule -> Execution -> Evidence -> Gates -> Review -> Parent Aggregation -> Merge Queue -> Integration -> Metrics -> Lessons`
 
 ## Boomerang vs Fractal
 
@@ -136,13 +59,3 @@ python scripts\run-codex-worker.py `
 The worker points `TMPDIR`, `TMP`, and `TEMP` at the current task pack `.codex-tmp` directory so temporary files stay inside the task-allowed area instead of polluting the worktree root.
 
 Restart PowerShell, VS Code, Zoo Launcher, and Codex App after changing the user-level environment variable.
-
-## Validation
-
-Run package validation before publishing or installing:
-
-```powershell
-python scripts/validate-zoo-agent-kit.py
-python scripts/smoke-test-codex-worker.py
-python scripts/run-evals.py --suite parallel-branch
-```

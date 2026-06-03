@@ -142,7 +142,7 @@ It is a governance runtime with artifacts, gates, fallback paths, and a learning
 - Requires user review for high-risk gates.
 - Does not replace CI.
 - Does not read secrets.
-- Does not automatically fan out multiple Codex workers in the background. It generates and checks safe parallel schedules; an orchestrator or user still starts bounded workers.
+- Parallel Codex fan-out requires generated worktrees, task packs, branch-specific outputs, resource locks, quality gates, and a serial merge queue.
 
 ## Not Official Zoo Code Disclaimer
 
@@ -166,5 +166,6 @@ Alpha and experimental.
 - v0.2 eval suites.
 - v0.3 worktree runtime.
 - v0.3.10 project bootstrap, task-board entry, Codex worker bridge, and parallel resource-lock hardening.
+- v0.3.11 governance closure checks, active parallel worker locks, quality-gate evidence, and merge queue processing.
 - v0.4 dashboard and metrics.
 - v0.5 adapters for Roo, Kilo, Claude, and Codex.

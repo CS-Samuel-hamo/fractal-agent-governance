@@ -1,9 +1,25 @@
----
-description: Collect Codex CLI worker output back into Zoo artifacts.
-argument-hint: <run-id> <task-id> <task-dir> <worktree>
-mode: agent-executor
----
+# Codex Ingest
 
-Collect Codex result for `$ARGUMENTS`.
+Collect and summarize Codex worker results.
 
-Run `scripts/collect-codex-result.py`, verify scope guard output, and write `result.json` and `result.md`. Return the result to Zoo review and merge queue. Do not merge.
+## Collect One Task
+
+```powershell
+$collect = if (Test-Path ".\scripts\collect_codex_result.py") { ".\scripts\collect_codex_result.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\collect_codex_result.py" }
+python $collect `
+  --run-id "<run-id>" `
+  --task-id "<task-id>" `
+  --task-dir "<task-dir>" `
+  --workspace "<workspace>"
+```
+
+## Summarize A Run
+
+```powershell
+$summary = if (Test-Path ".\scripts\summarize_ai_native_run.py") { ".\scripts\summarize_ai_native_run.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\summarize_ai_native_run.py" }
+python $summary `
+  --run-id "<run-id>" `
+  --workspace "<workspace>"
+```
+
+Inspect `ai-native-summary.json` and `ai-native-summary.md` before merge decisions.

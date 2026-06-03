@@ -1,9 +1,20 @@
----
-description: Review a Codex worker result before Zoo integration.
-argument-hint: <run-id> <task-id>
-mode: agent-reviewer
----
+# Codex Review
 
-Review Codex result for `$ARGUMENTS`.
+Review a dispatcher or worker result before merge.
 
-Check scope guard, changed files, acceptance evidence, test output, blocker notes, and whether Codex inferred architecture, public API, security, or dependency changes without approval. Produce APPROVE, APPROVE_WITH_MINOR_FIXES, REQUEST_CHANGES, or REDESIGN_REQUIRED.
+Start from:
+
+- `.zoo-agent/runs/<run-id>/ai-native-summary.json`
+- `.zoo-agent/runs/<run-id>/dispatcher-runs/<task-id>.json`
+- `.zoo-agent/runs/<run-id>/optimistic-runs/<task-id>.json`
+- `.zoo-agent/runs/<run-id>/codex-results/<task-id>/result.json`
+
+Review order:
+
+1. Confirm scope guard status.
+2. Confirm tests were run or explicitly deferred.
+3. Inspect changed files.
+4. Inspect worker final message and blockers.
+5. For Level 3, confirm every leaf has its own verification evidence.
+
+Do not merge automatically. Produce a merge-candidate recommendation only.

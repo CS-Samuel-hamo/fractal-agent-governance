@@ -1,17 +1,24 @@
----
-description: Run a generated Codex Task Pack through Codex CLI.
-argument-hint: <task-dir> <worktree>
-mode: agent-executor
----
+# Codex Run
 
-Run Codex CLI for `$ARGUMENTS`.
+Lower-level command for running an already generated Codex Task Pack.
 
-Use:
+Prefer `.roo/commands/agent-run.md` for normal Zoo work. Use this only when a task pack already exists or when debugging the worker bridge.
 
-```bash
-python scripts/run-codex-worker.py --task-dir <task-dir> --workspace <worktree> --sandbox workspace-write --codex-home D:\AI_DEV\codex_home --timeout-seconds 360
+## Required Inputs
+
+- `task_dir`
+- `workspace`
+
+## Command Shape
+
+```powershell
+$worker = if (Test-Path ".\scripts\run_codex_worker.py") { ".\scripts\run_codex_worker.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\run_codex_worker.py" }
+python $worker `
+  --task-dir "<task-dir>" `
+  --workspace "<workspace>" `
+  --sandbox workspace-write `
+  --codex-home "D:\AI_DEV\codex_home" `
+  --timeout-seconds 360
 ```
 
-Codex Worker is code-only by default. After it exits, run the external harness checks: targeted tests, scope guard, and result collection.
-
-Do not use danger bypass. Do not commit, push, merge, or delete branches.
+The external harness owns tests, scope guard, and result collection unless a runtime note explicitly requires otherwise.

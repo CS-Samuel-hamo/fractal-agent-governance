@@ -15,7 +15,7 @@ No blocking findings.
 ## Contract Coverage
 | acceptance criterion | evidence | status |
 |---|---|---|
-| Dry-run completes and reports only user-global targets | Dry-run output targeted `C:\Users\sheng\.roo`, `C:\Users\sheng\.vscode\extensions`, `C:\Users\sheng\.cursor\extensions`, and Zoo Code global `custom_modes.yaml` | pass |
+| Dry-run completes and reports only user-global targets | Dry-run output targeted `$env:USERPROFILE\.roo`, `$env:USERPROFILE\.vscode\extensions`, `$env:USERPROFILE\.cursor\extensions`, and Zoo Code global `custom_modes.yaml` | pass |
 | Formal installation completes | Installer exited 0 and reported `[OK]` for global assets, launcher extension installs, and modes merge | pass |
 | `~/.roo/commands/agent-run.md` exists | Post-install `Test-Path` returned OK | pass |
 | `~/.roo/rules-agent-executor/` exists | Post-install `Test-Path` returned OK | pass |
@@ -29,10 +29,10 @@ No blocking findings.
 ## Integration Surface Coverage
 | surface | evidence | status |
 |---|---|---|
-| Global rules/skills/commands/resources | Installer wrote under `C:\Users\sheng\.roo` | pass |
-| Launcher | Installed under `C:\Users\sheng\.vscode\extensions\local.zoo-agent-run-launcher-0.3.3` and `C:\Users\sheng\.cursor\extensions\local.zoo-agent-run-launcher-0.3.3` | pass |
-| Modes | Merged into `C:\Users\sheng\AppData\Roaming\Code\User\globalStorage\zoocodeorganization.zoo-code\settings\custom_modes.yaml` | pass |
-| Backup/rollback | Installer created timestamped backups under `C:\Users\sheng\.roo\backups` | pass |
+| Global rules/skills/commands/resources | Installer wrote under `$env:USERPROFILE\.roo` | pass |
+| Launcher | Installed under `$env:USERPROFILE\.vscode\extensions\local.zoo-agent-run-launcher-0.3.3` and `$env:USERPROFILE\.cursor\extensions\local.zoo-agent-run-launcher-0.3.3` | pass |
+| Modes | Merged into `$env:USERPROFILE\AppData\Roaming\Code\User\globalStorage\zoocodeorganization.zoo-code\settings\custom_modes.yaml` | pass |
+| Backup/rollback | Installer created timestamped backups under `$env:USERPROFILE\.roo\backups` | pass |
 | Generated file filtering | Installer skips `__pycache__` and `.pyc`; global resource scripts directory contains no `__pycache__` | pass |
 
 ## Governance Event Required?

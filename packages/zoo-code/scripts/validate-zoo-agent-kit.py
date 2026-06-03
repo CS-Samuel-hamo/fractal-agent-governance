@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-KIT_VERSION = "0.3.10-project-bootstrap-codex-parallel"
+KIT_VERSION = "0.3.11-governance-closure-codex-parallel"
 LAUNCHER_PACKAGE_VERSION = "0.3.11"
 
 EXPECTED_MODES = {

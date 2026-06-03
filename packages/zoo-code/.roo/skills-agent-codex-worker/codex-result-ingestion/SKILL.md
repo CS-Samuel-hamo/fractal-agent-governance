@@ -1,21 +1,33 @@
 ---
 name: codex-result-ingestion
-description: Collect Codex CLI worker output and convert it into Zoo result artifacts.
-version: 0.3.9
-scope: governance
-applies_to: agent-executor
-last_updated: 2026-06-01
-deprecated_by:
+description: Collect, summarize, and review Codex worker and AI-native dispatcher execution results.
+version: 3.9.1
+scope: global
+applies_to: agent-codex-worker
+last_updated: 2026-06-03
+deprecated_by: ""
 ---
 
 # Codex Result Ingestion
 
-Use this skill after a Codex worker run completes or when a manually produced Codex result needs to be captured.
+Use this skill when collecting or summarizing Codex worker results.
 
-Steps:
+Collect one task:
 
-1. Collect git status, diff names, diff stat, final message, progress, blockers, and run metadata.
-2. Run the Codex scope guard.
-3. Write `result.json` and `result.md`.
-4. Update artifact graph.
-5. Return evidence to Zoo review. Do not merge.
+```powershell
+$collect = if (Test-Path ".\scripts\collect_codex_result.py") { ".\scripts\collect_codex_result.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\collect_codex_result.py" }
+python $collect `
+  --run-id "<run-id>" `
+  --task-id "<task-id>" `
+  --task-dir "<task-dir>" `
+  --workspace "<workspace>"
+```
+
+Summarize the run:
+
+```powershell
+$summary = if (Test-Path ".\scripts\summarize_ai_native_run.py") { ".\scripts\summarize_ai_native_run.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\summarize_ai_native_run.py" }
+python $summary `
+  --run-id "<run-id>" `
+  --workspace "<workspace>"
+```

@@ -4,6 +4,28 @@ argument-hint: <optional run id>
 mode: agent-orchestrator
 ---
 
+<!-- BEGIN AI_NATIVE_PROGRESS_SUMMARY -->
+## AI-Native Run Summary
+
+For AI-native dispatcher runs, refresh progress with:
+
+```powershell
+$summary = if (Test-Path ".\scripts\summarize_ai_native_run.py") { ".\scripts\summarize_ai_native_run.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\summarize_ai_native_run.py" }
+python $summary `
+  --run-id "<run-id>" `
+  --workspace "<workspace>"
+```
+
+Read `.zoo-agent/runs/<run-id>/ai-native-summary.json` before retry, decomposition, review, or merge-candidate decisions.
+
+For closure-sensitive decisions, also inspect:
+
+- `.zoo-agent/runs/<run-id>/task-board-consistency.json`
+- `.zoo-agent/runs/<run-id>/risk-register.json`
+- `.zoo-agent/runs/<run-id>/quality-gate.json`
+- `.zoo-agent/runs/<run-id>/merge-queue-processing.json`
+- `.zoo-agent/locks/resource-locks.json`
+<!-- END AI_NATIVE_PROGRESS_SUMMARY -->
 Generate a read-only Progress Snapshot for the current Zoo Agent run.
 
 Arguments:
