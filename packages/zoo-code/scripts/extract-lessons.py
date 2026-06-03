@@ -58,7 +58,7 @@ def main() -> int:
     parser.add_argument("--regression-check", default="unknown")
     parser.add_argument("--rollback-plan", default="restore previous governance asset from backup")
     parser.add_argument("--confidence", default="medium")
-    parser.add_argument("--owner-mode", default="agent-curator-draft")
+    parser.add_argument("--owner-mode", default="agent-integrator")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 

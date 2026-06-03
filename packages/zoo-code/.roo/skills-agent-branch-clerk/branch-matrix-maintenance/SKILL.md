@@ -3,7 +3,7 @@ name: branch-matrix-maintenance
 description: Maintain objective coverage, dependency, ownership, risk, and integration matrices without making branch decisions.
 version: 3.6.0
 scope: global
-applies_to: agent-branch-clerk
+applies_to: agent-orchestrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

@@ -1,0 +1,8 @@
+id: small-refactor
+title: Small refactor
+governance_level: 1
+expected_executor: codex_cli
+metrics:
+  - changed_file_count
+  - quality_gate_pass
+  - architecture_drift

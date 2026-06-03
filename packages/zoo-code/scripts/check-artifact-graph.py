@@ -24,6 +24,21 @@ def normalize_ref(value: str) -> str:
     return f"{typ.strip()}:{path.strip()}"
 
 
+def graph_items(graph: dict) -> list[dict]:
+    items = [x for x in graph.get("artifacts", []) if isinstance(x, dict)]
+    items.extend(x for x in graph.get("nodes", []) if isinstance(x, dict))
+    return items
+
+
+def graph_field(graph: dict, field: str):
+    if field in graph:
+        return graph.get(field)
+    metadata = graph.get("artifact_metadata", {})
+    if isinstance(metadata, dict):
+        return metadata.get(field)
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check runtime artifact graph integrity.")
     parser.add_argument("--graph")
@@ -39,14 +54,15 @@ def main() -> int:
         run_id = graph.get("run_id")
         issues = []
         artifacts = graph.get("artifacts", [])
-        types = {x.get("type") for x in artifacts if isinstance(x, dict)}
+        items = graph_items(graph)
+        types = {x.get("type") for x in items if isinstance(x, dict)}
         run_ids = {x.get("run_id") for x in artifacts if isinstance(x, dict) and x.get("run_id")}
         if run_id and any(x != run_id for x in run_ids):
             issues.append({"type": "mixed_run_ids", "run_ids": sorted(run_ids)})
         for field in REQUIRED_FIELDS:
-            if field not in graph:
+            if graph_field(graph, field) in (None, "", []):
                 issues.append({"type": "graph_missing_field", "field": field})
-        artifact_ids = {x.get("artifact_id") for x in artifacts if isinstance(x, dict)}
+        artifact_ids = {x.get("artifact_id") for x in items if isinstance(x, dict)}
         cwd = Path.cwd()
         for item in artifacts:
             if not isinstance(item, dict):
@@ -63,7 +79,7 @@ def main() -> int:
             for endpoint in ["from", "to"]:
                 value = edge.get(endpoint)
                 normalized = normalize_ref(str(value)) if value else value
-                if normalized and normalized not in artifact_ids and not any(str(value) == str(x.get("path")) for x in artifacts if isinstance(x, dict)):
+                if normalized and normalized not in artifact_ids and not any(str(value) == str(x.get("path")) for x in items if isinstance(x, dict)):
                     issues.append({"type": "edge_references_unknown_artifact", "endpoint": endpoint, "value": value})
         report = {"status": "pass" if not issues else "fail", "path": str(graph_path), "artifact_types": sorted(str(x) for x in types), "issues": issues}
     text = json.dumps(report, indent=2)

@@ -1,13 +1,16 @@
 flowchart TD
   Goal["Goal / Run"] --> Profile["Project Profile"]
-  Profile --> Ledger["Obligation Ledger"]
+  Profile --> Bootstrap["Project Bootstrap"]
+  Bootstrap --> TaskBoard["current-run.json / TASKS.md"]
+  TaskBoard --> Ledger["Obligation Ledger"]
   Ledger --> BranchTree["Fractal Branch Tree"]
-  BranchTree --> DeepSeek["DeepSeek execution layer"]
+  BranchTree --> Workers["Codex / DeepSeek execution workers"]
   BranchTree --> GPT["GPT decision layer"]
-  DeepSeek --> Quality["Quality Gate"]
+  Workers --> Quality["Quality Gate"]
   GPT --> Review["Review Gate"]
   Quality --> Worktree["Worktree Runtime"]
   Review --> Worktree
-  Worktree --> Queue["Merge Queue"]
+  Worktree --> Locks["Path Locks / Resource Locks"]
+  Locks --> Queue["Serial Merge Queue"]
   Queue --> Learning["Learning Loop"]
   Learning --> Ledger

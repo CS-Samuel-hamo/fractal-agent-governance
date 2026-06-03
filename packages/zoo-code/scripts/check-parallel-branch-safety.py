@@ -7,6 +7,7 @@ from pathlib import Path
 
 SENSITIVE = {"security", "auth", "authorization", "payment", "pii", "migration", "credentials", "production_config"}
 HIGH_RISK = {"high", "critical"}
+GPT_APPROVERS = {"agent-orchestrator", "agent-planner"}
 
 
 def load(path: Path) -> dict:
@@ -65,6 +66,26 @@ def check_group(group_id: str, items: list[dict]) -> list[dict]:
     return issues
 
 
+def check_group_approval(schedule: dict) -> list[dict]:
+    issues = []
+    for group in schedule.get("parallel_groups", []):
+        group_id = group.get("group_id", "unknown")
+        owner = group.get("decision_owner") or schedule.get("parallel_allowed_by")
+        if owner not in GPT_APPROVERS:
+            issues.append({"group_id": group_id, "severity": "blocker", "issue": "parallel_group_not_gpt_approved", "decision_owner": owner})
+        if group.get("approval_status", "approved") != "approved":
+            issues.append({"group_id": group_id, "severity": "blocker", "issue": "parallel_group_approval_missing"})
+        if group.get("requires_worktree") is not True:
+            issues.append({"group_id": group_id, "severity": "blocker", "issue": "parallel_group_missing_worktree_requirement"})
+        if group.get("requires_checkpoint_before_execution") is not True:
+            issues.append({"group_id": group_id, "severity": "blocker", "issue": "parallel_group_missing_checkpoint_requirement"})
+    if schedule.get("direct_parallel_merge_allowed") is True:
+        issues.append({"severity": "blocker", "issue": "direct_parallel_merge_allowed"})
+    if schedule.get("requires_merge_queue") is False:
+        issues.append({"severity": "blocker", "issue": "merge_queue_not_required"})
+    return issues
+
+
 def check_provides_consumes(schedule: dict, branches: dict[str, dict]) -> list[dict]:
     issues = []
     provided = {item for b in branches.values() for item in b.get("provides", [])}
@@ -77,23 +98,75 @@ def check_provides_consumes(schedule: dict, branches: dict[str, dict]) -> list[d
     return issues
 
 
+def resource_branches(resource_locks: dict) -> dict[str, set[str]]:
+    out: dict[str, set[str]] = {}
+    for resource in resource_locks.get("resources", []):
+        rid = resource.get("resource_id")
+        if not rid:
+            continue
+        branches = set(resource.get("providers", []) + resource.get("consumers", []))
+        if resource.get("owner_branch"):
+            branches.add(resource.get("owner_branch"))
+        for bid in branches:
+            out.setdefault(bid, set()).add(rid)
+    return out
+
+
+def check_resource_locks(schedule: dict, resource_locks: dict) -> list[dict]:
+    if not resource_locks:
+        return [{"severity": "blocker", "issue": "missing_resource_locks"}]
+    by_branch = resource_branches(resource_locks)
+    by_id = {x.get("resource_id"): x for x in resource_locks.get("resources", [])}
+    issues = []
+    for group in schedule.get("parallel_groups", []):
+        ids = group.get("branches", [])
+        for bid in ids:
+            if not by_branch.get(bid):
+                issues.append({
+                    "group_id": group.get("group_id", "unknown"),
+                    "branch_id": bid,
+                    "severity": "blocker",
+                    "issue": "branch_missing_resource_lock",
+                })
+        for i, left in enumerate(ids):
+            for right in ids[i + 1:]:
+                shared = by_branch.get(left, set()) & by_branch.get(right, set())
+                for rid in sorted(shared):
+                    resource = by_id.get(rid, {})
+                    if resource.get("lock_type") != "read_only":
+                        issues.append({
+                            "group_id": group.get("group_id", "unknown"),
+                            "left": left,
+                            "right": right,
+                            "severity": "blocker",
+                            "issue": "resource_lock_conflict",
+                            "resource_id": rid,
+                            "resource_type": resource.get("type", "unknown"),
+                        })
+    return issues
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check whether branch schedule is safe for parallel execution.")
     parser.add_argument("--run-id")
     parser.add_argument("--schedule")
     parser.add_argument("--path-locks")
+    parser.add_argument("--resource-locks")
     parser.add_argument("--output")
     args = parser.parse_args()
     schedule_path = Path(args.schedule) if args.schedule else Path(".zoo-agent") / "runs" / (args.run_id or "") / "branch-schedule.json"
     locks_path = Path(args.path_locks) if args.path_locks else Path(".zoo-agent") / "runs" / (args.run_id or "") / "path-locks.json"
+    resource_locks_path = Path(args.resource_locks) if args.resource_locks else Path(".zoo-agent") / "runs" / (args.run_id or "") / "resource-locks.json"
     issues = []
     schedule = load(schedule_path)
     if not schedule:
         issues.append({"severity": "blocker", "issue": "missing_branch_schedule", "path": str(schedule_path)})
     branches = branch_map(schedule)
+    issues.extend(check_group_approval(schedule))
     for group_id, items in group_branches(schedule, branches):
         issues.extend(check_group(group_id, items))
     issues.extend(check_provides_consumes(schedule, branches))
+    issues.extend(check_resource_locks(schedule, load(resource_locks_path)))
     if not locks_path.exists():
         issues.append({"severity": "blocker", "issue": "missing_path_locks", "path": str(locks_path)})
     else:
@@ -103,7 +176,7 @@ def main() -> int:
             if bid not in lock_branches:
                 issues.append({"branch_id": bid, "severity": "blocker", "issue": "branch_missing_path_lock"})
     status = "pass" if not any(i.get("severity") == "blocker" for i in issues) else "fail"
-    report = {"status": status, "schedule": str(schedule_path), "path_locks": str(locks_path), "issues": issues}
+    report = {"status": status, "schedule": str(schedule_path), "path_locks": str(locks_path), "resource_locks": str(resource_locks_path), "issues": issues}
     text = json.dumps(report, indent=2)
     if args.output:
         out = Path(args.output)

@@ -3,7 +3,7 @@ name: incident-postmortem
 description: Create incident postmortem drafts and governance regression proposals for GPT curator approval.
 version: 3.6.0
 scope: global
-applies_to: agent-curator
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

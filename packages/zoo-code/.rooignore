@@ -1,0 +1,38 @@
+# Secrets and local-only files
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/**
+credentials/**
+
+# Heavy/generated files
+node_modules/**
+dist/**
+build/**
+coverage/**
+.cache/**
+.tmp/**
+tmp/**
+logs/**
+*.log
+
+# Binary/media/data dumps
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp4
+*.mov
+*.zip
+*.tar
+*.gz
+*.sqlite
+*.db
+*.parquet
+*.csv
+
+# Keep governance visible; do not ignore docs/agent-governance.

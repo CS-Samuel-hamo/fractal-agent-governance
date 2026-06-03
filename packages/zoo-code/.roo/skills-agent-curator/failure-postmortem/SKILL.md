@@ -3,7 +3,7 @@ name: failure-postmortem
 description: Analyze an agent failure, classify root cause, identify missed governance controls, and propose evidence-bound corrections to rules, skills, templates, or review gates.
 version: 3.6.0
 scope: global
-applies_to: agent-curator
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

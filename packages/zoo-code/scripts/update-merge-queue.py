@@ -36,11 +36,43 @@ def eligible(args: argparse.Namespace) -> tuple[bool, list[str]]:
     return not reasons, reasons
 
 
+def load_branch_statuses(run_id: str) -> dict[str, str]:
+    path = Path(".zoo-agent") / "runs" / run_id / "branch-state.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except Exception:
+        return {}
+    return {item.get("branch_id"): str(item.get("status", "unknown")).lower() for item in data.get("branches", [])}
+
+
+def prune_unsafe(data: dict, run_id: str) -> tuple[dict, list[dict]]:
+    statuses = load_branch_statuses(run_id)
+    unsafe = {"abandoned", "redo_needed", "paused"}
+    kept = []
+    moved = []
+    for item in data.get("queue", []):
+        bid = item.get("branch_id")
+        status = statuses.get(bid)
+        if status in unsafe:
+            rejected = dict(item)
+            rejected["branch_status"] = status
+            rejected["reasons"] = ["branch_not_safe_for_merge_queue"]
+            rejected["moved_at"] = now()
+            moved.append(rejected)
+        else:
+            kept.append(item)
+    data["queue"] = kept
+    data.setdefault("rejected", []).extend(moved)
+    data["updated_at"] = now()
+    data["redirect_impact"] = "reorder_required" if moved else data.get("redirect_impact", "unchanged")
+    return data, moved
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Update merge queue; only gate/review/path-lock safe branches can enqueue.")
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--branch-id", required=True)
-    parser.add_argument("--action", choices=["enqueue", "list"], default="enqueue")
+    parser.add_argument("--branch-id")
+    parser.add_argument("--action", choices=["enqueue", "list", "prune-unsafe"], default="enqueue")
     parser.add_argument("--queue")
     parser.add_argument("--quality-gate-status", default="unknown")
     parser.add_argument("--review-status", default="unknown")
@@ -51,7 +83,15 @@ def main() -> int:
     args = parser.parse_args()
     path = queue_path(args.run_id, args.queue)
     data = load(path, args.run_id)
-    if args.action == "enqueue":
+    if args.action == "prune-unsafe":
+        data, moved = prune_unsafe(data, args.run_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        status = "pass"
+    elif args.action == "enqueue":
+        if not args.branch_id:
+            print(json.dumps({"status": "fail", "error": "branch_id_required_for_enqueue"}, indent=2))
+            return 2
         ok, reasons = eligible(args)
         entry = {
             "branch_id": args.branch_id,

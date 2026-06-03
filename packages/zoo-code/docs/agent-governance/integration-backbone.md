@@ -12,7 +12,7 @@ All governance lines attach to one runtime backbone:
 | --- | --- | --- | --- |
 | Goal | goal-contract | `.zoo-agent/goals/<goal-id>.json` | `/goal`, `/agent-run` |
 | Run | run-ledger | `.zoo-agent/runs/<run-id>/run-ledger.json` | `/agent-run`, `/status` |
-| Project Context | project-profile | `.zoo-agent/project-profile.json` | project-profiler |
+| Project Context | project-charter / project-profile / project-map / architecture-boundaries | `.zoo-agent/project-charter.json`, `.zoo-agent/project-profile.json`, `.zoo-agent/project-map.json`, `.zoo-agent/architecture-boundaries.json` | project-profiler |
 | Obligations | obligation-ledger | `.zoo-agent/runs/<run-id>/obligation-ledger.json` | executor, mechanical reviewer |
 | Branch Tree | branch-state | `.zoo-agent/runs/<run-id>/branch-state.json` or docs branch-state | branch-manager, branch-clerk |
 | Worktree Schedule | worktree-map / branch-schedule / path-locks | `.zoo-agent/runs/<run-id>/worktree-map.json`, `branch-schedule.json`, `path-locks.json` | branch-manager, worktree scripts |
@@ -61,3 +61,6 @@ Additional v3.7 transition guards:
 - no diagnostics-report where diagnostics were requested: quality signal is `unknown`
 - no checkpoint_ref where rollback was required: fallback/abort must record why checkpoint was unavailable
 - no codebase indexing status in project-profile: pattern discovery confidence is `unknown`
+- no project-charter: no non-trivial coding unless escalated as `charter_unknown`
+- no project-map: no multi-module or architecture-sensitive coding
+- no architecture-boundaries: no high-risk architecture change without GPT decision

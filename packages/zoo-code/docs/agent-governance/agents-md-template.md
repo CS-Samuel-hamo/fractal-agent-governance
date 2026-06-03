@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Project Charter
+charter: docs/project-charter.md
+mission: unknown
+non_goals: unknown
+quality_bar: unknown
+human_gates: unknown
+
 ## Project Context
 language: unknown
 framework: unknown

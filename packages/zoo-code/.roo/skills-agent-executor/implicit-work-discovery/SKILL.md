@@ -17,7 +17,7 @@ deprecated_by: ""
 ## Output
 Create or update the Obligation Ledger. Include explicit request, inferred obligations, source signals, candidate files or surfaces, status, verification, evidence, risk if omitted, and escalation flag.
 
-Record `discovery_method` as `codebase_search`, `rg`, `manual`, or `unknown`. When Zoo Code codebase indexing is available, use it to find analogous features, Proc/Processor usage, registry/factory/provider wiring, API entrypoints, fixtures, and shared types before falling back to text search.
+Record `discovery_method` as `codebase_search`, `rg`, `file_search`, `manual`, or `unknown`. When Zoo Code codebase indexing is available, use it to find analogous features, Proc/Processor usage, registry/factory/provider wiring, API entrypoints, fixtures, shared types, providers/consumers, and semantic resources before falling back to text search.
 
 ## Required Inference
 For features infer wiring, validation, tests, docs, config, rollback. For behavior changes infer callers, compatibility, tests, error behavior, observability. For existing Proc/Processor use infer data-source semantics and old/new behavior tests.

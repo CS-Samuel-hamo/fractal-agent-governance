@@ -15,6 +15,15 @@ Before acting, classify the task:
 - `BRANCH-MANAGE`: update branch state, child tasks, or summaries.
 - `CURATE`: evolve rules/skills/templates based on postmortem evidence.
 
+## Implicit Agent Run Dispatch
+In project chat, treat every ordinary user request as `/agent-run <verbatim user request>` even if the slash command is omitted.
+
+Do not pre-classify whether the request is coding, planning, review, explanation, or discussion before routing. `/agent-run` is the default workflow bus and performs classification after dispatch.
+
+Only bypass this default when the user explicitly invokes another slash command or explicitly says not to use `/agent-run`.
+
+If the project has not been bootstrapped, recommend `/agent-bootstrap` or `Agent: Bootstrap Project` before implementation unless the user explicitly requests a quick one-off.
+
 ## Mandatory Stop Conditions
 Stop and escalate when:
 1. Requirements conflict with existing architecture.

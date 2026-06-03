@@ -46,4 +46,4 @@ Use:
 /agent-run <requirement>
 ```
 
-This starts in `agent-orchestrator`, which delegates the planner, branch manager, executor, reviewer, integrator, and curator phases as needed.
+This starts in `agent-orchestrator`, which delegates the planner, executor, reviewer, and integrator phases as needed. Branch management and governance curation are internal capabilities of planner and integrator, not separate visible modes.

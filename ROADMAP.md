@@ -18,6 +18,13 @@
 - Improve merge queue simulation.
 - Add branch state visualizations.
 
+## v0.3.10 Project Bootstrap And Codex Bridge
+
+- Project bootstrap for new and existing repositories.
+- Project-level task-board entry through `.zoo-agent/TASKS.md`.
+- Codex CLI worker bridge for bounded leaf execution.
+- Parallel resource-lock hardening.
+
 ## v0.4 Dashboard / Metrics
 
 - Add local dashboards.

@@ -3,7 +3,7 @@ name: skill-change-proposal
 description: Draft the smallest governance asset change proposal from approved lesson evidence.
 version: 3.6.0
 scope: global
-applies_to: agent-curator-draft
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

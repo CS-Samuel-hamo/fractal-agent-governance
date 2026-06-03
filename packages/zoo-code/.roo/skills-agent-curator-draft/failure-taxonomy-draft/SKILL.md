@@ -3,7 +3,7 @@ name: failure-taxonomy-draft
 description: Draft failure taxonomy, postmortem, rule proposal, and regression checklist without approving governance changes.
 version: 3.6.0
 scope: global
-applies_to: agent-curator-draft
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

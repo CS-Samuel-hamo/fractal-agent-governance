@@ -42,6 +42,8 @@ def main() -> int:
     parser.add_argument("--max-loop-budget", type=int, default=2)
     parser.add_argument("--human-gate-required", action="store_true")
     parser.add_argument("--fallback-policy", default="fallback ladder required when stalled twice, regressing once, or over budget")
+    parser.add_argument("--project-charter-path", default=".zoo-agent/project-charter.json")
+    parser.add_argument("--charter-alignment", default="unknown")
     parser.add_argument("--owner", default="agent-orchestrator")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -74,6 +76,8 @@ def main() -> int:
         "max_loop_budget": args.max_loop_budget,
         "human_gate_required": bool(args.human_gate_required),
         "fallback_policy": args.fallback_policy,
+        "project_charter_path": args.project_charter_path,
+        "charter_alignment": args.charter_alignment,
         "owner": args.owner,
         "created_at": existing.get("created_at", ts),
         "updated_at": ts,

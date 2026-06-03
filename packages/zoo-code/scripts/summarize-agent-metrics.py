@@ -17,6 +17,13 @@ def main() -> int:
         "fallback_count": sum(1 for r in rows if r.get("fallback_used")),
         "escalation_count": sum(1 for r in rows if r.get("escalation_used")),
         "quality_gate_pass_count": sum(1 for r in rows if r.get("quality_gate_status") == "pass"),
+        "interrupt_count": sum(int(r.get("interrupt_count", 0) or 0) for r in rows),
+        "task_board_apply_count": sum(int(r.get("task_board_apply_count", 0) or 0) for r in rows),
+        "resume_safety_check_pass_count": sum(int(r.get("resume_safety_check_pass_count", 0) or 0) for r in rows),
+        "resume_safety_check_fail_count": sum(int(r.get("resume_safety_check_fail_count", 0) or 0) for r in rows),
+        "parallel_denial_count": sum(int(r.get("parallel_denial_count", 0) or 0) for r in rows),
+        "resource_lock_conflict_count": sum(int(r.get("resource_lock_conflict_count", 0) or 0) for r in rows),
+        "merge_queue_reorder_count": sum(int(r.get("merge_queue_reorder_count", 0) or 0) for r in rows),
         "final_status_counts": {},
     }
     for r in rows:

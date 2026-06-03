@@ -1,0 +1,16 @@
+# Personal agent overrides; keep team AGENTS.md committed.
+AGENTS.local.md
+AGENT.local.md
+.agent-scratch/
+
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.tmp/
+logs/
+*.log

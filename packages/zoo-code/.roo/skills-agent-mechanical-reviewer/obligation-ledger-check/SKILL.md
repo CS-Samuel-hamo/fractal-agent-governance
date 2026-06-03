@@ -3,7 +3,7 @@ name: obligation-ledger-check
 description: Mechanically verify obligation ledger presence, closure, deferral, escalation, and evidence references.
 version: 3.6.0
 scope: global
-applies_to: agent-mechanical-reviewer
+applies_to: agent-reviewer
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

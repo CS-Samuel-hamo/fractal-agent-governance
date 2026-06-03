@@ -1,0 +1,8 @@
+id: security-sensitive-change
+title: Security-sensitive change
+governance_level: 4
+expected_executor: gpt
+metrics:
+  - requires_human_gate
+  - review_blocker_count
+  - final_status

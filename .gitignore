@@ -8,6 +8,10 @@ backups/
 .zoo-agent/runs/
 .zoo-agent/metrics/
 .zoo-agent/evals/
+**/.zoo-agent/runs/
+**/.zoo-agent/metrics/
+**/.zoo-agent/evals/
+**/.zoo-agent/tmp/
 node_modules/
 __pycache__/
 *.pyc

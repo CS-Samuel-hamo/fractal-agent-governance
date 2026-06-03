@@ -1,3 +1,19 @@
 # Hybrid Model Routing
 
-Route first-run intake to agent-project-profiler / DeepSeek; low-risk contract draft to agent-plan-drafter / DeepSeek; final approval to agent-planner / GPT; branch state updates to agent-branch-clerk / DeepSeek; branch decisions to agent-branch-manager / GPT; coding to agent-executor / DeepSeek; mechanical review to agent-mechanical-reviewer / DeepSeek; final review to agent-reviewer / GPT; merge readiness to agent-integration-clerk / DeepSeek; final integration to agent-integrator / GPT; failure drafts to agent-curator-draft / DeepSeek; governance approval to agent-curator / GPT.
+Use only five visible roles:
+
+- `agent-orchestrator`
+- `agent-planner`
+- `agent-executor`
+- `agent-reviewer`
+- `agent-integrator`
+
+Internal capability mapping:
+
+- first-run intake and project profiling -> `agent-orchestrator`
+- low-risk contract drafts, final plans, branch governance, and decomposition -> `agent-planner`
+- bounded implementation and Codex Worker Bridge -> `agent-executor`
+- mechanical checks, diagnostics, scope guard review, and final review -> `agent-reviewer`
+- merge readiness, integration, release readiness, lessons, incidents, and governance evolution -> `agent-integrator`
+
+DeepSeek may draft or execute bounded mechanical work inside these roles. GPT owns final plan, decomposition, review, integration, security/release, and governance-change decisions.

@@ -3,7 +3,7 @@ name: fractal-task-decomposition
 description: Decompose a complex software or project-management task into bounded recursive branch-agent nodes with parent contracts, child contracts, exit conditions, and merge criteria.
 version: 3.6.0
 scope: global
-applies_to: agent-branch-manager
+applies_to: agent-planner
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

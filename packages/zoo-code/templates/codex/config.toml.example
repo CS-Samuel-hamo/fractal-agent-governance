@@ -1,0 +1,10 @@
+# Codex config example. Do not copy blindly.
+# User-level config is usually ~/.codex/config.toml.
+# Project-level config may be .codex/config.toml for trusted projects.
+
+# Recommended for bounded local execution:
+sandbox = "workspace-write"
+approval_policy = "on-request"
+
+# Avoid danger-full-access for real projects.
+# Avoid network unless the task explicitly requires it.

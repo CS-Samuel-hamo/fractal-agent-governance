@@ -28,4 +28,4 @@
 - [ ] Registration/call chain uses correct source.
 
 ## 5. Governance event trigger
-Create an event for `agent-curator` if a BLOCKER/MAJOR finding reveals a repeatable process failure.
+Create an event for `agent-integrator` if a BLOCKER/MAJOR finding reveals a repeatable process failure that may require governance curation.

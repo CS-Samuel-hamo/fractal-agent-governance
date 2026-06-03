@@ -1,0 +1,8 @@
+id: simple-bugfix
+title: Simple bugfix
+governance_level: 1
+expected_executor: codex_cli
+metrics:
+  - wall_time
+  - scope_violation_count
+  - tests_pass

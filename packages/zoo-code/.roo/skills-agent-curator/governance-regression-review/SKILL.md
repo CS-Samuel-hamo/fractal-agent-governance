@@ -3,7 +3,7 @@ name: governance-regression-review
 description: Review governance regression evidence before approving changes to rules, skills, commands, scripts, model routing, security, or human exception policy.
 version: 3.6.0
 scope: global
-applies_to: agent-curator
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

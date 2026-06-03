@@ -3,7 +3,7 @@ name: governance-deprecation-review
 description: Review stale or harmful governance assets before marking them deprecated.
 version: 3.6.0
 scope: global
-applies_to: agent-curator
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

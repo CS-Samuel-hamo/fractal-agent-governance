@@ -1,0 +1,8 @@
+id: proc-data-source-mismatch
+title: Proc/data-source mismatch
+governance_level: 3
+expected_executor: hybrid
+metrics:
+  - manual_intervention_count
+  - architecture_drift
+  - quality_gate_pass

@@ -16,3 +16,11 @@ Required promotion gates:
 - security/permissions/PII/payment: GPT and human approval required
 
 No governance regression means no installation. DeepSeek may draft lessons/proposals only. GPT curator approves. Human approval is required for security, human exception, and model routing changes.
+
+## v0.3.9 Learning Noise Reduction
+
+Do not learn on every step. Do not write a lesson for every success. Do not update a skill for every ordinary failure.
+
+Create a lesson candidate only for scope violation, test failure not fixed after retry, review BLOCKER or MAJOR, repeated same failure type, human correction, architecture violation, Codex changed denied files, or Codex inferred architecture change without approval.
+
+Machine-detectable issues should become script or gate checks before prompt-heavy guidance. Low-risk one-time issues are recorded as events only.

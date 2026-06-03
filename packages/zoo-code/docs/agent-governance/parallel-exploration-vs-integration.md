@@ -16,6 +16,8 @@ Exploration branches may run in sandbox or Git worktrees when:
 
 Exploration may produce multiple candidate patches, prototypes, or analysis reports.
 
+Root goal planning should actively produce a branch schedule. Safe branches enter parallel phases; unsafe branches are recorded as serial or `needs_decomposition` with reasons.
+
 ## Forbidden Parallel Integration
 
 Integration branches do not run concurrently. Only one integration path may be active for a parent at a time.
@@ -32,6 +34,8 @@ Before selecting a candidate, the parent branch must compare:
 - integration cost
 - rollback ease
 - future optionality
+- merge queue order
+- rollback checkpoint availability
 
 The selected candidate then enters normal integration gate. Rejected candidates are archived with rationale and are not merged.
 

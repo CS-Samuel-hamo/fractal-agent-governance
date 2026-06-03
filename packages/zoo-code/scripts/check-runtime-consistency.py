@@ -39,8 +39,36 @@ def resolve(path: str, cwd: Path) -> Path:
     return p if p.is_absolute() else cwd / p
 
 
+def graph_items(graph: dict) -> list[dict]:
+    items = [x for x in graph.get("artifacts", []) if isinstance(x, dict)]
+    items.extend(x for x in graph.get("nodes", []) if isinstance(x, dict))
+    return items
+
+
+def normalize_type(value: str) -> str:
+    return str(value or "").replace("-", "_")
+
+
 def artifact_types(graph: dict) -> set[str]:
-    return {x.get("type") for x in graph.get("artifacts", []) if isinstance(x, dict)}
+    return {normalize_type(x.get("type")) for x in graph_items(graph)}
+
+
+def looks_like_file_ref(path: str) -> bool:
+    text = str(path or "")
+    return (
+        bool(text)
+        and ("/" in text or "\\" in text or text.startswith(".") or Path(text).is_absolute() or bool(Path(text).suffix))
+    )
+
+
+def should_check_path(item: dict) -> bool:
+    path = item.get("path")
+    if not path:
+        return False
+    typ = normalize_type(item.get("type"))
+    if typ in {"input", "skill"}:
+        return looks_like_file_ref(str(path))
+    return True
 
 
 def all_required_for_state(state: str) -> set[str]:
@@ -68,9 +96,28 @@ def transition_missing(transition: dict, present: set[str]) -> list[str]:
     return sorted(required - present - transition_types)
 
 
+def graph_path_refs(graph: dict, project_root: Path) -> set[str]:
+    refs: set[str] = set()
+    for item in graph_items(graph):
+        path_value = item.get("path")
+        if not path_value:
+            continue
+        path = Path(str(path_value))
+        refs.add(str(path_value).replace("\\", "/"))
+        if path.is_absolute():
+            try:
+                refs.add(path.relative_to(project_root).as_posix())
+            except ValueError:
+                refs.add(path.as_posix())
+        else:
+            refs.add(path.as_posix())
+            refs.add(str((project_root / path).resolve()).replace("\\", "/"))
+    return refs
+
+
 def find_orphans(run_dir: Path, graph: dict, project_root: Path, run_id: str) -> list[dict]:
     issues = []
-    graph_paths = {str(x.get("path")).replace("\\", "/") for x in graph.get("artifacts", []) if isinstance(x, dict)}
+    graph_paths = graph_path_refs(graph, project_root)
     for pattern, label in [("*branch*.json", "orphan_branch"), ("*review*.json", "orphan_review")]:
         for path in run_dir.glob(pattern):
             absolute = path if path.is_absolute() else project_root / path
@@ -115,17 +162,27 @@ def main() -> int:
         issues.append({"type": "ledger_graph_run_id_mismatch", "ledger": ledger.get("run_id"), "graph": graph.get("run_id")})
     if ledger and graph and ledger.get("goal_id") != graph.get("goal_id"):
         issues.append({"type": "ledger_graph_goal_id_mismatch", "ledger": ledger.get("goal_id"), "graph": graph.get("goal_id")})
-    artifacts = graph.get("artifacts", []) if graph else []
+    artifacts = graph_items(graph) if graph else []
+    strict_artifacts = [x for x in graph.get("artifacts", []) if isinstance(x, dict)] if graph else []
+    legacy_nodes = [x for x in graph.get("nodes", []) if isinstance(x, dict)] if graph else []
     present = artifact_types(graph)
-    for item in artifacts:
-        if not isinstance(item, dict):
-            continue
+    for item in strict_artifacts:
         if item.get("run_id") != run_id:
             issues.append({"type": "artifact_wrong_run_id", "artifact_id": item.get("artifact_id"), "run_id": item.get("run_id")})
         if item.get("goal_id") != goal_id:
             issues.append({"type": "artifact_wrong_goal_id", "artifact_id": item.get("artifact_id"), "goal_id": item.get("goal_id")})
         path = item.get("path")
-        if path and not resolve(path, project_root).exists():
+        if should_check_path(item) and not resolve(path, project_root).exists():
+            issues.append({"type": "artifact_graph_missing_file", "artifact_id": item.get("artifact_id"), "path": path})
+        if item.get("type") in {"quality_gate", "mechanical_review", "review_report", "integration_report"} and not item.get("input_artifacts"):
+            issues.append({"type": "gate_did_not_record_inputs", "artifact_id": item.get("artifact_id"), "artifact_type": item.get("type")})
+    for item in legacy_nodes:
+        if item.get("run_id") not in (None, run_id):
+            issues.append({"type": "artifact_wrong_run_id", "artifact_id": item.get("artifact_id"), "run_id": item.get("run_id")})
+        if item.get("goal_id") not in (None, goal_id):
+            issues.append({"type": "artifact_wrong_goal_id", "artifact_id": item.get("artifact_id"), "goal_id": item.get("goal_id")})
+        path = item.get("path")
+        if should_check_path(item) and not resolve(path, project_root).exists():
             issues.append({"type": "artifact_graph_missing_file", "artifact_id": item.get("artifact_id"), "path": path})
         if item.get("type") in {"quality_gate", "mechanical_review", "review_report", "integration_report"} and not item.get("input_artifacts"):
             issues.append({"type": "gate_did_not_record_inputs", "artifact_id": item.get("artifact_id"), "artifact_type": item.get("type")})

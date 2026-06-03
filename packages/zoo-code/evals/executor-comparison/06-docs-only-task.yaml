@@ -1,0 +1,8 @@
+id: docs-only-task
+title: Docs-only task
+governance_level: 0
+expected_executor: deepseek
+metrics:
+  - changed_file_count
+  - scope_violation_count
+  - final_status

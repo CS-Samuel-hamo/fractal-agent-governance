@@ -13,3 +13,15 @@ Levels:
 If classification is uncertain, route to the higher level and record the uncertainty in `governance-intensity.json`.
 
 DeepSeek may draft classification evidence. GPT decides Level 3/4 routing and any escalation from lower levels when ambiguity exists.
+
+## v0.3.9 Adaptive Fast Path
+
+All tasks must run governance intensity classification before executor selection.
+
+Level 0 and Level 1 use adaptive fast path by default. They skip full fractal decomposition, multi-role flow, curator update, eval suite, release readiness, and operational readiness unless a trigger appears.
+
+Level 2 uses obligation ledger, GPT plan approval, bounded Codex execution when selected, quality gate, and GPT reviewer.
+
+Level 3 uses fractal decomposition, branch schedule, worktree map, resource locks, Codex Task Pack per executable leaf branch, parent aggregation, and merge queue.
+
+Level 4 uses full governance, GPT final planner, ADR/security/release/human gate, and Codex only for explicitly authorized bounded subtasks.

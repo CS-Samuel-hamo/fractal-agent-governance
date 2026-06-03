@@ -3,6 +3,9 @@
 ## User Intent
 State the user-visible or business outcome.
 
+## Project Charter Binding
+Reference `.zoo-agent/project-charter.json` or `docs/project-charter.md`. State whether the request aligns with mission, non-goals, quality bar, data/security constraints, and human gates.
+
 ## Success Criteria
 List measurable criteria. Each criterion must map to evidence.
 

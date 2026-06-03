@@ -3,7 +3,7 @@ name: governance-regression-test
 description: Create regression prompts and checklist assertions that verify whether a governance rule would prevent a previously observed agent failure.
 version: 3.6.0
 scope: global
-applies_to: agent-curator
+applies_to: agent-integrator
 last_updated: 2026-05-30
 deprecated_by: ""
 ---

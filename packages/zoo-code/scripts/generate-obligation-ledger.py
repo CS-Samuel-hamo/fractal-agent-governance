@@ -62,7 +62,7 @@ def main() -> int:
     parser.add_argument("--branch-id", default="root")
     parser.add_argument("--task", required=True)
     parser.add_argument("--explicit", action="append", default=[])
-    parser.add_argument("--discovery-method", choices=["codebase_search", "rg", "manual", "unknown"], default="unknown")
+    parser.add_argument("--discovery-method", choices=["codebase_search", "rg", "file_search", "manual", "unknown"], default="unknown")
     parser.add_argument("--output")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
