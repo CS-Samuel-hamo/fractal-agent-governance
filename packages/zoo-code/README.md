@@ -1,12 +1,23 @@
-# Zoo Code Agent Governance Kit v0.3.11 Governance Closure + Codex Worker Bridge
+# Zoo Code Agent Governance Kit v0.3.12 Implementation Delivery Kernel
 
 This package contains the Zoo Code adapter. Install it globally; it is not copied into business repositories.
 
 Reload VS Code / Zoo Code after installation. Configure provider profiles separately in the local tool UI; this installer does not install API keys.
 
-v0.3.11 keeps the project bootstrap, task-board/runtime layer, Codex CLI worker bridge, and parallel safety checks from v0.3.10, then adds executable governance closure: task-board consistency checks, risk register updates, quality-gate evidence, merge queue processing, active resource-lock acquisition/release for parallel workers, and richer AI-native run summaries.
+v0.3.12 adds the Implementation Delivery Kernel. The default `/agent-run`
+entrypoint now treats implementation work as delivery work: plans must terminate
+into implementation queue items, ready code/test/config leaves can be promoted
+to Codex task packs, and coding tasks cannot be completed with docs-only output
+unless they are explicitly classified as non-coding.
 
-The package defines source-of-truth hierarchy, project charter, project-level `TASKS.md`, `current-run.json`, three-stage Task Board Apply, resume safety checks, project architecture maps, resource locks, branch schedule denial reasons, aggregation diagnostics, and safer Stop/Progress/Redirect/Resume flow.
+The package keeps the project bootstrap, integrated governance board,
+task-board/runtime layer, Codex CLI worker bridge, parallel safety checks,
+governance closure gates, active resource-lock acquisition/release, and richer
+AI-native run summaries from earlier releases. It defines source-of-truth
+hierarchy, project charter, project-level `TASKS.md`, `current-run.json`,
+three-stage Task Board Apply, resume safety checks, project architecture maps,
+resource locks, branch schedule denial reasons, aggregation diagnostics, and
+safer Stop/Progress/Redirect/Resume flow.
 
 It integrates:
 
@@ -20,7 +31,32 @@ python scripts/install-global-zoo-agent-kit.py --dry-run
 python scripts/install-global-zoo-agent-kit.py
 ```
 
-`/agent-run` is the only main workflow bus. Other slash commands are control-plane or evaluation tools.
+`/agent-run` is the main workflow bus. `/implement` is the explicit delivery
+shortcut for turning plans, branches, or task-board items into an implementation
+queue and Codex task packs. Other slash commands are control-plane or
+evaluation tools.
+
+## Implementation Delivery
+
+Use `/agent-run` normally. For implementation-heavy work, use either direct
+conversation through `/agent-run` or the explicit shortcut:
+
+```text
+/implement <current goal or run id>
+```
+
+Delivery artifacts:
+
+- `.zoo-agent/runs/<run-id>/implementation-queue.json`
+- `.zoo-agent/runs/<run-id>/implementation-queue.md`
+- `.zoo-agent/runs/<run-id>/codex-tasks/<task-id>/`
+- `.zoo-agent/runs/<run-id>/code-delivery-gate.json`
+- `.zoo-agent/runs/<run-id>/code-delivery-gate.md`
+
+High-risk actions still require separate explicit authorization: secret reads,
+`.env` reads, provider probes, data updates, cache mutation, dependency
+install/rebuild, merge, push, deploy, release, destructive cleanup, and
+production data migration.
 
 ## Runtime Backbone
 

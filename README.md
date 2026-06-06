@@ -130,6 +130,7 @@ It is a governance runtime with artifacts, gates, fallback paths, and a learning
 - Controlled Fractal Decomposition: recursively splits work only when needed, with depth limits and parent aggregation.
 - Hybrid GPT/Codex/DeepSeek Routing: separates decision, review, and bounded execution layers.
 - Codex CLI Worker Bridge: generates scoped task packs and collects bounded worker results.
+- Implementation Delivery Kernel: converts plans into implementation queues, Codex task packs, code/test/config diffs, and code delivery gates instead of allowing coding tasks to finish as docs-only work.
 - Worktree Runtime: isolates parallel exploration and serializes integration.
 - Resource Locks: prevent false-safe parallelism where files do not overlap but semantic resources do.
 - Adaptive Governance Intensity: applies more governance to higher-risk work.
@@ -167,5 +168,6 @@ Alpha and experimental.
 - v0.3 worktree runtime.
 - v0.3.10 project bootstrap, task-board entry, Codex worker bridge, and parallel resource-lock hardening.
 - v0.3.11 governance closure checks, active parallel worker locks, quality-gate evidence, and merge queue processing.
+- v0.3.12 implementation delivery kernel, `/implement`, implementation queues, Codex pack promotion, no-doc-only completion checks, and code delivery gates.
 - v0.4 dashboard and metrics.
 - v0.5 adapters for Roo, Kilo, Claude, and Codex.

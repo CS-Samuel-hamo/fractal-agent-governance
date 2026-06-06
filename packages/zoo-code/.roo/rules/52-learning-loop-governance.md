@@ -24,3 +24,23 @@ Do not learn on every step. Do not write a lesson for every success. Do not upda
 Create a lesson candidate only for scope violation, test failure not fixed after retry, review BLOCKER or MAJOR, repeated same failure type, human correction, architecture violation, Codex changed denied files, or Codex inferred architecture change without approval.
 
 Machine-detectable issues should become script or gate checks before prompt-heavy guidance. Low-risk one-time issues are recorded as events only.
+
+## Implementation Delivery Bias
+
+Do not learn merely because product documentation volume increased. Do not add
+large rules after one doc-only drift. If two consecutive coding tasks produce
+only docs, create a lesson candidate `delivery_bias_detected`. If three
+consecutive coding tasks show the same failure, curator-draft may propose a
+rule, skill, or script change.
+
+Prefer machine-checkable gates over longer prompts:
+
+- `delivery_bias_doc_only`
+- `implementation_queue_missing`
+- `local_optimization_loop`
+- `root_goal_drift`
+- `product_doc_overproduction`
+- `codex_task_pack_not_generated`
+
+Local optimization deferred to follow-up does not trigger a lesson unless it
+repeatedly blocks the root goal.

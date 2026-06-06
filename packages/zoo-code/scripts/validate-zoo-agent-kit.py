@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-KIT_VERSION = "0.3.11-governance-closure-codex-parallel"
-LAUNCHER_PACKAGE_VERSION = "0.3.11"
+KIT_VERSION = "0.3.9.3-implementation-delivery-kernel"
+LAUNCHER_PACKAGE_VERSION = "0.3.12"
 
 EXPECTED_MODES = {
     "agent-orchestrator",
@@ -38,6 +38,7 @@ REQUIRED_FILES = [
     ".roo/commands/progress.md",
     ".roo/commands/redirect.md",
     ".roo/commands/codex-task.md",
+    ".roo/commands/implement.md",
     ".roo/commands/agent-bootstrap.md",
     ".roo/commands/codex-run.md",
     ".roo/commands/codex-ingest.md",
@@ -45,12 +46,18 @@ REQUIRED_FILES = [
     ".roo/rules/07-governance-intensity-routing.md",
     ".roo/rules/10-adaptive-execution-routing.md",
     ".roo/rules/52-learning-loop-governance.md",
+    ".roo/rules/11-implementation-delivery-kernel.md",
+    ".roo/rules/12-no-doc-only-completion.md",
+    ".roo/rules/13-root-goal-alignment.md",
+    ".roo/rules/14-local-optimization-control.md",
     ".roo/rules-agent-orchestrator/07-executor-selection.md",
     ".roo/rules-agent-planner/03-fast-path-and-codex-routing.md",
     ".roo/rules-agent-planner/20-fractal-branch-governance.md",
     ".roo/rules-agent-executor/20-codex-worker-bridge.md",
     ".roo/rules-agent-reviewer/03-codex-result-review.md",
+    ".roo/rules-agent-reviewer/03-root-goal-delivery-review.md",
     ".roo/rules-agent-reviewer/20-mechanical-reviewer-fold-in.md",
+    ".roo/rules-agent-mechanical-reviewer/03-code-delivery-check.md",
     ".roo/rules-agent-integrator/03-codex-worker-merge-policy.md",
     ".roo/rules-agent-integrator/20-governance-curation-fold-in.md",
     ".roo/rules-agent-curator/02-lesson-promotion-policy.md",
@@ -68,6 +75,12 @@ REQUIRED_FILES = [
     "docs/agent-governance/codex-cli-install-and-auth.md",
     "docs/agent-governance/codex-cli-sandbox-policy.md",
     "docs/agent-governance/project-bootstrap.md",
+    "docs/agent-governance/implementation-delivery-kernel.md",
+    "docs/agent-governance/no-doc-only-completion-policy.md",
+    "docs/agent-governance/root-goal-alignment-policy.md",
+    "docs/agent-governance/local-optimization-control.md",
+    "docs/agent-governance/implementation-queue-schema.md",
+    "docs/agent-governance/code-delivery-gate.md",
     "docs/agent-governance/existing-project-onboarding.md",
     "docs/agent-governance/new-project-onboarding.md",
     "docs/agent-governance/bootstrap-safety-policy.md",
@@ -93,6 +106,14 @@ REQUIRED_FILES = [
     "scripts/select-executor.py",
     "scripts/check-fast-path-eligibility.py",
     "scripts/generate-codex-task-pack.py",
+    "scripts/generate-implementation-queue.py",
+    "scripts/check-implementation-queue.py",
+    "scripts/promote-leaf-tasks-to-codex.py",
+    "scripts/check-code-delivery-gate.py",
+    "scripts/check-doc-only-completion.py",
+    "scripts/check-root-goal-alignment.py",
+    "scripts/generate-follow-up-backlog.py",
+    "scripts/smoke-test-implementation-delivery.py",
     "scripts/check-codex-scope.py",
     "scripts/run-codex-worker.py",
     "scripts/collect-codex-result.py",
@@ -126,6 +147,11 @@ REQUIRED_LAUNCHER_COMMANDS = {
     "agentGovernance.rerunBootstrap",
     "agentGovernance.commitBootstrapFiles",
     "agentGovernance.openProjectReadiness",
+    "agentGovernance.startImplementationPass",
+    "agentGovernance.openImplementationQueue",
+    "agentGovernance.generateCodexPacksFromQueue",
+    "agentGovernance.runReadyCodexWorkers",
+    "agentGovernance.runCodeDeliveryGate",
 }
 
 
@@ -187,6 +213,28 @@ def main() -> int:
         "Project Bootstrap",
         "/agent-bootstrap",
         "project-readiness.json",
+        "Implementation Delivery Kernel",
+        "implementation queue",
+        "code delivery gate",
+    ])
+    require_text(ROOT / ".roo/commands/implement.md", [
+        "Implementation Plan",
+        "Ready for Code",
+        "Codex Task Packs",
+    ])
+    require_text(ROOT / "templates/codex/CODEX_TASK_PROMPT.md", [
+        "implementation_item_id",
+        "Do not write product documentation",
+        "code/test/config diff",
+    ])
+    require_text(ROOT / "docs/agent-governance/implementation-delivery-kernel.md", [
+        "Product docs are inputs",
+        "implementation queue",
+        "code delivery gate",
+    ])
+    require_text(ROOT / "docs/agent-governance/no-doc-only-completion-policy.md", [
+        "Coding work is not complete",
+        "code diff exists",
     ])
     require_text(ROOT / ".roo/rules/00-core-agent-contract.md", [
         "Implicit Agent Run Dispatch",

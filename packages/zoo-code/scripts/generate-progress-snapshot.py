@@ -173,6 +173,29 @@ def git_status_summary() -> dict:
     return {"available": True, "changed_count": len(lines)}
 
 
+def delivery_summary(run: Path) -> dict:
+    queue = load_json(run / "implementation-queue.json", {})
+    gate = load_json(run / "code-delivery-gate.json", {})
+    items = queue.get("items", []) if isinstance(queue, dict) else []
+    code_items = [item for item in items if item.get("type") in {"code", "test", "config"}]
+    ready = [item for item in code_items if item.get("status") == "ready_for_worker"]
+    blocked = [item for item in items if item.get("status") in {"blocked", "code_delivery_gate_fail", "redo_needed"}]
+    doc_only_detected = gate.get("verdict") == "fail" and any(
+        check.get("name") == "not_doc_only_completion" and not check.get("ok")
+        for check in gate.get("checks", [])
+    )
+    return {
+        "coding_task": bool(code_items),
+        "doc_only_completion_detected": doc_only_detected,
+        "implementation_queue_ready": bool(items),
+        "implementation_queue_count": len(items),
+        "ready_for_worker_count": len(ready),
+        "code_delivery_gate": gate.get("verdict", "not_applicable"),
+        "codex_task_packs": [item.get("codex_task_pack") for item in items if item.get("codex_task_pack")],
+        "blocked_implementation_items": [item.get("item_id") for item in blocked],
+    }
+
+
 def current_user_intent(run: Path) -> dict:
     tasks = run / "TASKS.md"
     if not tasks.exists():
@@ -267,6 +290,15 @@ def markdown(progress: dict) -> str:
     lines.extend([f"- {x}" for x in progress["pending"]] or ["- none"])
     lines.extend(["", "## Risks", ""])
     lines.extend([f"- {x}" for x in progress["risks"]] or ["- none"])
+    delivery = progress.get("delivery", {})
+    lines.extend(["", "## Delivery", ""])
+    lines.append(f"- coding_task: `{delivery.get('coding_task')}`")
+    lines.append(f"- implementation_queue_ready: `{delivery.get('implementation_queue_ready')}`")
+    lines.append(f"- ready_for_worker_count: `{delivery.get('ready_for_worker_count')}`")
+    lines.append(f"- code_delivery_gate: `{delivery.get('code_delivery_gate')}`")
+    if delivery.get("doc_only_completion_detected"):
+        lines.append("")
+        lines.append("> Current task appears to be a coding task, but only docs/planning delivery was detected. Run Agent: Start Implementation Pass.")
     lines.extend(["", "## Suggested Redirect Commands", ""])
     lines.extend([f"- `{x}`" for x in progress["suggested_redirect_commands"]] or ["- none"])
     return "\n".join(lines) + "\n"
@@ -342,6 +374,7 @@ def main() -> int:
         "merge_queue_status": merge_queue.get("policy") or merge_queue.get("status", "unknown"),
         "obligation_count": len(obligation.get("implicit_obligations", [])) if isinstance(obligation, dict) else 0,
         "git_status": git_status_summary(),
+        "delivery": delivery_summary(run),
         "snapshot_source": source,
         "updated_at": now(),
     }

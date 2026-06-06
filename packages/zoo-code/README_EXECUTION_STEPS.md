@@ -50,6 +50,18 @@ Generated context files:
 
 Durable state is read-only unless the user explicitly asks to update it and the dispatcher is called with `--allow-durable-state-update`.
 
+Daily management should start from the integrated board:
+
+```powershell
+$board = if (Test-Path ".\scripts\render_governance_board.py") { ".\scripts\render_governance_board.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\render_governance_board.py" }
+python $board --workspace "<repo>" --run-id run-001
+```
+
+Read `.zoo-agent/BOARD.md` for durable aim, active goal, task progress,
+execution evidence, governance gates, and next actions. Continue editing task
+intent in `.zoo-agent/TASKS.md` or `.zoo-agent/runs/<run-id>/TASKS.md`; the
+board itself is generated.
+
 Each dispatcher selection also writes `execution_graph` into `.zoo-agent/runs/<run-id>/executor-selection.json`. Use it to inspect chain weight, judgment nodes, misroute risk, conflict keys, parallel contract, and rollback mode. Level 3 leaf skeletons carry their own execution graph, so light leaves can still use the AI-native loop even when the parent workstream is heavy.
 
 Real business projects need three closure checks before any merge or release
@@ -136,6 +148,7 @@ Zoo/Roo command entrypoints:
 
 - `.roo/commands/agent-setup.md` performs one-touch global kit sync plus project bootstrap.
 - `.roo/commands/agent-bootstrap.md` performs one-step setup for new and existing projects.
+- `.roo/commands/agent-board.md` renders the integrated governance board.
 - `.roo/commands/agent-run.md` is the default AI-native entrypoint.
 - `.roo/commands/codex-task.md`, `codex-run.md`, `codex-ingest.md`, and `codex-review.md` are lower-level manual controls.
 - See `docs/ZOO_COMMAND_ENTRYPOINTS.md`.

@@ -23,3 +23,11 @@ python $summary `
 ```
 
 Inspect `ai-native-summary.json` and `ai-native-summary.md` before merge decisions.
+
+When `task-metadata.json` includes `implementation_item_id`, result collection
+updates `.zoo-agent/runs/<run-id>/implementation-queue.json`:
+
+- scope pass + implementation diff -> `needs_review`
+- scope fail -> `redo_needed`
+- worker failure -> `blocked`
+- coding item without code/test/config diff -> `code_delivery_gate_fail`

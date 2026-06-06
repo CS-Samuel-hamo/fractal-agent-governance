@@ -39,6 +39,11 @@ function activate(context) {
   register(context, "agentGovernance.refreshProgressTree", () => progressProvider.refresh());
   register(context, "agentGovernance.openLatestRunFolder", () => openLatestRunFolder());
   register(context, "agentGovernance.generateCodexTaskPack", () => generateCodexTaskPack(context));
+  register(context, "agentGovernance.startImplementationPass", () => startImplementationPass(context));
+  register(context, "agentGovernance.openImplementationQueue", () => openImplementationQueue());
+  register(context, "agentGovernance.generateCodexPacksFromQueue", () => generateCodexPacksFromQueue(context));
+  register(context, "agentGovernance.runReadyCodexWorkers", () => runReadyCodexWorkers(context));
+  register(context, "agentGovernance.runCodeDeliveryGate", () => runCodeDeliveryGate(context));
   register(context, "agentGovernance.runCodexWorker", () => runCodexWorker(context));
   register(context, "agentGovernance.openCodexTaskPrompt", () => openCodexTaskPrompt());
   register(context, "agentGovernance.copyCodexTaskPrompt", () => copyCodexTaskPrompt());
@@ -349,6 +354,11 @@ async function showQuickActions(context) {
     "Open Merge Queue",
     "Open Resource Locks",
     "Open Parallel Report",
+    "Start Implementation Pass",
+    "Open Implementation Queue",
+    "Generate Codex Packs From Queue",
+    "Run Ready Codex Workers",
+    "Run Code Delivery Gate",
     "Generate Codex Task Pack",
     "Run Codex Worker",
     "Open Codex Task Prompt",
@@ -376,6 +386,11 @@ async function showQuickActions(context) {
   if (choice === "Open Merge Queue") return openLatestArtifact("merge-queue.json");
   if (choice === "Open Resource Locks") return openLatestArtifact("resource-locks.json");
   if (choice === "Open Parallel Report") return openLatestArtifact("parallel-execution-report.md");
+  if (choice === "Start Implementation Pass") return startImplementationPass(context);
+  if (choice === "Open Implementation Queue") return openImplementationQueue();
+  if (choice === "Generate Codex Packs From Queue") return generateCodexPacksFromQueue(context);
+  if (choice === "Run Ready Codex Workers") return runReadyCodexWorkers(context);
+  if (choice === "Run Code Delivery Gate") return runCodeDeliveryGate(context);
   if (choice === "Generate Codex Task Pack") return generateCodexTaskPack(context);
   if (choice === "Run Codex Worker") return runCodexWorker(context);
   if (choice === "Open Codex Task Prompt") return openCodexTaskPrompt();
@@ -615,6 +630,85 @@ async function generateCodexTaskPack(context) {
     progressProvider.refresh();
   } catch (error) {
     vscode.window.showErrorMessage(`Generate Codex Task Pack failed: ${error.message}`);
+  }
+}
+
+async function startImplementationPass(context) {
+  const latest = latestRunFolder();
+  const defaultRunId = latest ? path.basename(latest) : `run-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`;
+  const runId = await vscode.window.showInputBox({ prompt: "Run id", value: defaultRunId });
+  if (!runId) return;
+  const objective = await vscode.window.showInputBox({ prompt: "Implementation objective", value: "" });
+  if (!objective) return;
+  const allowed = await vscode.window.showInputBox({ prompt: "Allowed files, comma-separated globs", value: "src/**,tests/**" });
+  const testCommand = await vscode.window.showInputBox({ prompt: "Optional test command", value: "" });
+  const args = ["--run-id", runId, "--objective", objective, "--type", "code", "--root-goal-link", runId];
+  for (const item of splitCsv(allowed)) args.push("--allowed-file", item);
+  if (testCommand) args.push("--test-command", testCommand);
+  try {
+    await runPython(context, "generate-implementation-queue.py", args);
+    await runPython(context, "check-implementation-queue.py", ["--run-id", runId]);
+    await runPython(context, "promote-leaf-tasks-to-codex.py", ["--run-id", runId]);
+    progressProvider.refresh();
+    await openImplementationQueue();
+  } catch (error) {
+    vscode.window.showWarningMessage(`Implementation pass needs review: ${shortOutput(error.message)}`);
+    await openImplementationQueue();
+  }
+}
+
+async function openImplementationQueue() {
+  const latest = latestRunFolder();
+  if (!latest) {
+    vscode.window.showInformationMessage("No .zoo-agent run folder found.");
+    return;
+  }
+  const md = path.join(latest, "implementation-queue.md");
+  const json = path.join(latest, "implementation-queue.json");
+  const target = fs.existsSync(md) ? md : json;
+  if (!fs.existsSync(target)) {
+    vscode.window.showInformationMessage("No implementation queue found. Run Agent: Start Implementation Pass.");
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+  await vscode.window.showTextDocument(doc, { preview: true });
+}
+
+async function generateCodexPacksFromQueue(context) {
+  const latest = latestRunFolder();
+  if (!latest) {
+    vscode.window.showInformationMessage("No .zoo-agent run folder found.");
+    return;
+  }
+  try {
+    await runPython(context, "promote-leaf-tasks-to-codex.py", ["--run-id", path.basename(latest)]);
+    progressProvider.refresh();
+    await openCodexTaskPrompt();
+  } catch (error) {
+    vscode.window.showWarningMessage(`Generate Codex packs from queue failed: ${shortOutput(error.message)}`);
+  }
+}
+
+async function runReadyCodexWorkers(context) {
+  await generateCodexPacksFromQueue(context);
+  return runCodexWorker(context);
+}
+
+async function runCodeDeliveryGate(context) {
+  const latest = latestRunFolder();
+  if (!latest) {
+    vscode.window.showInformationMessage("No .zoo-agent run folder found.");
+    return;
+  }
+  const taskId = await vscode.window.showInputBox({ prompt: "Task id for code delivery gate", value: "task-001" });
+  if (!taskId) return;
+  try {
+    await runPython(context, "check-code-delivery-gate.py", ["--run-id", path.basename(latest), "--task-id", taskId]);
+    await openLatestArtifact("code-delivery-gate.md");
+    progressProvider.refresh();
+  } catch (error) {
+    await openLatestArtifact("code-delivery-gate.md");
+    vscode.window.showWarningMessage(`Code Delivery Gate failed: ${shortOutput(error.message)}`);
   }
 }
 
@@ -941,7 +1035,8 @@ class ProgressProvider {
       run.description = `${progress.overall ? progress.overall.done_percent : 0}% - ${progress.overall ? progress.overall.risk_level : "unknown"}`;
       const goal = new ProgressItem("Goal", "goal", vscode.TreeItemCollapsibleState.Collapsed);
       goal.description = progress.goal_summary || progress.goal_id || "";
-      return [run, goal, group("Done", progress.done), group("Pending", progress.pending), group("Risks / Unknowns", progress.risks), group("Suggested Actions", progress.suggested_redirect_commands)];
+      const delivery = deliveryGroup(progress.delivery || {});
+      return [run, goal, delivery, group("Done", progress.done), group("Pending", progress.pending), group("Risks / Unknowns", progress.risks), group("Suggested Actions", progress.suggested_redirect_commands)];
     }
     if (element.kind === "run") {
       return (progress.tree || []).map((node) => branchItem(node));
@@ -965,6 +1060,17 @@ function group(label, values) {
   const item = new ProgressItem(label, "group", values && values.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
   item.children = (values || []).map((value) => new ProgressItem(String(value), "detail", vscode.TreeItemCollapsibleState.None));
   return item;
+}
+
+function deliveryGroup(delivery) {
+  const values = [
+    `coding_task: ${delivery.coding_task}`,
+    `implementation_queue_count: ${delivery.implementation_queue_count || 0}`,
+    `ready_for_worker_count: ${delivery.ready_for_worker_count || 0}`,
+    `code_delivery_gate: ${delivery.code_delivery_gate || "not_applicable"}`,
+    `doc_only_completion_detected: ${delivery.doc_only_completion_detected || false}`,
+  ];
+  return group("Delivery", values);
 }
 
 function branchItem(raw) {

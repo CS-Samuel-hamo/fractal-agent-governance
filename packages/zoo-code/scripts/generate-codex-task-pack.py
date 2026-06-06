@@ -25,9 +25,12 @@ def yaml_list(items: list[str], indent: str = "      ") -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a bounded Codex CLI Task Pack.")
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--task-id", required=True)
+    parser.add_argument("--task-id", default="")
     parser.add_argument("--branch-id", default="")
-    parser.add_argument("--objective", required=True)
+    parser.add_argument("--objective", default="")
+    parser.add_argument("--implementation-item-id", default="")
+    parser.add_argument("--implementation-queue", default="")
+    parser.add_argument("--from-implementation-item", default="")
     parser.add_argument("--allowed-file", action="append", default=[])
     parser.add_argument("--denied-file", action="append", default=[])
     parser.add_argument("--acceptance", action="append", default=[])
@@ -35,6 +38,29 @@ def main() -> int:
     parser.add_argument("--worktree", default="")
     parser.add_argument("--output", default="")
     args = parser.parse_args()
+
+    queue_item = {}
+    if args.implementation_queue and args.from_implementation_item:
+        queue = json.loads(Path(args.implementation_queue).read_text(encoding="utf-8"))
+        for item in queue.get("items", []):
+            if item.get("item_id") == args.from_implementation_item:
+                queue_item = item
+                break
+        if not queue_item:
+            raise SystemExit(f"Missing implementation item: {args.from_implementation_item}")
+        args.implementation_item_id = args.implementation_item_id or queue_item.get("item_id", "")
+        args.task_id = args.task_id or queue_item.get("task_id") or queue_item.get("item_id")
+        args.branch_id = args.branch_id or queue_item.get("branch_id", "")
+        args.objective = args.objective or queue_item.get("title", "")
+        args.allowed_file.extend(queue_item.get("allowed_files", []))
+        args.denied_file.extend(queue_item.get("denied_files", []))
+        args.acceptance.extend(queue_item.get("acceptance_link", []))
+        args.test_command.extend(queue_item.get("test_commands", []))
+
+    if not args.task_id:
+        raise SystemExit("--task-id is required unless --implementation-queue/--from-implementation-item supplies one")
+    if not args.objective:
+        raise SystemExit("--objective is required unless --implementation-queue/--from-implementation-item supplies one")
 
     out = Path(args.output) if args.output else Path(".zoo-agent") / "runs" / args.run_id / "codex-tasks" / args.task_id
     out.mkdir(parents=True, exist_ok=True)
@@ -49,6 +75,7 @@ def main() -> int:
     mapping = {
         "RUN_ID": args.run_id,
         "TASK_ID": args.task_id,
+        "IMPLEMENTATION_ITEM_ID": args.implementation_item_id,
         "BRANCH_ID": branch_id,
         "OBJECTIVE": args.objective,
         "ALLOWED_FILES": yaml_list(allowed),
@@ -71,7 +98,9 @@ def main() -> int:
     metadata = {
         "run_id": args.run_id,
         "task_id": args.task_id,
+        "implementation_item_id": args.implementation_item_id,
         "branch_id": branch_id,
+        "root_goal_link": queue_item.get("root_goal_link", ""),
         "executor": "codex_cli",
         "objective": args.objective,
         "allowed_files": allowed,

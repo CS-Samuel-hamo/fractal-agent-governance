@@ -48,6 +48,31 @@ Generated context artifacts:
 
 Pass `--goal-id <goal-id>` when the active goal is known. Project charter, goal contract, project profile, and project map stay read-only unless the user explicitly asks for durable state changes and `--allow-durable-state-update` is passed.
 
+## Integrated Governance Board
+
+Use the integrated board as the daily management surface. It is a read-only
+rendered view over the split source-of-truth files:
+
+- `.zoo-agent/BOARD.md`
+- `.zoo-agent/status-board.json`
+- `.zoo-agent/runs/<run-id>/BOARD.md`
+- `.zoo-agent/runs/<run-id>/status-board.json`
+
+Generate or refresh it with:
+
+```powershell
+$board = if (Test-Path ".\scripts\render_governance_board.py") { ".\scripts\render_governance_board.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\render_governance_board.py" }
+python $board `
+  --workspace "<repo>" `
+  --run-id run-001
+```
+
+The board shows durable aim, active goal, task progress, active/blocked work,
+execution evidence, governance gates, next actions, and the source files that
+own each fact. Edit task intent in `.zoo-agent/TASKS.md` or
+`.zoo-agent/runs/<run-id>/TASKS.md`, then apply/check the task board. Do not
+hand-edit `status-board.json`; it is a generated projection.
+
 Before claiming worker, merge, deploy, release, or durable-state readiness,
 check the context envelope for project readiness and architecture compatibility.
 If Codex CLI is unavailable, if Level 0/1 trials are marked unsafe, or if the

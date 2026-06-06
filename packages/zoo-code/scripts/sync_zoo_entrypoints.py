@@ -17,6 +17,7 @@ DEFAULT_KIT = DEFAULT_GLOBAL_ROO / 'agent-governance-kit'
 COMMAND_COPY_FILES = [
     '.roo/commands/agent-setup.md',
     '.roo/commands/agent-bootstrap.md',
+    '.roo/commands/agent-board.md',
     '.roo/commands/codex-task.md',
     '.roo/commands/codex-run.md',
     '.roo/commands/codex-ingest.md',
@@ -35,12 +36,12 @@ ROO_COPY_FILES = [
 ]
 
 KIT_COPY_FILES = [
-    'PROMPT_FOR_CODEX_APP.md',
     'CHECKLIST.md',
     'scripts/setup_zoo_agent.py',
     'scripts/validate_starter_pack.py',
     'scripts/smoke_test.py',
     'scripts/build_task_context.py',
+    'scripts/render_governance_board.py',
     'scripts/agent_bootstrap.py',
     'scripts/execution_policy.py',
     'scripts/select_execution_path.py',
@@ -68,7 +69,6 @@ KIT_COPY_FILES = [
     'templates/codex/BLOCKERS.md',
     'docs/AI_NATIVE_EXECUTION_LOOP.md',
     'docs/ARCHITECTURE_FEEDBACK_HARDENING.md',
-    'docs/MACRO_RESEARCH_FIELD_FEEDBACK.md',
     'docs/UNIFIED_KIT_OPERATING_MODEL.md',
     'docs/FIELD_FEEDBACK_INTEGRATION_MATRIX.md',
     'docs/VIBE_CODING_CROSS_VALIDATION.md',
@@ -92,7 +92,7 @@ This section supersedes older Level 0/1/2/3 Codex routing instructions below whe
 Dispatcher resolution:
 
 - If `<workspace>/scripts/run_ai_native_task.py` exists, use it.
-- Otherwise use `C:\\Users\\sheng\\.roo\\agent-governance-kit\\scripts\\run_ai_native_task.py`.
+- Otherwise use `$env:USERPROFILE\\.roo\\agent-governance-kit\\scripts\\run_ai_native_task.py` on Windows, or `$HOME/.roo/agent-governance-kit/scripts/run_ai_native_task.py` on Unix-like shells.
 - If neither exists, stop and report the missing dispatcher.
 
 Routing:
@@ -138,11 +138,22 @@ PROGRESS_BLOCK = """## AI-Native Run Summary
 For AI-native dispatcher runs, refresh progress with:
 
 ```powershell
-$summary = if (Test-Path ".\\scripts\\summarize_ai_native_run.py") { ".\\scripts\\summarize_ai_native_run.py" } else { "C:\\Users\\sheng\\.roo\\agent-governance-kit\\scripts\\summarize_ai_native_run.py" }
+$summary = if (Test-Path ".\\scripts\\summarize_ai_native_run.py") { ".\\scripts\\summarize_ai_native_run.py" } else { "$env:USERPROFILE\\.roo\\agent-governance-kit\\scripts\\summarize_ai_native_run.py" }
 python $summary `
   --run-id "<run-id>" `
   --workspace "<workspace>"
 ```
+
+For the integrated management board, refresh:
+
+```powershell
+$board = if (Test-Path ".\\scripts\\render_governance_board.py") { ".\\scripts\\render_governance_board.py" } else { "$env:USERPROFILE\\.roo\\agent-governance-kit\\scripts\\render_governance_board.py" }
+python $board `
+  --run-id "<run-id>" `
+  --workspace "<workspace>"
+```
+
+Read `.zoo-agent/BOARD.md` first for day-to-day status and task management.
 
 Read `.zoo-agent/runs/<run-id>/ai-native-summary.json` before retry, decomposition, review, or merge-candidate decisions.
 
@@ -160,7 +171,8 @@ PROJECT_BRIDGE_RULE = """# AI-Native Global Bridge Shim
 This project has local `.roo` files, so global Roo/Zoo rules may be shadowed.
 This shim preserves local project rules while restoring the AI-native global bridge.
 
-- Resolve the dispatcher from `<workspace>/scripts/run_ai_native_task.py` first, then `C:\\Users\\sheng\\.roo\\agent-governance-kit\\scripts\\run_ai_native_task.py`.
+- Resolve the dispatcher from `<workspace>/scripts/run_ai_native_task.py` first, then `$env:USERPROFILE\\.roo\\agent-governance-kit\\scripts\\run_ai_native_task.py` on Windows.
+- Resolve the integrated board from `<workspace>/scripts/render_governance_board.py` first, then `$env:USERPROFILE\\.roo\\agent-governance-kit\\scripts\\render_governance_board.py` on Windows.
 - Do not first classify the user request as short-term or long-term. Treat it as the current task and attach durable project context as background.
 - Require `executor-selection.json.execution_graph` for chain weight, judgment nodes, conflict keys, parallel contract, and rollback contract.
 - Route Level 0/1 through the resolved dispatcher by default.

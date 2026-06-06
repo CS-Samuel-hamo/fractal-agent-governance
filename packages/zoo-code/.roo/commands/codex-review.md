@@ -18,3 +18,12 @@ Review order:
 5. For Level 3, confirm every leaf has its own verification evidence.
 
 Do not merge automatically. Produce a merge-candidate recommendation only.
+
+For Implementation Delivery Kernel runs, also inspect:
+
+- `.zoo-agent/runs/<run-id>/implementation-queue.json`
+- `.zoo-agent/runs/<run-id>/code-delivery-gate.json`
+- `implementation_item_id` in Codex result metadata
+
+Reject coding branches that only produced product docs unless they are explicitly
+classified as docs-only or blocked with a precise next action.

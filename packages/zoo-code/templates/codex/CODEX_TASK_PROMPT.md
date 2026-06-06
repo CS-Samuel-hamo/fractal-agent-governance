@@ -2,6 +2,7 @@ Read `AGENTS.md`, `TASKS.yaml`, and `ACCEPTANCE.md` first.
 If present, read `TASK_CONTEXT.md` or `TASK_CONTEXT.json` as read-only durable background.
 
 Execute only task_id=`{{TASK_ID}}`.
+Execute implementation_item_id=`{{IMPLEMENTATION_ITEM_ID}}` when this value is non-empty.
 
 Objective:
 {{OBJECTIVE}}
@@ -20,6 +21,9 @@ Hard constraints:
 10. If blocked, update `BLOCKERS.md` instead of guessing.
 11. Do not commit, push, merge, reset, or delete branches.
 12. Do not modify project charter, goal contracts, project profile, or project map unless `TASK_CONTEXT` write_policy explicitly allows it and the task scope allows those files.
+13. Do not write product documentation as the main output unless this task is explicitly docs-only.
+14. For coding tasks, produce a code/test/config diff. If that is impossible, stop and record a precise blocker in `BLOCKERS.md`.
+15. Keep root goal and acceptance criteria in view; do not continue local optimization after the required artifact is delivered.
 
 Return a concise final report with:
 - Files changed

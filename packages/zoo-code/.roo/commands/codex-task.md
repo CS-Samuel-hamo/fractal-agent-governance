@@ -18,3 +18,16 @@ python $taskpack `
 ```
 
 Use `--prompt-template CODEX_TASK_PROMPT_FAST.md` only for fast-path execution. Planned and governed paths should use the default full prompt.
+
+## From Implementation Queue
+
+```powershell
+$taskpack = if (Test-Path ".\scripts\generate_codex_task_pack.py") { ".\scripts\generate_codex_task_pack.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\generate-codex-task-pack.py" }
+python $taskpack `
+  --run-id "<run-id>" `
+  --implementation-queue ".zoo-agent\runs\<run-id>\implementation-queue.json" `
+  --from-implementation-item "<implementation-item-id>"
+```
+
+The generated `task-metadata.json` must include `implementation_item_id`.
+Coding implementation items must not use product docs as their main output.

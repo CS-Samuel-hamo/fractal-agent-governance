@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.12
+
+- Added the Implementation Delivery Kernel so implementation work moves from planning into implementation queues, Codex task packs, code/test/config delivery, and code delivery gates.
+- Added `/implement` as an explicit delivery shortcut while keeping `/agent-run` as the main workflow bus.
+- Added implementation queue generation, queue validation, Codex task-pack promotion, doc-only completion checks, root-goal alignment checks, code delivery gate checks, follow-up backlog generation, and an implementation delivery smoke test.
+- Extended Codex task generation/result collection with implementation item IDs, root-goal links, queue status updates, and no-doc-only delivery enforcement.
+- Extended progress snapshots, task boards, and the launcher with delivery status, implementation queue actions, Codex pack generation from queue, and code delivery gate controls.
+- Preserved high-risk gates: secret reads, `.env` reads, provider probes, data updates, cache mutation, dependency install/rebuild, merge, push, deploy, release, destructive cleanup, and production data migration still require separate explicit authorization.
+
 ## v0.3.11
 
 - Added executable governance closure checks for task-board consistency, risk register updates, quality gates, and merge queue processing.

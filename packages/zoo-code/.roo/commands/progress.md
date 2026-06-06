@@ -16,6 +16,17 @@ python $summary `
   --workspace "<workspace>"
 ```
 
+For the integrated management board, refresh:
+
+```powershell
+$board = if (Test-Path ".\scripts\render_governance_board.py") { ".\scripts\render_governance_board.py" } else { "$env:USERPROFILE\.roo\agent-governance-kit\scripts\render_governance_board.py" }
+python $board `
+  --run-id "<run-id>" `
+  --workspace "<workspace>"
+```
+
+Read `.zoo-agent/BOARD.md` first for day-to-day status and task management.
+
 Read `.zoo-agent/runs/<run-id>/ai-native-summary.json` before retry, decomposition, review, or merge-candidate decisions.
 
 For closure-sensitive decisions, also inspect:

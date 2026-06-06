@@ -38,6 +38,40 @@ def update_artifact_graph(run_root: Path, task_id: str, result_json: Path, resul
     graph_path.write_text(json.dumps(graph, indent=2), encoding="utf-8")
 
 
+def update_implementation_queue(run_root: Path, task_id: str, metadata: dict, result: dict) -> None:
+    queue_path = run_root / "implementation-queue.json"
+    if not queue_path.exists():
+        return
+    try:
+        queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    implementation_item_id = metadata.get("implementation_item_id", "")
+    changed = result.get("git_diff_name_only", [])
+    scope_status = result.get("scope_guard", {}).get("status", "unknown")
+    code_exts = {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".go", ".rs", ".java", ".cs", ".cpp", ".c", ".h"}
+    config_exts = {".json", ".yaml", ".yml", ".toml", ".ini", ".cfg"}
+    has_impl = any(Path(name).suffix.lower() in code_exts | config_exts for name in changed)
+    for item in queue.get("items", []):
+        if implementation_item_id and item.get("item_id") != implementation_item_id:
+            continue
+        if not implementation_item_id and item.get("task_id") != task_id:
+            continue
+        item["codex_result"] = str(run_root / "codex-results" / task_id / "result.json")
+        if scope_status == "fail":
+            item["status"] = "redo_needed"
+        elif item.get("type") in {"code", "test", "config"} and not has_impl:
+            item["status"] = "code_delivery_gate_fail"
+            item["blocking_reason"] = "No code/test/config diff was collected for coding implementation item."
+        elif result.get("codex_run", {}).get("returncode", 0) not in (0, None):
+            item["status"] = "blocked"
+            item["blocking_reason"] = "Codex worker failed; inspect codex result."
+        else:
+            item["status"] = "needs_review"
+        break
+    queue_path.write_text(json.dumps(queue, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect Codex worker evidence into Zoo result artifacts.")
     parser.add_argument("--run-id", required=True)
@@ -59,6 +93,7 @@ def main() -> int:
     progress = read_optional(task_dir / "PROGRESS.md")
     blockers = read_optional(task_dir / "BLOCKERS.md")
     codex_run = json.loads(read_optional(task_dir / "codex-run.json") or "{}")
+    metadata = json.loads(read_optional(task_dir / "task-metadata.json") or "{}")
 
     scope = {"status": "not_run"}
     guard = task_dir / "check_codex_scope.py"
@@ -91,6 +126,10 @@ def main() -> int:
         "git_diff_name_only": [line for line in diff_names["output"].splitlines() if line.strip()],
         "git_diff_stat": diff_stat,
         "scope_guard": scope,
+        "task_metadata": metadata,
+        "implementation_item_id": metadata.get("implementation_item_id", ""),
+        "branch_id": metadata.get("branch_id", ""),
+        "root_goal_link": metadata.get("root_goal_link", ""),
         "codex_run": codex_run,
         "final_message": final_msg,
         "progress_md": progress,
@@ -144,6 +183,7 @@ def main() -> int:
         encoding="utf-8",
     )
     update_artifact_graph(run_root, args.task_id, result_json, result_md)
+    update_implementation_queue(run_root, args.task_id, metadata, result)
     print(out_dir)
     return 0 if scope.get("status") != "fail" else 1
 

@@ -12,7 +12,7 @@ This section supersedes older Level 0/1/2/3 Codex routing instructions below whe
 Dispatcher resolution:
 
 - If `<workspace>/scripts/run_ai_native_task.py` exists, use it.
-- Otherwise use `$env:USERPROFILE\.roo\agent-governance-kit\scripts\run_ai_native_task.py`.
+- Otherwise use `$env:USERPROFILE\.roo\agent-governance-kit\scripts\run_ai_native_task.py` on Windows, or `$HOME/.roo/agent-governance-kit/scripts/run_ai_native_task.py` on Unix-like shells.
 - If neither exists, stop and report the missing dispatcher.
 
 Routing:
@@ -52,6 +52,64 @@ Closure:
 - Use `process_merge_queue.py` only after quality gate authorization.
 - If older sections mention `generate-resource-locks.py`, `check-resource-locks.py`, `generate-branch-schedule.py`, or `schedule-parallel-branches.py`, use `check_codex_worker_concurrency.py`, `run_codex_parallel_workers.py`, and `manage_resource_locks.py` for the current Codex worker bridge.
 <!-- END AI_NATIVE_DISPATCHER_OVERRIDE -->
+<!-- BEGIN IMPLEMENTATION_DELIVERY_KERNEL -->
+## Implementation Delivery Kernel
+
+This section is mandatory for coding tasks.
+
+Core rule: product docs are inputs, not the default output of implementation
+work. If a task is coding, planning must terminate into implementation queue
+items, Codex task packs, code/test/config diffs, scope guard evidence, and the
+code delivery gate.
+
+Delivery routing:
+
+1. Classify governance intensity and delivery mode.
+2. If the task is coding:
+   - ensure goal and project profile
+   - ensure obligation ledger or mini obligation check
+   - generate `.zoo-agent/runs/<run-id>/implementation-queue.json`
+   - if the queue has `ready_for_worker` code/test/config items, generate Codex
+     Task Packs and prefer Codex Worker for Level 0/1/2
+   - do not continue product documentation unless a docs-only trigger exists
+3. If only product docs were produced:
+   - run `check-doc-only-completion.py`
+   - if task is coding, mark incomplete
+   - generate implementation queue
+4. After Codex or other worker execution:
+   - run scope guard
+   - run tests if available
+   - collect result
+   - run `check-code-delivery-gate.py`
+   - then run mechanical/GPT review
+5. Before parent aggregation, coding branches must pass code delivery gate.
+6. Before merge queue, there must be no doc-only coding completion, no open
+   required obligations, no scope violation, and no unresolved high-risk issue.
+
+Fast path behavior:
+
+- Level 0: no full fractal, no product doc expansion, minimal Codex Task Pack if
+  coding, then scope guard and result collection.
+- Level 1: mini obligation check, Codex Worker preferred, targeted tests,
+  mechanical review.
+- Level 2: full obligation ledger, GPT planner approval, Codex bounded
+  execution, code delivery gate, GPT reviewer.
+- Level 3: fractal branch tree, implementation queue from executable leaves,
+  Codex task pack per leaf, parent aggregation after code delivery gate.
+- Level 4: full governance and GPT/human gate; Codex only after bounded
+  authorization.
+
+Forbidden delivery drift:
+
+- repeated product doc rewriting
+- product strategy expansion after implementation queue exists
+- marking a coding branch done without code delivery gate
+- creating more docs instead of executing ready implementation items
+- local improvement loop without root-goal link
+
+Use `/implement` or Agent: Start Implementation Pass to convert plans and branch
+trees into executable implementation queue items.
+<!-- END IMPLEMENTATION_DELIVERY_KERNEL -->
 Run this request through Zoo Code Agent Governance Kit v0.3.9 Codex CLI Worker Bridge + Adaptive Fast Path:
 
 `$ARGUMENTS`

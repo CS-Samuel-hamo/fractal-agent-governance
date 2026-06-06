@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-KIT_VERSION = "0.3.10-project-bootstrap-codex-parallel"
+KIT_VERSION = "0.3.9.3-implementation-delivery-kernel"
 # Replace both active and retired kit modes so global custom_modes.yaml does not keep old visible roles.
 KIT_MODE_SLUGS = {
     "agent-orchestrator",
@@ -235,7 +235,7 @@ def editor_extension_dirs() -> List[Path]:
 
 
 def full_backup(modes_path: Optional[Path], dry_run: bool) -> Path:
-    root = Path.home() / "zoo-global-agent-kit" / "backups" / f"global-before-0.3.10-install-{stamp()}"
+    root = Path.home() / "zoo-global-agent-kit" / "backups" / f"global-before-0.3.9.3-install-{stamp()}"
     ensure_dir(root, dry_run)
     roo = Path.home() / ".roo"
     entries = [
@@ -276,7 +276,7 @@ def full_backup(modes_path: Optional[Path], dry_run: bool) -> Path:
 
 def install_assets(root: Path, dry_run: bool) -> Path:
     roo = Path.home() / ".roo"
-    backup_root = roo / "backups" / f"zoo-agent-kit-0.3.10-global-{stamp()}"
+    backup_root = roo / "backups" / f"zoo-agent-kit-0.3.9.3-global-{stamp()}"
     ensure_dir(roo, dry_run)
     ensure_dir(backup_root, dry_run)
     copy_tree(root / ".roo/rules", roo / "rules", backup_root, dry_run)
@@ -330,7 +330,7 @@ def install_modes(root: Path, modes_path: Path, backup_root: Path, dry_run: bool
 def install_launcher(root: Path, backup_root: Path, dry_run: bool) -> None:
     src = root / "launcher/vscode-zoo-agent-run-launcher"
     for ext in editor_extension_dirs():
-        dst = ext / "local.zoo-agent-run-launcher-0.3.11"
+        dst = ext / "local.zoo-agent-run-launcher-0.3.12"
         backup_path(dst, backup_root / "overwritten-launchers" / ext.parent.name / dst.name, dry_run)
         if dry_run:
             log(f"[dry-run] install VS Code launcher extension {src} -> {dst}")

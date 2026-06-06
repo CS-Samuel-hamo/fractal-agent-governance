@@ -1,8 +1,8 @@
 {
   "name": "zoo-agent-run-launcher",
   "displayName": "Zoo Agent Run Launcher",
-  "description": "Lightweight v0.3.10 progress, bootstrap, redirect, resume safety, task-board, parallel safety, and Codex CLI worker bridge controls for Zoo Agent Governance runs.",
-  "version": "0.3.11",
+  "description": "Lightweight v0.3.12 implementation delivery, progress, bootstrap, task-board, parallel safety, and Codex CLI worker bridge controls for Zoo Agent Governance runs.",
+  "version": "0.3.12",
   "publisher": "local",
   "private": true,
   "engines": {
@@ -33,6 +33,11 @@
     "onCommand:agentGovernance.refreshProgressTree",
     "onCommand:agentGovernance.openLatestRunFolder",
     "onCommand:agentGovernance.generateCodexTaskPack",
+    "onCommand:agentGovernance.startImplementationPass",
+    "onCommand:agentGovernance.openImplementationQueue",
+    "onCommand:agentGovernance.generateCodexPacksFromQueue",
+    "onCommand:agentGovernance.runReadyCodexWorkers",
+    "onCommand:agentGovernance.runCodeDeliveryGate",
     "onCommand:agentGovernance.runCodexWorker",
     "onCommand:agentGovernance.openCodexTaskPrompt",
     "onCommand:agentGovernance.copyCodexTaskPrompt",
@@ -69,6 +74,11 @@
       { "command": "agentGovernance.refreshProgressTree", "title": "Agent: Refresh Tree" },
       { "command": "agentGovernance.openLatestRunFolder", "title": "Agent: Open Latest Run Folder" },
       { "command": "agentGovernance.generateCodexTaskPack", "title": "Agent: Generate Codex Task Pack" },
+      { "command": "agentGovernance.startImplementationPass", "title": "Agent: Start Implementation Pass" },
+      { "command": "agentGovernance.openImplementationQueue", "title": "Agent: Open Implementation Queue" },
+      { "command": "agentGovernance.generateCodexPacksFromQueue", "title": "Agent: Generate Codex Packs From Queue" },
+      { "command": "agentGovernance.runReadyCodexWorkers", "title": "Agent: Run Ready Codex Workers" },
+      { "command": "agentGovernance.runCodeDeliveryGate", "title": "Agent: Run Code Delivery Gate" },
       { "command": "agentGovernance.runCodexWorker", "title": "Agent: Run Codex Worker" },
       { "command": "agentGovernance.openCodexTaskPrompt", "title": "Agent: Open Codex Task Prompt" },
       { "command": "agentGovernance.copyCodexTaskPrompt", "title": "Agent: Copy Codex Task Prompt" },
@@ -171,6 +181,26 @@
         },
         {
           "command": "agentGovernance.openBootstrapReport",
+          "when": "view == agentGovernanceProgress",
+          "group": "navigation"
+        },
+        {
+          "command": "agentGovernance.startImplementationPass",
+          "when": "view == agentGovernanceProgress",
+          "group": "navigation"
+        },
+        {
+          "command": "agentGovernance.openImplementationQueue",
+          "when": "view == agentGovernanceProgress",
+          "group": "navigation"
+        },
+        {
+          "command": "agentGovernance.generateCodexPacksFromQueue",
+          "when": "view == agentGovernanceProgress",
+          "group": "navigation"
+        },
+        {
+          "command": "agentGovernance.runCodeDeliveryGate",
           "when": "view == agentGovernanceProgress",
           "group": "navigation"
         },
