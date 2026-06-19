@@ -1,0 +1,18 @@
+# Example Codex exec policy ideas. Adapt manually.
+# Prefer prompting/blocking for destructive or high-risk commands.
+
+prompt: git push
+prompt: git reset
+prompt: git clean
+prompt: rm
+prompt: del
+prompt: npm install
+prompt: pnpm add
+prompt: yarn add
+prompt: pip install
+prompt: poetry add
+prompt: docker
+prompt: kubectl
+prompt: terraform apply
+prompt: alembic upgrade
+prompt: prisma migrate deploy
