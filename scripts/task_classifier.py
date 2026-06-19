@@ -111,10 +111,12 @@ def infer_patterns_from_text(text: str) -> list[str]:
     if patterns:
         return sorted(set(patterns))
     lowered = text.lower()
+    if 'readme' in lowered:
+        patterns.append('README*')
     hints = [
         ('tests/**', ['test', 'tests', 'pytest', 'spec']),
         ('src/**', ['src', 'source', 'implementation']),
-        ('docs/**', ['doc', 'docs', 'readme', 'documentation']),
+        ('docs/**', ['doc', 'docs', 'documentation']),
         ('scripts/**', ['script', 'scripts', 'cli']),
         ('frontend/**', ['frontend', 'react', 'next']),
         ('api/**', ['api', 'route']),

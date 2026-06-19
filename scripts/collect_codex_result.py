@@ -175,6 +175,7 @@ def main():
     tasks = task_dir / 'TASKS.yaml'
     if guard.exists() and tasks.exists():
         ignore_result = (Path('.zoo-agent') / 'runs' / args.run_id / 'codex-results' / args.task_id / '**').as_posix()
+        ignore_runtime = (Path('.zoo-agent') / '**').as_posix()
         proc = subprocess.run(
             [
                 'python',
@@ -186,6 +187,8 @@ def main():
                 str(out_dir/'scope-guard.json'),
                 '--ignore-file',
                 ignore_result,
+                '--ignore-file',
+                ignore_runtime,
             ],
             cwd=workspace,
             text=True,

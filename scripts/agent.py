@@ -57,6 +57,10 @@ def delegate(script_name: str, args_list: list[str]) -> int:
     return run_command([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
 
 
+def workspace_arg(workspace: str) -> str:
+    return str(project_root(workspace))
+
+
 def bootstrap_lock_path(project: Path) -> Path:
     return project / '.zoo-agent' / 'bootstrap.lock'
 
@@ -444,7 +448,7 @@ def run(args) -> int:
         sys.executable,
         str(ROOT / 'scripts' / 'route_task.py'),
         '--workspace',
-        args.workspace,
+        workspace_arg(args.workspace),
     ]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
@@ -496,7 +500,7 @@ def run(args) -> int:
 
 
 def status(args) -> int:
-    command = ['--workspace', args.workspace]
+    command = ['--workspace', workspace_arg(args.workspace)]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
     if args.no_write:
@@ -505,7 +509,7 @@ def status(args) -> int:
 
 
 def rollback(args) -> int:
-    command = ['--workspace', args.workspace, '--run-id', args.run_id, '--task-id', args.task_id]
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
         command.append('--dry-run')
     if args.yes:
@@ -518,7 +522,7 @@ def rollback(args) -> int:
 def reroute(args) -> int:
     command = [
         '--workspace',
-        args.workspace,
+        workspace_arg(args.workspace),
         '--run-id',
         args.run_id,
         '--task-id',
@@ -550,7 +554,7 @@ def reroute(args) -> int:
 
 
 def map_command(args) -> int:
-    command = ['--workspace', args.workspace]
+    command = ['--workspace', workspace_arg(args.workspace)]
     if args.map_action == 'refresh':
         command.append('--refresh')
     elif args.map_action == 'promote':
@@ -563,7 +567,7 @@ def map_command(args) -> int:
 
 
 def standards(args) -> int:
-    command = ['--workspace', args.workspace]
+    command = ['--workspace', workspace_arg(args.workspace)]
     if args.standards_action == 'check':
         command.append('--check')
     elif args.standards_action == 'promote':
@@ -576,11 +580,12 @@ def standards(args) -> int:
 
 
 def review(args) -> int:
-    run_id = args.run_id or latest_run_id(project_root(args.workspace))
+    project = project_root(args.workspace)
+    run_id = args.run_id or latest_run_id(project)
     if not run_id:
         print('No run_id supplied and no local run was found.', file=sys.stderr)
         return 2
-    command = ['--workspace', args.workspace, '--run-id', run_id]
+    command = ['--workspace', str(project), '--run-id', run_id]
     for enabled, flag in [
         (args.governance_only, '--governance-only'),
         (args.allow_missing_tests, '--allow-missing-tests'),
