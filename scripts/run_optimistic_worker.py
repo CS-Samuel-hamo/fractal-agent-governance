@@ -211,6 +211,56 @@ def run_tests(test_commands: list[str], worktree_path: Path, timeout_seconds: in
     return results
 
 
+def capture_task_baseline(args, task_id: str, worktree_path: Path) -> dict:
+    cmd = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'capture_task_baseline.py'),
+        '--run-id',
+        args.run_id,
+        '--task-id',
+        task_id,
+        '--workspace',
+        str(worktree_path),
+        '--route',
+        'fast' if args.fast_prompt else args.execution_path,
+        '--input-text',
+        args.objective,
+    ]
+    for pattern in args.allowed_file:
+        cmd += ['--allowed-file', pattern]
+    for pattern in args.denied_file:
+        cmd += ['--denied-file', pattern]
+    result = run_command(cmd, ROOT)
+    payload = {}
+    try:
+        payload = json.loads(result.get('stdout') or '{}')
+    except Exception:
+        payload = {}
+    return {'command_result': result, 'path': payload.get('path', ''), 'payload': payload}
+
+
+def compare_task_baseline(args, baseline_path: str, worktree_path: Path) -> dict:
+    if not baseline_path:
+        return {'command_result': {'returncode': 2, 'stderr': 'missing baseline path'}, 'path': '', 'payload': {}}
+    cmd = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'compare_task_baseline.py'),
+        '--baseline',
+        baseline_path,
+        '--workspace',
+        str(worktree_path),
+    ]
+    for pattern in args.denied_file:
+        cmd += ['--denied-file', pattern]
+    result = run_command(cmd, ROOT)
+    payload = {}
+    try:
+        payload = json.loads(result.get('stdout') or '{}')
+    except Exception:
+        payload = {}
+    return {'command_result': result, 'path': payload.get('path', ''), 'payload': payload}
+
+
 def collect_result(args, task_id: str, task_dir: Path, worktree_path: Path) -> tuple[dict, dict | None]:
     cmd = [
         sys.executable,
@@ -422,6 +472,8 @@ def main() -> int:
             final_policy = attempt['policy']
             break
 
+        baseline = capture_task_baseline(args, attempt_task_id, worktree_path)
+        attempt['task_baseline'] = baseline
         pre_codex_ms = round((time.monotonic() - wall_started) * 1000, 3)
         codex_result = run_codex_worker(args, task_dir, worktree_path)
         codex_ms = round(float(codex_result.get('elapsed_seconds') or 0.0) * 1000, 3)
@@ -430,6 +482,8 @@ def main() -> int:
         attempt['test_results'] = test_results
         (task_dir / 'harness-tests.json').write_text(json.dumps(test_results, ensure_ascii=False, indent=2), encoding='utf-8')
 
+        delta = compare_task_baseline(args, str(baseline.get('path') or ''), worktree_path)
+        attempt['task_delta'] = delta
         collect, parsed = collect_result(args, attempt_task_id, task_dir, worktree_path)
         attempt['collect_result'] = collect
         attempt['collected_result'] = parsed

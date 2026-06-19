@@ -141,6 +141,64 @@ def write_fast_optimistic_report(repo: Path, run_id: str, task_id: str, *, chang
     )
 
 
+def capture_baseline(
+    repo: Path,
+    run_id: str,
+    task_id: str,
+    env: dict[str, str],
+    *,
+    text: str,
+    task_type: str = 'docs',
+    allowed_files: list[str] | None = None,
+) -> dict:
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'capture_task_baseline.py'),
+        '--workspace',
+        str(repo),
+        '--run-id',
+        run_id,
+        '--task-id',
+        task_id,
+        '--route',
+        'fast',
+        '--task-type',
+        task_type,
+        '--input-text',
+        text,
+    ]
+    for item in allowed_files or ['README.md']:
+        command.extend(['--allowed-file', item])
+    command.extend(['--denied-file', '.env', '--denied-file', '.env.*'])
+    run(
+        command,
+        ROOT,
+        env,
+    )
+    return read_json(repo / '.zoo-agent' / 'runs' / run_id / 'tasks' / task_id / 'task-baseline.json')
+
+
+def compare_baseline(repo: Path, run_id: str, task_id: str, env: dict[str, str]) -> dict:
+    baseline = repo / '.zoo-agent' / 'runs' / run_id / 'tasks' / task_id / 'task-baseline.json'
+    run_may_fail(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'compare_task_baseline.py'),
+            '--baseline',
+            str(baseline),
+            '--workspace',
+            str(repo),
+            '--denied-file',
+            '.env',
+            '--denied-file',
+            '.env.*',
+        ],
+        ROOT,
+        env,
+    )
+    return read_json(repo / '.zoo-agent' / 'runs' / run_id / 'tasks' / task_id / 'task-delta.json')
+
+
 def blocker_types(payload: dict) -> set[str]:
     return {str(item.get('type')) for item in payload.get('blockers') or [] if isinstance(item, dict)}
 
@@ -207,9 +265,19 @@ def main() -> int:
     assert not (existing / '.zoo-agent' / 'runtime-status.json').exists()
 
     no_diff = unique_dir('agent-no-diff-alpha')
-    init_repo(no_diff, env)
-    write_fast_cli_report(no_diff, 'run-no-diff', 'task-no-diff', 'fix a typo in README')
-    write_fast_optimistic_report(no_diff, 'run-no-diff', 'task-no-diff', changed_files=[])
+    write(no_diff / 'README.md', '# Demo\n\nTpy o.\n')
+    run(['git', 'init'], no_diff, env)
+    run(['git', 'config', 'user.name', 'real-usage-alpha'], no_diff, env)
+    run(['git', 'config', 'user.email', 'real-usage-alpha@example.local'], no_diff, env)
+    run(['git', 'add', 'README.md'], no_diff, env)
+    run(['git', 'commit', '-m', 'init'], no_diff, env)
+    run([AGENT, 'bootstrap', '--workspace', str(no_diff)], no_diff, env)
+    write_fast_cli_report(no_diff, 'run-no-diff', 'task-no-diff', 'fix a typo in README', allowed_files=['README.md'])
+    capture_baseline(no_diff, 'run-no-diff', 'task-no-diff', env, text='fix a typo in README', task_type='docs', allowed_files=['README.md'])
+    write_fast_optimistic_report(no_diff, 'run-no-diff', 'task-no-diff', changed_files=[], final_message='Done.')
+    no_diff_delta = compare_baseline(no_diff, 'run-no-diff', 'task-no-diff', env)
+    assert 'AGENTS.md' in no_diff_delta['unchanged_existing_diff'] or 'AGENTS.md' in no_diff_delta['governance_artifacts']
+    assert not no_diff_delta['business_candidate_files']
     proc = run_may_fail(
         [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(no_diff), '--run-id', 'run-no-diff', '--task-id', 'task-no-diff'],
         ROOT,
@@ -228,10 +296,19 @@ def main() -> int:
     assert no_diff_gate['verdict'] == 'FAST_NO_DELIVERY'
 
     docs_delivered = unique_dir('agent-docs-delivered-alpha')
-    init_repo(docs_delivered, env)
-    write(docs_delivered / 'README.md', '# Demo\n\nTypo fixed.\n')
+    write(docs_delivered / 'README.md', '# Demo\n\nTpy o.\n')
+    run(['git', 'init'], docs_delivered, env)
+    run(['git', 'config', 'user.name', 'real-usage-alpha'], docs_delivered, env)
+    run(['git', 'config', 'user.email', 'real-usage-alpha@example.local'], docs_delivered, env)
+    run(['git', 'add', 'README.md'], docs_delivered, env)
+    run(['git', 'commit', '-m', 'init'], docs_delivered, env)
+    run([AGENT, 'bootstrap', '--workspace', str(docs_delivered)], docs_delivered, env)
     write_fast_cli_report(docs_delivered, 'run-docs-delivered', 'task-docs-delivered', 'fix typo in README', tests_status='not_applicable')
+    capture_baseline(docs_delivered, 'run-docs-delivered', 'task-docs-delivered', env, text='fix typo in README', task_type='docs')
+    write(docs_delivered / 'README.md', '# Demo\n\nTypo fixed.\n')
     write_fast_optimistic_report(docs_delivered, 'run-docs-delivered', 'task-docs-delivered', changed_files=['README.md'])
+    docs_delta = compare_baseline(docs_delivered, 'run-docs-delivered', 'task-docs-delivered', env)
+    assert docs_delta['business_candidate_files'] == ['README.md']
     run(
         [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(docs_delivered), '--run-id', 'run-docs-delivered', '--task-id', 'task-docs-delivered'],
         ROOT,
@@ -253,7 +330,6 @@ def main() -> int:
 
     runtime_only = unique_dir('agent-runtime-only-alpha')
     init_repo(runtime_only, env)
-    write(runtime_only / '.zoo-agent' / 'tmp' / 'evidence.txt', 'runtime only\n')
     write_fast_cli_report(
         runtime_only,
         'run-runtime-only',
@@ -262,7 +338,11 @@ def main() -> int:
         tests_status='passed',
         allowed_files=['src/example.py'],
     )
+    capture_baseline(runtime_only, 'run-runtime-only', 'task-runtime-only', env, text='fix a local bug in src/example.py', task_type='coding', allowed_files=['src/example.py'])
+    write(runtime_only / '.zoo-agent' / 'runs' / 'run-runtime-only' / 'evidence.txt', 'runtime only\n')
     write_fast_optimistic_report(runtime_only, 'run-runtime-only', 'task-runtime-only', changed_files=['.zoo-agent/tmp/evidence.txt'])
+    runtime_delta = compare_baseline(runtime_only, 'run-runtime-only', 'task-runtime-only', env)
+    assert runtime_delta['runtime_artifacts']
     proc = run_may_fail(
         [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(runtime_only), '--run-id', 'run-runtime-only', '--task-id', 'task-runtime-only'],
         ROOT,
@@ -271,6 +351,79 @@ def main() -> int:
     assert proc.returncode == 1
     runtime_outcome = read_json(runtime_only / '.zoo-agent' / 'runs' / 'run-runtime-only' / 'delivery-outcome.json')
     assert runtime_outcome['delivery_outcome'] == 'no_delivery'
+
+    governance_only = unique_dir('agent-governance-only-alpha')
+    init_repo(governance_only, env)
+    write_fast_cli_report(governance_only, 'run-governance-only', 'task-governance-only', 'fix local bug', tests_status='passed', allowed_files=['src/example.py'])
+    capture_baseline(governance_only, 'run-governance-only', 'task-governance-only', env, text='fix local bug', task_type='coding', allowed_files=['src/example.py'])
+    write(governance_only / 'AGENTS.md', '# Existing local instructions\n\nExtra governance note.\n')
+    write_fast_optimistic_report(governance_only, 'run-governance-only', 'task-governance-only', changed_files=['AGENTS.md'])
+    governance_delta = compare_baseline(governance_only, 'run-governance-only', 'task-governance-only', env)
+    assert governance_delta['governance_artifacts'] == ['AGENTS.md']
+    proc = run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(governance_only), '--run-id', 'run-governance-only', '--task-id', 'task-governance-only'],
+        ROOT,
+        env,
+    )
+    assert proc.returncode == 1
+    governance_outcome = read_json(governance_only / '.zoo-agent' / 'runs' / 'run-governance-only' / 'delivery-outcome.json')
+    assert governance_outcome['delivery_outcome'] == 'no_delivery'
+
+    bootstrap_delivery = unique_dir('agent-bootstrap-delivery-alpha')
+    init_repo(bootstrap_delivery, env)
+    write_fast_cli_report(bootstrap_delivery, 'run-bootstrap-delivery', 'task-bootstrap-delivery', 'bootstrap project', tests_status='not_applicable', allowed_files=['AGENTS.md'])
+    capture_baseline(bootstrap_delivery, 'run-bootstrap-delivery', 'task-bootstrap-delivery', env, text='bootstrap project', task_type='bootstrap', allowed_files=['AGENTS.md'])
+    write(bootstrap_delivery / 'AGENTS.md', '# Existing local instructions\n\nBootstrap update.\n')
+    write_fast_optimistic_report(bootstrap_delivery, 'run-bootstrap-delivery', 'task-bootstrap-delivery', changed_files=['AGENTS.md'])
+    compare_baseline(bootstrap_delivery, 'run-bootstrap-delivery', 'task-bootstrap-delivery', env)
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'check_delivery_outcome.py'),
+            '--workspace',
+            str(bootstrap_delivery),
+            '--run-id',
+            'run-bootstrap-delivery',
+            '--task-id',
+            'task-bootstrap-delivery',
+            '--task-type',
+            'bootstrap',
+        ],
+        ROOT,
+        env,
+    )
+    bootstrap_outcome = read_json(bootstrap_delivery / '.zoo-agent' / 'runs' / 'run-bootstrap-delivery' / 'delivery-outcome.json')
+    assert bootstrap_outcome['delivery_outcome'] == 'delivered'
+
+    no_op = unique_dir('agent-no-op-alpha')
+    init_repo(no_op, env)
+    write_fast_cli_report(no_op, 'run-no-op', 'task-no-op', 'fix specified typo in README', tests_status='not_applicable')
+    capture_baseline(no_op, 'run-no-op', 'task-no-op', env, text='fix specified typo in README', task_type='docs')
+    write_fast_optimistic_report(
+        no_op,
+        'run-no-op',
+        'task-no-op',
+        changed_files=[],
+        final_message='Checked README.md for the specified typo and no typo found; no changes needed after reviewing README.md.',
+    )
+    compare_baseline(no_op, 'run-no-op', 'task-no-op', env)
+    run([sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(no_op), '--run-id', 'run-no-op', '--task-id', 'task-no-op'], ROOT, env)
+    no_op_outcome = read_json(no_op / '.zoo-agent' / 'runs' / 'run-no-op' / 'delivery-outcome.json')
+    assert no_op_outcome['delivery_outcome'] == 'no_op_with_evidence'
+    run([sys.executable, str(ROOT / 'scripts' / 'check_fast_path_gate.py'), '--workspace', str(no_op), '--run-id', 'run-no-op', '--task-id', 'task-no-op'], ROOT, env)
+    no_op_gate = read_json(no_op / '.zoo-agent' / 'runs' / 'run-no-op' / 'fast-path-gate.json')
+    assert no_op_gate['verdict'] == 'FAST_NO_OP_ACCEPTED'
+
+    empty_no_op = unique_dir('agent-empty-no-op-alpha')
+    init_repo(empty_no_op, env)
+    write_fast_cli_report(empty_no_op, 'run-empty-no-op', 'task-empty-no-op', 'fix specified typo in README', tests_status='not_applicable')
+    capture_baseline(empty_no_op, 'run-empty-no-op', 'task-empty-no-op', env, text='fix specified typo in README', task_type='docs')
+    write_fast_optimistic_report(empty_no_op, 'run-empty-no-op', 'task-empty-no-op', changed_files=[], final_message='nothing to change')
+    compare_baseline(empty_no_op, 'run-empty-no-op', 'task-empty-no-op', env)
+    proc = run_may_fail([sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(empty_no_op), '--run-id', 'run-empty-no-op', '--task-id', 'task-empty-no-op'], ROOT, env)
+    assert proc.returncode == 1
+    empty_no_op_outcome = read_json(empty_no_op / '.zoo-agent' / 'runs' / 'run-empty-no-op' / 'delivery-outcome.json')
+    assert empty_no_op_outcome['delivery_outcome'] == 'no_delivery'
 
     dirty = unique_dir('agent-dirty-readiness-alpha')
     init_repo(dirty, env)

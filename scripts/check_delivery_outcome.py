@@ -18,9 +18,18 @@ from runtime_common import load_json, project_root, safe_name, utc_now, write_js
 
 RUNTIME_PATTERNS = [
     '.zoo-agent/**',
+    '.tmp/**',
+]
+
+GOVERNANCE_PATTERNS = [
+    'AGENTS.md',
     'AGENTS.md.new',
     '.gitignore.agent.patch',
+    '.roo/rules/**',
     '.roo/rules.new/**',
+    'bootstrap-report.md',
+    'project-profile.json',
+    'project-readiness.json',
 ]
 
 IGNORED_GENERATED_PATTERNS = [
@@ -157,18 +166,21 @@ def matches_any(path: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns)
 
 
-def split_changed_files(files: list[str]) -> tuple[list[str], list[str], list[str]]:
+def split_changed_files(files: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
     business: list[str] = []
     runtime: list[str] = []
+    governance: list[str] = []
     ignored: list[str] = []
     for item in sorted(set(file.replace('\\', '/') for file in files if file)):
         if matches_any(item, RUNTIME_PATTERNS):
             runtime.append(item)
         elif matches_any(item, IGNORED_GENERATED_PATTERNS):
             ignored.append(item)
+        elif matches_any(item, GOVERNANCE_PATTERNS):
+            governance.append(item)
         else:
             business.append(item)
-    return business, runtime, ignored
+    return business, runtime, governance, ignored
 
 
 def load_cli_report(run_dir: Path, task_id: str) -> dict[str, Any]:
@@ -208,6 +220,110 @@ def latest_attempt(run_dir: Path, task_id: str) -> dict[str, Any]:
                 attempt['_recommended_next_action'] = payload.get('recommended_next_action', '')
                 return attempt
     return {}
+
+
+def nested_get(mapping: dict[str, Any], *keys: str) -> Any:
+    current: Any = mapping
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def existing_path(value: Any) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    try:
+        path = path.resolve()
+    except OSError:
+        return None
+    return path if path.exists() else None
+
+
+def discover_baseline_path(args: argparse.Namespace, project: Path, run_dir: Path, attempt: dict[str, Any]) -> Path | None:
+    explicit = existing_path(args.baseline)
+    if explicit:
+        return explicit
+    candidates = [
+        run_dir / 'tasks' / safe_name(args.task_id) / 'task-baseline.json',
+        run_dir / f'task-baseline-{safe_name(args.task_id)}.json',
+        existing_path(nested_get(attempt, 'task_baseline', 'path')),
+        existing_path(nested_get(attempt, 'collected_result', 'task_baseline', 'path')),
+        existing_path(nested_get(attempt, 'collected_result', 'task_baseline_path')),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, Path) and candidate.exists():
+            return candidate
+    for root in [
+        project / '.zoo-agent' / 'worktrees' / safe_name(args.run_id) / safe_name(args.task_id),
+        project / '.zoo-agent' / 'runs' / args.run_id,
+    ]:
+        if root.exists():
+            matches = sorted(root.glob(f'**/tasks/{safe_name(args.task_id)}/task-baseline.json'))
+            if matches:
+                return matches[-1].resolve()
+    return None
+
+
+def discover_delta_path(args: argparse.Namespace, project: Path, run_dir: Path, attempt: dict[str, Any]) -> Path | None:
+    explicit = existing_path(args.task_delta)
+    if explicit:
+        return explicit
+    candidates = [
+        run_dir / 'tasks' / safe_name(args.task_id) / 'task-delta.json',
+        run_dir / f'task-delta-{safe_name(args.task_id)}.json',
+        existing_path(nested_get(attempt, 'task_delta', 'path')),
+        existing_path(nested_get(attempt, 'collected_result', 'task_delta', 'path')),
+        existing_path(nested_get(attempt, 'collected_result', 'task_delta_path')),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, Path) and candidate.exists():
+            return candidate
+    for root in [
+        project / '.zoo-agent' / 'worktrees' / safe_name(args.run_id) / safe_name(args.task_id),
+        project / '.zoo-agent' / 'runs' / args.run_id,
+    ]:
+        if root.exists():
+            matches = sorted(root.glob(f'**/tasks/{safe_name(args.task_id)}/task-delta.json'))
+            if matches:
+                return matches[-1].resolve()
+    return None
+
+
+def compare_from_baseline(baseline_path: Path, denied_files: list[str]) -> tuple[Path | None, dict[str, Any]]:
+    baseline = load_json(baseline_path)
+    workspace = str(baseline.get('workspace') or '')
+    if not workspace:
+        return None, {'returncode': 2, 'stderr': 'baseline missing workspace'}
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'compare_task_baseline.py'),
+        '--baseline',
+        str(baseline_path),
+        '--workspace',
+        workspace,
+    ]
+    for item in denied_files:
+        command.extend(['--denied-file', item])
+    proc = subprocess.run(
+        command,
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    payload = parse_json_text(proc.stdout)
+    delta_path = existing_path(payload.get('path'))
+    return delta_path, {
+        'command': command,
+        'returncode': proc.returncode,
+        'stdout': proc.stdout,
+        'stderr': proc.stderr,
+    }
 
 
 def codex_returncode(attempt: dict[str, Any], cli_report: dict[str, Any]) -> int | None:
@@ -323,6 +439,27 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         lines.extend(f"- {item}" for item in payload['runtime_changed_files'])
     else:
         lines.append('- none')
+    lines.extend(['', '## Governance Changed Files', ''])
+    if payload.get('governance_changed_files'):
+        lines.extend(f"- {item}" for item in payload['governance_changed_files'])
+    else:
+        lines.append('- none')
+    lines.extend(['', '## Unchanged Existing Diff', ''])
+    if payload.get('unchanged_existing_diff'):
+        lines.extend(f"- {item}" for item in payload['unchanged_existing_diff'])
+    else:
+        lines.append('- none')
+    lines.extend(
+        [
+            '',
+            '## Baseline',
+            '',
+            f"- baseline_used: {payload.get('baseline_used')}",
+            f"- baseline_path: {payload.get('baseline_path') or ''}",
+            f"- task_delta_path: {payload.get('task_delta_path') or ''}",
+            f"- legacy_diff_mode: {payload.get('legacy_diff_mode')}",
+        ]
+    )
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
@@ -333,17 +470,44 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     attempt = latest_attempt(run_dir, args.task_id)
     collected = attempt.get('collected_result') if isinstance(attempt.get('collected_result'), dict) else {}
 
-    changed = git_changed_files(project)
-    changed.extend(args.changed_file or [])
-    changed.extend(str(item) for item in collected.get('git_diff_name_only') or [] if item)
-    business_files, runtime_files, ignored_files = split_changed_files(changed)
-
     route = args.route or str(cli_report.get('route') or cli_report.get('selected_path') or '')
     task_text = args.input_text or str(cli_report.get('input') or '')
     classification = cli_report.get('classification') if isinstance(cli_report.get('classification'), dict) else {}
     allowed_files = [str(item) for item in classification.get('allowed_files') or []]
     denied_files = [str(item) for item in classification.get('denied_files') or []]
     denied_files.extend(args.denied_file or [])
+    baseline_path = discover_baseline_path(args, project, run_dir, attempt)
+    delta_path = discover_delta_path(args, project, run_dir, attempt)
+    compare_run: dict[str, Any] = {}
+    if not delta_path and baseline_path:
+        delta_path, compare_run = compare_from_baseline(baseline_path, denied_files)
+
+    baseline_used = bool(baseline_path)
+    legacy_diff_mode = False
+    missing_task_baseline = False
+    delta: dict[str, Any] = load_json(delta_path) if delta_path else {}
+
+    if delta:
+        business_files = [str(item) for item in delta.get('business_candidate_files') or []]
+        runtime_files = [str(item) for item in delta.get('runtime_artifacts') or []]
+        governance_files = [str(item) for item in delta.get('governance_artifacts') or []]
+        ignored_files = [str(item) for item in delta.get('ignored_generated_files') or []]
+        unchanged_existing_diff = [str(item) for item in delta.get('unchanged_existing_diff') or []]
+        denied = [str(item) for item in delta.get('denied_files_touched') or []]
+    else:
+        changed = git_changed_files(project)
+        changed.extend(args.changed_file or [])
+        changed.extend(str(item) for item in collected.get('git_diff_name_only') or [] if item)
+        business_files, runtime_files, governance_files, ignored_files = split_changed_files(changed)
+        unchanged_existing_diff = []
+        denied = denied_hits(business_files + governance_files, denied_files)
+        actual_fast_run = bool(attempt) or bool(collected) or bool((run_dir / 'codex-results' / args.task_id).exists())
+        legacy_allowed = args.allow_legacy_diff or str(cli_report.get('generated_by') or '').startswith('test_')
+        if route == 'fast' and actual_fast_run and not legacy_allowed:
+            missing_task_baseline = True
+        else:
+            legacy_diff_mode = True
+
     task_type = infer_task_type(task_text, allowed_files, business_files, args.task_type)
     scope_status = args.scope_guard_status or scope_status_from_attempt(attempt, cli_report)
     tests_status = args.tests_status or tests_status_from_attempt(attempt, cli_report, task_type)
@@ -351,13 +515,16 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     timed_out = codex_timed_out(attempt)
     evidence_text = collected_text(attempt, run_dir, args.task_id)
     no_op_evidence = no_op_has_evidence(evidence_text)
-    denied = denied_hits(business_files, denied_files)
 
     outcome = 'executed'
     reason = 'worker_executed_without_delivery_requirement'
     next_action = 'review_result'
 
-    if denied or scope_status == 'fail':
+    if missing_task_baseline:
+        outcome = 'blocked'
+        reason = 'missing_task_baseline'
+        next_action = 'capture_task_baseline_before_actual_execution'
+    elif denied or scope_status == 'fail':
         outcome = 'unsafe'
         reason = 'scope_guard_failed_or_denied_files_touched'
         next_action = 'stop_and_review_scope'
@@ -366,7 +533,11 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         reason = 'worker_failed_or_timed_out'
         next_action = 'inspect_worker_output_or_retry'
     elif not business_files:
-        if no_op_evidence:
+        if task_type in {'bootstrap', 'governance'} and (governance_files or runtime_files):
+            outcome = 'delivered'
+            reason = 'governance_or_bootstrap_artifacts_changed'
+            next_action = 'review_governance_artifacts'
+        elif no_op_evidence:
             outcome = 'no_op_with_evidence'
             reason = 'no_business_diff_but_explicit_no_op_evidence_present'
             next_action = 'accept_no_op_or_clarify_task'
@@ -403,8 +574,15 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         'task_id': args.task_id,
         'route': route,
         'task_type': task_type,
+        'baseline_used': baseline_used,
+        'baseline_path': str(baseline_path or ''),
+        'task_delta_path': str(delta_path or ''),
+        'legacy_diff_mode': legacy_diff_mode,
+        'compare_task_baseline': compare_run,
         'business_changed_files': business_files,
         'runtime_changed_files': runtime_files,
+        'governance_changed_files': governance_files,
+        'unchanged_existing_diff': unchanged_existing_diff,
         'ignored_generated_files': ignored_files,
         'codex_returncode': returncode,
         'scope_guard_status': scope_status,
@@ -427,13 +605,16 @@ def main() -> int:
     parser.add_argument('--workspace', required=True)
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--task-id', required=True)
+    parser.add_argument('--baseline', default='')
+    parser.add_argument('--task-delta', default='')
     parser.add_argument('--route', default='')
-    parser.add_argument('--task-type', choices=['coding', 'docs', 'edit', 'analysis', 'governance'], default='')
+    parser.add_argument('--task-type', choices=['coding', 'docs', 'edit', 'bootstrap', 'governance', 'research', 'analysis', 'unknown'], default='')
     parser.add_argument('--input-text', default='')
     parser.add_argument('--scope-guard-status', default='')
     parser.add_argument('--tests-status', default='')
     parser.add_argument('--changed-file', action='append', default=[])
     parser.add_argument('--denied-file', action='append', default=[])
+    parser.add_argument('--allow-legacy-diff', action='store_true')
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     code, payload = evaluate(args)

@@ -106,6 +106,10 @@ def build_gate(project: Path, run_id: str, task_id: str, *, output: Path | None 
         verdict = 'FAST_NO_DELIVERY'
         status = 'blocked'
         next_action = 'clarify_task_or_specify_file_and_change'
+    elif delivery == 'unsafe':
+        verdict = 'FAST_UNSAFE'
+        status = 'blocked'
+        next_action = 'stop_and_review_scope'
     else:
         verdict = 'FAST_BLOCKED'
         status = 'blocked'

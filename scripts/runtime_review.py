@@ -92,6 +92,8 @@ def fast_review_verdict(quality_payload: dict[str, Any]) -> str:
     verdicts = [str(item.get('verdict') or '') for item in gates if isinstance(item, dict)]
     if any(item == 'FAST_NO_DELIVERY' for item in verdicts):
         return 'FAST_NO_DELIVERY'
+    if any(item == 'FAST_UNSAFE' for item in verdicts):
+        return 'FAST_UNSAFE'
     if any(item == 'FAST_BLOCKED' for item in verdicts):
         return 'FAST_BLOCKED'
     if verdicts and all(item in {'FAST_DELIVERED', 'FAST_NO_OP_ACCEPTED'} for item in verdicts):

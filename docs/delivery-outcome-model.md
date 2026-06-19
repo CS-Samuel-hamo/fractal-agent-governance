@@ -14,10 +14,21 @@ Outcomes:
 Runtime evidence is not business delivery. Changes under `.zoo-agent/**`, cache files, `__pycache__`,
 `.pytest_cache`, and `*.pyc` do not count as a business diff.
 
+As of `0.4.2-delivery-baseline-hardening`, delivery is measured against a task execution baseline:
+
+- `capture_task_baseline.py` records the worktree status before Codex/fast worker execution.
+- `compare_task_baseline.py` compares post-execution state to that baseline.
+- `check_delivery_outcome.py` uses `task-delta.business_candidate_files` as the source of truth for task delivery.
+- Existing bootstrap/governance changes such as `AGENTS.md`, `AGENTS.md.new`, `.gitignore.agent.patch`,
+  `.roo/rules/**`, and `.zoo-agent/**` are not counted as coding/docs delivery when they existed before the
+  task started.
+
 For docs-only tasks, README or docs changes can be delivered with tests marked `not_applicable`.
 For coding tasks, delivery normally requires code or test diff unless the worker provides no-op evidence.
 
 Primary artifacts:
 
+- `.zoo-agent/runs/<run-id>/tasks/<task-id>/task-baseline.json`
+- `.zoo-agent/runs/<run-id>/tasks/<task-id>/task-delta.json`
 - `.zoo-agent/runs/<run-id>/delivery-outcome.json`
 - `.zoo-agent/runs/<run-id>/delivery-outcome.md`

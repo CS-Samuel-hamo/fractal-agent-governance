@@ -96,6 +96,14 @@ def probe(cmd, cwd):
     return result
 
 
+def load_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
 def package_declares_or_installs(frontend: Path, package_name: str) -> bool:
     try:
         package_json = json.loads((frontend / 'package.json').read_text(encoding='utf-8'))
@@ -168,6 +176,10 @@ def main():
     final_msg = (task_dir / 'codex-final-message.md').read_text(encoding='utf-8') if (task_dir/'codex-final-message.md').exists() else ''
     progress = (task_dir / 'PROGRESS.md').read_text(encoding='utf-8') if (task_dir/'PROGRESS.md').exists() else ''
     blockers = (task_dir / 'BLOCKERS.md').read_text(encoding='utf-8') if (task_dir/'BLOCKERS.md').exists() else ''
+    task_evidence_dir = workspace / '.zoo-agent' / 'runs' / args.run_id / 'tasks' / args.task_id
+    task_baseline_path = task_evidence_dir / 'task-baseline.json'
+    task_delta_path = task_evidence_dir / 'task-delta.json'
+    delivery_outcome_path = workspace / '.zoo-agent' / 'runs' / args.run_id / 'delivery-outcome.json'
 
     # Run scope guard from task dir with workspace as cwd so no helper files pollute git status.
     scope = {'status': 'not_run'}
@@ -210,6 +222,12 @@ def main():
         'git_diff_name_only': diff_names.splitlines(),
         'git_diff_stat': diff_stat,
         'scope_guard': scope,
+        'task_baseline_path': str(task_baseline_path) if task_baseline_path.exists() else '',
+        'task_baseline': load_json(task_baseline_path),
+        'task_delta_path': str(task_delta_path) if task_delta_path.exists() else '',
+        'task_delta': load_json(task_delta_path),
+        'delivery_outcome_path': str(delivery_outcome_path) if delivery_outcome_path.exists() else '',
+        'delivery_outcome': load_json(delivery_outcome_path),
         'final_message': final_msg,
         'progress_md': progress,
         'blockers_md': blockers,

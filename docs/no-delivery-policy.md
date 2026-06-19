@@ -9,8 +9,12 @@ Examples:
 - only generated cache files changed
 - coding task changed only documentation
 - docs task changed no README/docs file
+- bootstrap/governance artifacts existed before the task baseline and were the only observed diff
 
 `no_delivery` is not mergeable, even if the worker return code is zero and the scope guard passes.
+
+`no_delivery` is evaluated from `task-delta.json`, not from the full current worktree status. This prevents
+pre-existing bootstrap artifacts such as `AGENTS.md` from being misread as the current task's delivery.
 
 Valid no-op requires `no_op_with_evidence`:
 
