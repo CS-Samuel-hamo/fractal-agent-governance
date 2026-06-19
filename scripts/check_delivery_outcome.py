@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
+from classify_codex_failure import classify as classify_codex_failure  # noqa: E402
 
 
 RUNTIME_PATTERNS = [
@@ -647,6 +648,13 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         'reason': reason,
         'next_action': next_action,
     }
+    payload['failure_classification'] = classify_codex_failure(
+        text=reason,
+        worker_status=worker_state,
+        delivery_outcome=outcome,
+        scope_guard_status=scope_status,
+        returncode=returncode,
+    )
     output = Path(args.output).resolve() if args.output else run_dir / 'delivery-outcome.json'
     write_json(output, payload)
     write_markdown(output.with_suffix('.md'), payload)

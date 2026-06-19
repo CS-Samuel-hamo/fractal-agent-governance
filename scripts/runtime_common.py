@@ -47,6 +47,13 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def latest_goal(project: Path) -> dict[str, Any]:
+    current_path = project / '.zoo-agent' / 'goal' / 'current-goal.json'
+    current = load_json(current_path)
+    if current:
+        if current.get('active', True):
+            current['_path'] = str(current_path)
+            return current
+        return {}
     goals_dir = project / '.zoo-agent' / 'goals'
     goals: list[dict[str, Any]] = []
     for path in sorted(goals_dir.glob('*.json')):
@@ -61,6 +68,11 @@ def latest_goal(project: Path) -> dict[str, Any]:
 
 def resolve_goal(project: Path, goal_id: str = '', run_id: str = '') -> dict[str, Any]:
     if goal_id:
+        current_path = project / '.zoo-agent' / 'goal' / 'current-goal.json'
+        current = load_json(current_path)
+        if current and current.get('goal_id') == goal_id and current.get('active', True):
+            current['_path'] = str(current_path)
+            return current
         path = project / '.zoo-agent' / 'goals' / f'{safe_name(goal_id)}.json'
         payload = load_json(path)
         if payload:
@@ -99,6 +111,8 @@ def set_active_goal(
     run_id: str = '',
     success_criteria: list[str] | None = None,
     constraints: list[str] | None = None,
+    non_goals: list[str] | None = None,
+    risk_tolerance: str = 'low',
     activate: bool = True,
     source: str = 'set_goal.py',
 ) -> dict[str, Any]:
@@ -110,16 +124,23 @@ def set_active_goal(
         **existing,
         'schema_version': '1.0',
         'goal_id': goal_id,
+        'goal': goal_text,
         'root_goal': goal_text,
         'success_criteria': success_criteria or existing.get('success_criteria') or [],
         'constraints': constraints or existing.get('constraints') or [],
+        'non_goals': non_goals or existing.get('non_goals') or [],
+        'risk_tolerance': risk_tolerance or existing.get('risk_tolerance') or 'low',
         'status': 'active' if activate else existing.get('status', 'draft'),
+        'active': activate,
         'source_of_truth': True,
+        'source': source,
         'created_at': existing.get('created_at') or now,
         'updated_at': now,
         'generated_by': source,
     }
     write_json(path, payload)
+    current_goal_path = project / '.zoo-agent' / 'goal' / 'current-goal.json'
+    write_json(current_goal_path, payload)
 
     if activate:
         current_path = project / '.zoo-agent' / 'current-run.json'
@@ -140,12 +161,13 @@ def set_active_goal(
             'generated_by': source,
             'updated_at': now,
             'active_goal_id': goal_id,
-            'source_of_truth': str(path),
+            'source_of_truth': str(current_goal_path),
+            'legacy_goal_path': str(path),
             'rule': 'goal_is_the_runtime_source_of_truth',
         }
         write_json(project / '.zoo-agent' / 'goal_state.json', goal_state)
 
-    payload['_path'] = str(path)
+    payload['_path'] = str(current_goal_path)
     return payload
 
 
@@ -241,26 +263,46 @@ def alignment_report(
 
 
 def initialize_loop(project: Path, *, max_iteration: int = 10, source: str = 'agent_runtime_v4') -> dict[str, Any]:
-    path = project / '.zoo-agent' / 'loop_state.json'
-    state = load_json(path)
+    new_path = project / '.zoo-agent' / 'loop' / 'loop-state.json'
+    legacy_path = project / '.zoo-agent' / 'loop_state.json'
+    if new_path.exists() and legacy_path.exists():
+        state = load_json(legacy_path if legacy_path.stat().st_mtime_ns > new_path.stat().st_mtime_ns else new_path)
+    else:
+        state = load_json(new_path) or load_json(legacy_path)
     if not state:
         state = {
+            'run_id': '',
+            'goal_id': '',
             'iteration': 0,
+            'max_iterations': max_iteration,
             'max_iteration': max_iteration,
             'status': 'active',
+            'last_route': 'unknown',
+            'last_delivery_outcome': '',
+            'progress_score': 0.0,
+            'doc_only_count': 0,
+            'no_delivery_count': 0,
+            'local_optimization_count': 0,
+            'backend_failure_count': 0,
+            'scope_violation_count': 0,
+            'last_decision': '',
+            'next_action': '',
             'drift_detected': False,
         }
     state.update({'updated_at': utc_now(), 'generated_by': source})
-    state['max_iteration'] = int(state.get('max_iteration') or max_iteration)
-    write_json(path, state)
+    state['max_iterations'] = int(state.get('max_iterations') or state.get('max_iteration') or max_iteration)
+    state['max_iteration'] = state['max_iterations']
+    write_json(new_path, state)
+    write_json(legacy_path, state)
     return state
 
 
 def advance_loop(project: Path, *, run_id: str, task_id: str, max_iteration: int = 10) -> dict[str, Any]:
     state = initialize_loop(project, max_iteration=max_iteration)
     state['iteration'] = int(state.get('iteration') or 0) + 1
-    state['max_iteration'] = int(state.get('max_iteration') or max_iteration)
-    if state['iteration'] > state['max_iteration']:
+    state['max_iterations'] = int(state.get('max_iterations') or state.get('max_iteration') or max_iteration)
+    state['max_iteration'] = state['max_iterations']
+    if state['iteration'] > state['max_iterations']:
         state['status'] = 'diverging'
         state['drift_detected'] = True
         state['recommended_escalation'] = 'gpt_decision_layer'
@@ -268,6 +310,7 @@ def advance_loop(project: Path, *, run_id: str, task_id: str, max_iteration: int
         state['status'] = 'active'
         state['drift_detected'] = bool(state.get('drift_detected', False))
     state.update({'updated_at': utc_now(), 'run_id': run_id, 'task_id': task_id})
+    write_json(project / '.zoo-agent' / 'loop' / 'loop-state.json', state)
     write_json(project / '.zoo-agent' / 'loop_state.json', state)
     write_json(project / '.zoo-agent' / 'runs' / run_id / 'loop_state.json', state)
     return state

@@ -16,15 +16,37 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Set the active CLI-first runtime goal.')
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--goal-id', default='')
-    parser.add_argument('--goal', required=True)
+    parser.add_argument('--goal', default='')
     parser.add_argument('--run-id', default='')
     parser.add_argument('--success-criteria', action='append', default=[])
     parser.add_argument('--constraint', action='append', default=[])
+    parser.add_argument('--non-goal', action='append', default=[])
+    parser.add_argument('--risk-tolerance', choices=['low', 'medium', 'high'], default='low')
+    parser.add_argument('--clear', action='store_true')
     parser.add_argument('--no-activate', action='store_true')
     parser.add_argument('--json-output', default='')
     args = parser.parse_args()
 
     project = project_root(args.workspace)
+    if args.clear:
+        current = project / '.zoo-agent' / 'goal' / 'current-goal.json'
+        if current.exists():
+            payload = json.loads(current.read_text(encoding='utf-8-sig'))
+            payload['active'] = False
+            payload['status'] = 'cleared'
+            current.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+        current_run = project / '.zoo-agent' / 'current-run.json'
+        if current_run.exists():
+            payload = json.loads(current_run.read_text(encoding='utf-8-sig'))
+            payload.pop('goal_id', None)
+            payload.pop('active_goal_id', None)
+            current_run.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+        report = {'status': 'cleared', 'workspace': str(project), 'goal_path': str(current)}
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
+    if not args.goal.strip():
+        print('Missing --goal.', file=sys.stderr)
+        return 2
     goal = set_active_goal(
         project,
         args.goal,
@@ -32,6 +54,8 @@ def main() -> int:
         run_id=args.run_id,
         success_criteria=args.success_criteria,
         constraints=args.constraint,
+        non_goals=args.non_goal,
+        risk_tolerance=args.risk_tolerance,
         activate=not args.no_activate,
         source='set_goal.py',
     )

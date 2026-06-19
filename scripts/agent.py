@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.4.3-codex-worker-stability-windows'
+VERSION = '0.4.3-codex-risk-aware-goal-loop-runtime'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -24,6 +24,8 @@ KNOWN_COMMANDS = {
     'standards',
     'review',
     'codex-health',
+    'goal',
+    'loop',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -621,8 +623,58 @@ def review(args) -> int:
     return delegate('runtime_review.py', command)
 
 
+def goal_command(args) -> int:
+    if args.goal_action == 'set':
+        command = ['--workspace', workspace_arg(args.workspace), '--goal', args.goal]
+        if args.goal_id:
+            command.extend(['--goal-id', args.goal_id])
+        for item in args.success_criteria:
+            command.extend(['--success-criteria', item])
+        for item in args.constraint:
+            command.extend(['--constraint', item])
+        for item in args.non_goal:
+            command.extend(['--non-goal', item])
+        command.extend(['--risk-tolerance', args.risk_tolerance])
+        return delegate('set_goal.py', command)
+    if args.goal_action == 'clear':
+        return delegate('set_goal.py', ['--workspace', workspace_arg(args.workspace), '--clear'])
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.goal_action in {'status', 'show'}:
+        return delegate('get_goal.py', command)
+    print(f'Unsupported goal action: {args.goal_action}', file=sys.stderr)
+    return 2
+
+
+def loop_command(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.run_id:
+        command.extend(['--run-id', args.run_id])
+    if hasattr(args, 'max_iterations'):
+        command.extend(['--max-iterations', str(args.max_iterations)])
+    if args.loop_action == 'reset':
+        command.append('--reset')
+    elif args.loop_action == 'stop':
+        command.append('--stop')
+    elif args.loop_action == 'set':
+        command.append('--set-max')
+    elif args.loop_action == 'explain':
+        return delegate('check_loop_convergence.py', ['--workspace', workspace_arg(args.workspace)])
+    elif args.loop_action == 'status':
+        pass
+    else:
+        print(f'Unsupported loop action: {args.loop_action}', file=sys.stderr)
+        return 2
+    return delegate('loop_controller.py', command)
+
+
 def codex_health(args) -> int:
     command = [
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--mode',
+        args.mode,
         '--timeout-seconds',
         str(args.timeout_seconds),
         '--no-output-timeout-seconds',
@@ -632,7 +684,7 @@ def codex_health(args) -> int:
         command.extend(['--codex-home', args.codex_home])
     if args.skip_real_codex:
         command.append('--skip-real-codex')
-    return delegate('check_codex_worker_health.py', command)
+    return delegate('check_codex_backend_health.py', command)
 
 
 def latest_run_id(project: Path) -> str:
@@ -688,6 +740,8 @@ def interactive_help() -> str:
             '  /review <run-id>       Run governance review',
             '  /reroute <run-id> <task-id> <fast|parallel|governed>',
             '  /rollback <run-id> <task-id> [--yes]',
+            '  /goal <goal>           Set the active goal',
+            '  /loop status|reset|stop Show or control convergence loop',
             '  /exit                  Leave interactive mode',
             '  /help                  Show this help',
         ]
@@ -765,6 +819,25 @@ def interactive_shell(workspace: str = '.') -> int:
                         confirm_current_branch='--confirm-current-branch' in parts[3:],
                     )
                 )
+            elif command == '/goal':
+                if len(parts) < 2:
+                    goal_command(argparse.Namespace(goal_action='show', workspace=str(project), goal_id=''))
+                else:
+                    goal_command(
+                        argparse.Namespace(
+                            goal_action='set',
+                            workspace=str(project),
+                            goal=' '.join(parts[1:]),
+                            goal_id='',
+                            success_criteria=[],
+                            constraint=[],
+                            non_goal=[],
+                            risk_tolerance='low',
+                        )
+                    )
+            elif command == '/loop':
+                action = parts[1] if len(parts) > 1 else 'status'
+                loop_command(argparse.Namespace(loop_action=action, workspace=str(project), run_id='', max_iterations=5))
             elif command.startswith('/'):
                 print('Unknown command. Use /help.')
             else:
@@ -906,7 +979,40 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument('--accept-parent-aggregation', action='store_true')
     review_parser.set_defaults(handler=review)
 
+    goal_parser = sub.add_parser('goal', help='Manage the active runtime goal anchor.')
+    goal_sub = goal_parser.add_subparsers(dest='goal_action', required=True)
+    goal_set = goal_sub.add_parser('set')
+    goal_set.add_argument('goal')
+    goal_set.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_set.add_argument('--goal-id', default='')
+    goal_set.add_argument('--success-criteria', action='append', default=[])
+    goal_set.add_argument('--constraint', action='append', default=[])
+    goal_set.add_argument('--non-goal', action='append', default=[])
+    goal_set.add_argument('--risk-tolerance', choices=['low', 'medium', 'high'], default='low')
+    goal_set.set_defaults(handler=goal_command)
+    for action in ['show', 'status', 'clear']:
+        item = goal_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--goal-id', default='')
+        item.set_defaults(handler=goal_command)
+
+    loop_parser = sub.add_parser('loop', help='Manage lightweight convergence and loss-control loop state.')
+    loop_sub = loop_parser.add_subparsers(dest='loop_action', required=True)
+    for action in ['status', 'reset', 'stop', 'explain']:
+        item = loop_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--run-id', default='')
+        item.add_argument('--max-iterations', type=int, default=5)
+        item.set_defaults(handler=loop_command)
+    loop_set = loop_sub.add_parser('set')
+    loop_set.add_argument('--workspace', '--project', dest='workspace', default='.')
+    loop_set.add_argument('--run-id', default='')
+    loop_set.add_argument('--max-iterations', type=int, default=5)
+    loop_set.set_defaults(handler=loop_command)
+
     health_parser = sub.add_parser('codex-health', help='Check local Codex worker execution health.')
+    health_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    health_parser.add_argument('--mode', choices=['quick', 'full'], default='full')
     health_parser.add_argument('--codex-home', default=os.environ.get('CODEX_HOME', ''))
     health_parser.add_argument('--timeout-seconds', type=int, default=240)
     health_parser.add_argument('--no-output-timeout-seconds', type=int, default=120)

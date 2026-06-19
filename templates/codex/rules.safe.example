@@ -1,0 +1,8 @@
+# Safe Codex execution rules
+
+- Treat Codex CLI as execution backend only.
+- Do not plan, orchestrate, merge, push, deploy, or delete worktrees automatically.
+- Use isolated worktrees for actual runs.
+- Keep network disabled unless explicitly approved.
+- Never read or print secrets, tokens, API keys, or .env contents.
+- Use scope guard and delivery outcome before considering a task delivered.

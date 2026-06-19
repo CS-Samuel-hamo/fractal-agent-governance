@@ -24,8 +24,15 @@ METRIC_KEYS = [
     'doc_only_task_rate',
     'code_delivery_rate',
     'parallel_denial_count',
+    'backend_health_check_count',
+    'backend_failure_count',
+    'backend_failure_type',
+    'no_delivery_count',
+    'no_op_with_evidence_count',
     'loop_converged_count',
+    'loop_stopped_count',
     'local_optimization_deferred_count',
+    'manual_intervention_count',
 ]
 
 
@@ -41,8 +48,15 @@ def update_metrics(
     doc_only_task: bool = False,
     code_delivery_gate_failed: bool = False,
     parallel_denied: bool = False,
+    backend_health_checked: bool = False,
+    backend_failure: bool = False,
+    backend_failure_type: str = '',
+    no_delivery: bool = False,
+    no_op_with_evidence: bool = False,
     loop_converged: bool = False,
+    loop_stopped: bool = False,
     local_optimization_deferred: bool = False,
+    manual_intervention: bool = False,
     status: str = '',
 ) -> dict[str, Any]:
     metrics_path = project / '.zoo-agent' / 'metrics' / 'agent-runtime-v4.json'
@@ -75,10 +89,19 @@ def update_metrics(
     doc_only_task_count = int(counters.get('doc_only_task_count') or 0) + (1 if doc_only_task else 0)
     code_delivery_gate_fail_count = int(counters.get('code_delivery_gate_fail_count') or 0) + (1 if code_delivery_gate_failed else 0)
     parallel_denial_count = int(counters.get('parallel_denial_count') or 0) + (1 if parallel_denied else 0)
+    backend_health_check_count = int(counters.get('backend_health_check_count') or 0) + (1 if backend_health_checked else 0)
+    backend_failure_count = int(counters.get('backend_failure_count') or 0) + (1 if backend_failure else 0)
+    no_delivery_count = int(counters.get('no_delivery_count') or 0) + (1 if no_delivery else 0)
+    no_op_with_evidence_count = int(counters.get('no_op_with_evidence_count') or 0) + (1 if no_op_with_evidence else 0)
     loop_converged_count = int(counters.get('loop_converged_count') or 0) + (1 if loop_converged else 0)
+    loop_stopped_count = int(counters.get('loop_stopped_count') or 0) + (1 if loop_stopped else 0)
     local_optimization_deferred_count = int(counters.get('local_optimization_deferred_count') or 0) + (
         1 if local_optimization_deferred else 0
     )
+    manual_intervention_count = int(counters.get('manual_intervention_count') or 0) + (1 if manual_intervention else 0)
+    failure_types = counters.get('backend_failure_types') if isinstance(counters.get('backend_failure_types'), dict) else {}
+    if backend_failure and backend_failure_type:
+        failure_types[backend_failure_type] = int(failure_types.get(backend_failure_type) or 0) + 1
 
     counters.update(
         {
@@ -95,8 +118,15 @@ def update_metrics(
             'doc_only_task_count': doc_only_task_count,
             'code_delivery_gate_fail_count': code_delivery_gate_fail_count,
             'parallel_denial_count': parallel_denial_count,
+            'backend_health_check_count': backend_health_check_count,
+            'backend_failure_count': backend_failure_count,
+            'backend_failure_types': failure_types,
+            'no_delivery_count': no_delivery_count,
+            'no_op_with_evidence_count': no_op_with_evidence_count,
             'loop_converged_count': loop_converged_count,
+            'loop_stopped_count': loop_stopped_count,
             'local_optimization_deferred_count': local_optimization_deferred_count,
+            'manual_intervention_count': manual_intervention_count,
         }
     )
     metrics = {
@@ -111,8 +141,15 @@ def update_metrics(
         'code_delivery_rate': round(code_delivery_count / total, 4),
         'code_delivery_gate_fail_count': code_delivery_gate_fail_count,
         'parallel_denial_count': parallel_denial_count,
+        'backend_health_check_count': backend_health_check_count,
+        'backend_failure_count': backend_failure_count,
+        'backend_failure_type': backend_failure_type,
+        'no_delivery_count': no_delivery_count,
+        'no_op_with_evidence_count': no_op_with_evidence_count,
         'loop_converged_count': loop_converged_count,
+        'loop_stopped_count': loop_stopped_count,
         'local_optimization_deferred_count': local_optimization_deferred_count,
+        'manual_intervention_count': manual_intervention_count,
     }
     payload = {
         'schema_version': '1.0',
@@ -130,8 +167,15 @@ def update_metrics(
             'doc_only_task': doc_only_task,
             'code_delivery_gate_failed': code_delivery_gate_failed,
             'parallel_denied': parallel_denied,
+            'backend_health_checked': backend_health_checked,
+            'backend_failure': backend_failure,
+            'backend_failure_type': backend_failure_type,
+            'no_delivery': no_delivery,
+            'no_op_with_evidence': no_op_with_evidence,
             'loop_converged': loop_converged,
+            'loop_stopped': loop_stopped,
             'local_optimization_deferred': local_optimization_deferred,
+            'manual_intervention': manual_intervention,
         },
         'counters': counters,
         'metrics': metrics,
@@ -147,8 +191,14 @@ def update_metrics(
             'fast_path_pre_codex_overhead_ms': 'keep_low',
             'codex_execution_latency': 'keep_low',
             'parallel_denial_count': 'increase_when_parallel_is_unsafe',
+            'backend_health_check_count': 'avoid_full_health_on_every_fast_task',
+            'backend_failure_count': 'backend_failures_do_not_pollute_task_delivery_metrics',
+            'no_delivery_count': 'task_delivery_failures_without_backend_failure',
+            'no_op_with_evidence_count': 'accepted_noop_when_evidence_is_specific',
             'loop_converged_count': 'tracks_forced_convergence',
+            'loop_stopped_count': 'tracks_loss_control_stops',
             'local_optimization_deferred_count': 'tracks_noncritical_followups_deferred_by_loop_convergence',
+            'manual_intervention_count': 'tracks_required_human_intervention',
         },
     }
     write_json(metrics_path, payload)
@@ -168,8 +218,15 @@ def main() -> int:
     parser.add_argument('--doc-only-task', action='store_true')
     parser.add_argument('--code-delivery-gate-failed', action='store_true')
     parser.add_argument('--parallel-denied', action='store_true')
+    parser.add_argument('--backend-health-checked', action='store_true')
+    parser.add_argument('--backend-failure', action='store_true')
+    parser.add_argument('--backend-failure-type', default='')
+    parser.add_argument('--no-delivery', action='store_true')
+    parser.add_argument('--no-op-with-evidence', action='store_true')
     parser.add_argument('--loop-converged', action='store_true')
+    parser.add_argument('--loop-stopped', action='store_true')
     parser.add_argument('--local-optimization-deferred', action='store_true')
+    parser.add_argument('--manual-intervention', action='store_true')
     args = parser.parse_args()
 
     project = project_root(args.workspace)
@@ -185,8 +242,15 @@ def main() -> int:
         doc_only_task=args.doc_only_task,
         code_delivery_gate_failed=args.code_delivery_gate_failed,
         parallel_denied=args.parallel_denied,
+        backend_health_checked=args.backend_health_checked,
+        backend_failure=args.backend_failure,
+        backend_failure_type=args.backend_failure_type,
+        no_delivery=args.no_delivery,
+        no_op_with_evidence=args.no_op_with_evidence,
         loop_converged=args.loop_converged,
+        loop_stopped=args.loop_stopped,
         local_optimization_deferred=args.local_optimization_deferred,
+        manual_intervention=args.manual_intervention,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0

@@ -26,6 +26,8 @@ def main() -> int:
         'status': 'ok' if goal else 'missing',
         'workspace': str(project),
         'goal_id': goal.get('goal_id', args.goal_id) if goal else args.goal_id,
+        'goal_path': goal.get('_path', '') if goal else '',
+        'active': bool(goal.get('active', True)) if goal else False,
         'goal': goal,
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))

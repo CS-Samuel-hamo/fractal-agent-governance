@@ -1,0 +1,15 @@
+# Safe Codex config example.
+# Do not place API keys or tokens in this file.
+
+sandbox = "workspace-write"
+network_access = false
+approval_policy = "on-request"
+
+[runtime]
+codex_home = "D:\\AI_DEV\\codex_home"
+prefer_output_last_message = true
+
+[safety]
+danger_full_access_default = false
+require_human_confirmation_for_full_access = true
+enable_mcp_experimental_by_default = false
