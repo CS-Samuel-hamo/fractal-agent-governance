@@ -551,6 +551,8 @@ def decompose_big(args) -> int:
     if args.allow_leaf_actual:
         command.append('--allow-leaf-actual')
     result = delegate('decompose_big_task_to_leaf_contracts.py', command)
+    if result != 0:
+        return result
     delegate('check_leaf_task_contracts.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
     delegate('schedule_leaf_execution.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
     return result

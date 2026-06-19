@@ -54,6 +54,9 @@ def init_repo(name: str, env: dict[str, str]) -> Path:
     run(['git', 'config', 'user.name', 'Big Task Test'], repo, env=env)
     run(['git', 'add', '.'], repo, env=env)
     run(['git', 'commit', '-m', 'init'], repo, env=env)
+    marker = repo / '.zoo-agent'
+    marker.mkdir()
+    (marker / 'bootstrap.lock').write_text('test bootstrap marker\n', encoding='utf-8')
     return repo
 
 
@@ -149,6 +152,49 @@ def test_goal_missing_blocks(env: dict[str, str]) -> None:
     assert proc.returncode == 10
     contract = load(repo / '.zoo-agent' / 'runs' / 'run-missing-goal' / 'big-task-contract.json')
     assert contract['readiness_verdict'] == 'BLOCKED_GOAL_UNCLEAR'
+    proc = run([sys.executable, str(AGENT), 'decompose', 'add cross-module feature touching src/app.py and docs/a.md', '--workspace', str(repo), '--run-id', 'run-missing-goal-decompose'], repo, check=False, env=env)
+    assert proc.returncode == 10
+    assert (repo / '.zoo-agent' / 'runs' / 'run-missing-goal-decompose' / 'decomposition-blocked.json').exists()
+    assert not (repo / '.zoo-agent' / 'runs' / 'run-missing-goal-decompose' / 'leaf-tasks').exists()
+
+
+def test_agent_run_big_task_does_not_create_transient_goal(env: dict[str, str]) -> None:
+    repo = init_repo('run-no-transient-goal', env)
+    proc = run([sys.executable, str(AGENT), 'run', 'change public API response and database schema', '--workspace', str(repo), '--run-id', 'run-no-transient', '--dry-run'], repo, check=False, env=env)
+    assert proc.returncode in {0, 10}
+    current_goal = repo / '.zoo-agent' / 'goal' / 'current-goal.json'
+    assert not current_goal.exists()
+    reports = list((repo / '.zoo-agent' / 'runs' / 'run-no-transient' / 'cli-runtime').glob('*.json'))
+    assert reports
+    report = load(reports[0])
+    assert report['classification']['task_scale'] == 'big'
+    assert not report.get('goal', {}).get('goal_id')
+
+
+def test_project_readiness_blocker_stops_decomposition(env: dict[str, str]) -> None:
+    repo = init_repo('project-readiness-blocked', env)
+    goal_id = set_goal(repo, env, 'Plan only after project readiness is safe')
+    write_json(
+        repo / '.zoo-agent' / 'project-readiness.json',
+        {
+            'safe_for_bootstrap': True,
+            'safe_for_level_0_1_trial': False,
+            'safe_for_codex_actual_run': False,
+            'blockers': [
+                {
+                    'type': 'dirty_worktree',
+                    'severity': 'blocking',
+                    'message': 'Synthetic blocker for big task runtime test.',
+                }
+            ],
+        },
+    )
+    proc = run([sys.executable, str(AGENT), 'decompose', 'add cross-module feature touching src/app.py docs/a.md', '--workspace', str(repo), '--run-id', 'run-readiness-blocked', '--goal-id', goal_id], repo, check=False, env=env)
+    assert proc.returncode == 10
+    contract = load(repo / '.zoo-agent' / 'runs' / 'run-readiness-blocked' / 'big-task-contract.json')
+    assert contract['readiness_verdict'] == 'BLOCKED_PROJECT_NOT_READY'
+    assert (repo / '.zoo-agent' / 'runs' / 'run-readiness-blocked' / 'decomposition-blocked.json').exists()
+    assert not (repo / '.zoo-agent' / 'runs' / 'run-readiness-blocked' / 'leaf-tasks').exists()
 
 
 def test_loop_divergence(env: dict[str, str]) -> None:
@@ -212,6 +258,8 @@ def main() -> int:
     test_parent_aggregation_simulation(env)
     test_integration_worktree_report(env)
     test_goal_missing_blocks(env)
+    test_agent_run_big_task_does_not_create_transient_goal(env)
+    test_project_readiness_blocker_stops_decomposition(env)
     test_loop_divergence(env)
     test_high_risk_leaf_blocked(env)
     test_unknown_resource_not_independent(env)

@@ -20,6 +20,7 @@ from runtime_common import (  # noqa: E402
     ensure_goal,
     load_json,
     project_root,
+    resolve_goal,
     safe_name,
     utc_now,
     write_json,
@@ -415,9 +416,6 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     project = project_root(args.workspace)
     write_runtime_marker(project)
     args.task_id = args.task_id or task_id_default(args.input_text)
-    goal = ensure_goal(project, goal_id=args.goal_id, run_id=args.run_id, fallback_goal=args.input_text)
-    goal_id = str(goal.get('goal_id') or args.goal_id)
-    loop_state = advance_loop(project, run_id=args.run_id, task_id=args.task_id, max_iteration=args.max_iteration)
     forced_path = 'fast' if args.fast else ('parallel' if args.parallel else ('governed' if args.governed else ''))
     classification = classify(
         project,
@@ -427,6 +425,12 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         changed_file_estimate=args.changed_file_estimate,
         force_path=forced_path,
     )
+    if classification.get('task_scale') == 'big':
+        goal = resolve_goal(project, args.goal_id, args.run_id)
+    else:
+        goal = ensure_goal(project, goal_id=args.goal_id, run_id=args.run_id, fallback_goal=args.input_text)
+    goal_id = str(goal.get('goal_id') or args.goal_id or '')
+    loop_state = advance_loop(project, run_id=args.run_id, task_id=args.task_id, max_iteration=args.max_iteration)
     args.allowed_file = [str(item) for item in classification.get('allowed_files') or args.allowed_file]
     alignment = alignment_report(project, objective=args.input_text, task_id=args.task_id, run_id=args.run_id, goal_id=goal_id, source='route_task.py')
     write_json(project / '.zoo-agent' / 'runs' / args.run_id / 'goal-alignment' / f'{safe_name(args.task_id)}.json', alignment)
@@ -573,18 +577,25 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
                 ROOT,
                 timeout=60,
             )
-            schedule_run = run_command(
-                [
-                    sys.executable,
-                    str(ROOT / 'scripts' / 'schedule_leaf_execution.py'),
-                    '--workspace',
-                    str(project),
-                    '--run-id',
-                    args.run_id,
-                ],
-                ROOT,
-                timeout=60,
-            )
+            if decompose_run.get('returncode') == 0:
+                schedule_run = run_command(
+                    [
+                        sys.executable,
+                        str(ROOT / 'scripts' / 'schedule_leaf_execution.py'),
+                        '--workspace',
+                        str(project),
+                        '--run-id',
+                        args.run_id,
+                    ],
+                    ROOT,
+                    timeout=60,
+                )
+            else:
+                schedule_run = {
+                    'returncode': 10,
+                    'skipped': True,
+                    'reason': 'decomposition_blocked',
+                }
             implementation_queue = {
                 'schema_version': '1.0',
                 'generated_by': 'route_task.py',

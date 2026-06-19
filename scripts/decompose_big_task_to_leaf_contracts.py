@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import build_leaf_contracts, generate_resource_map, load_backend_profile, load_big_task_contract, project_root, write_leaf_contracts, write_resource_map  # noqa: E402
+from big_task_common import build_leaf_contracts, decomposition_gate, generate_resource_map, load_backend_profile, load_big_task_contract, project_root, write_leaf_contracts, write_resource_map  # noqa: E402
 from runtime_common import write_json  # noqa: E402
 
 
@@ -25,6 +25,18 @@ def main() -> int:
     if not contract:
         print('Missing big-task-contract.json.', file=sys.stderr)
         return 2
+    allowed, blockers = decomposition_gate(contract)
+    if not allowed:
+        report = {
+            'status': 'blocked',
+            'run_id': args.run_id,
+            'decomposition_allowed': False,
+            'blocking_reasons': blockers,
+            'message': 'Big task decomposition requires an explicit goal and verifiable success criteria.',
+        }
+        write_json(project / '.zoo-agent' / 'runs' / args.run_id / 'decomposition-blocked.json', report)
+        print(json.dumps(report, ensure_ascii=True, indent=2))
+        return 10
     resource_map = generate_resource_map(project, str(contract.get('raw_input') or ''))
     resource_paths = write_resource_map(project, resource_map)
     leaves = build_leaf_contracts(project, contract, resource_map, allow_leaf_actual=args.allow_leaf_actual)

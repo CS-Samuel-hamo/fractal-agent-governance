@@ -194,15 +194,31 @@ def big_loop_state(project: Path, run_id: str, goal_id: str, phase: str, *, max_
 def classify_readiness(contract: dict[str, Any]) -> tuple[str, str, list[str], str]:
     blockers = list(contract.get('blocking_reasons') or [])
     risk = contract.get('risk_level') or 'medium'
-    backend = load_json(contract.get('backend_profile_ref', '')) if contract.get('backend_profile_ref') else {}
+    backend = load_json(Path(str(contract.get('backend_profile_ref')))) if contract.get('backend_profile_ref') else {}
     backend_status = str(backend.get('health_status') or 'unknown')
+    readiness = load_json(Path(str(contract.get('project_readiness_ref')))) if contract.get('project_readiness_ref') else {}
     test_status = contract.get('test_capability') or 'unknown'
     rollback_status = contract.get('rollback_capability') or 'unknown'
     criteria = [item for item in contract.get('success_criteria') or [] if str(item).strip()]
+    readiness_blockers = []
+    if readiness:
+        raw_blockers = readiness.get('blockers') or readiness.get('blocking_issues') or []
+        if isinstance(raw_blockers, list):
+            for item in raw_blockers:
+                if isinstance(item, dict) and item.get('severity') == 'blocking':
+                    readiness_blockers.append(str(item.get('type') or item.get('message') or 'project_readiness_blocker'))
+                elif isinstance(item, str):
+                    readiness_blockers.append(item)
+        for key in ['safe_for_bootstrap', 'safe_for_level_0_1_trial', 'safe_for_codex_actual_run']:
+            if readiness.get(key) is False:
+                readiness_blockers.append(key)
 
     if not contract.get('goal_id'):
         blockers.append('missing_goal')
         return 'BLOCKED_GOAL_UNCLEAR', 'blocked', blockers, 'Set an explicit /goal with success criteria and non-goals.'
+    if readiness_blockers:
+        blockers.extend(f'project_not_ready:{item}' for item in readiness_blockers)
+        return 'BLOCKED_PROJECT_NOT_READY', 'blocked', blockers, 'Resolve project readiness blockers before big task decomposition.'
     if risk in {'high', 'critical'}:
         blockers.append('high_or_critical_risk_requires_human_gate')
         return 'BLOCKED_HIGH_RISK_HUMAN_GATE', 'blocked', blockers, 'Use GPT/human architecture review before leaf execution.'
@@ -222,6 +238,24 @@ def classify_readiness(contract: dict[str, Any]) -> tuple[str, str, list[str], s
         blockers.append('rollback_unknown')
         return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Leaf actual requires git rollback/worktree capability.'
     return 'READY_FOR_LEAF_ACTUAL_WITH_CONFIRMATION', 'leaf_actual_allowed', blockers, 'Leaf actual is allowed only with --allow-leaf-actual and ready low-risk leaves.'
+
+
+def decomposition_gate(contract: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Return whether a big task contract may be decomposed into leaf contracts."""
+    blockers: list[str] = []
+    if not contract.get('goal_id'):
+        blockers.append('missing_goal')
+    if not contract.get('success_criteria'):
+        blockers.append('missing_success_criteria')
+    verdict = str(contract.get('readiness_verdict') or '')
+    decomposition_blocking_verdicts = {
+        'BLOCKED_GOAL_UNCLEAR',
+        'BLOCKED_PROJECT_NOT_READY',
+        'BLOCKED_NEEDS_ARCHITECTURE',
+    }
+    if verdict in decomposition_blocking_verdicts:
+        blockers.append(f'readiness_blocked:{verdict or "unknown"}')
+    return not blockers, blockers
 
 
 def build_big_task_contract(project: Path, run_id: str, raw_input: str, goal_id: str = '') -> dict[str, Any]:
