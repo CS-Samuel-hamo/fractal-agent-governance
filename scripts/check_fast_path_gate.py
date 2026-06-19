@@ -148,7 +148,7 @@ def build_gate(project: Path, run_id: str, task_id: str, *, output: Path | None 
     }
     output_path = output or run_dir / 'fast-path-gate.json'
     write_json(output_path, payload)
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(json.dumps(payload, ensure_ascii=True, indent=2))
     return (0 if status == 'pass' else 20), payload
 
 

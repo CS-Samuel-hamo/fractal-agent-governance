@@ -41,6 +41,8 @@ def dispatcher_command(args, repo_root: Path, parent_task_id: str, leaf: dict, w
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
         '--test-timeout-seconds',
         str(args.test_timeout_seconds),
         '--max-retries',
@@ -312,6 +314,7 @@ def main() -> int:
     ap.add_argument('--codex-home', default='')
     ap.add_argument('--worker-codex-home-root', default='')
     ap.add_argument('--timeout-seconds', type=int, default=360)
+    ap.add_argument('--no-output-timeout-seconds', type=int, default=600)
     ap.add_argument('--test-timeout-seconds', type=int, default=0)
     ap.add_argument('--max-retries', type=int, default=0)
     ap.add_argument('--full-prompt', action='store_true')
@@ -350,10 +353,10 @@ def main() -> int:
     }
     write_json(output_dir / 'parallel-run.json', report)
     if contract['status'] != 'pass':
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        print(json.dumps(report, ensure_ascii=True, indent=2))
         return 20
     if args.dry_run:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        print(json.dumps(report, ensure_ascii=True, indent=2))
         return 0
 
     completed = run_workers(args, repo_root, contract, output_dir)
@@ -374,7 +377,7 @@ def main() -> int:
         }
     )
     write_json(output_dir / 'parallel-run.json', report)
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0 if not failures else 10
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import subprocess
@@ -35,6 +36,14 @@ def utc_now() -> str:
 
 def safe_name(value: str) -> str:
     return ''.join(ch if ch.isalnum() or ch in '._-' else '-' for ch in value).strip('-') or 'task'
+
+
+def short_name(value: str, limit: int = 32) -> str:
+    safe = safe_name(value)
+    if len(safe) <= limit:
+        return safe
+    digest = hashlib.sha1(value.encode('utf-8', errors='replace')).hexdigest()[:8]
+    return f'{safe[: max(1, limit - 9)]}-{digest}'
 
 
 def is_relative_to(path: Path, base: Path) -> bool:
@@ -101,6 +110,14 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
+def parse_json_text(text: str) -> dict:
+    try:
+        payload = json.loads(text)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
 def append_retry_context(task_dir: Path, evidence: str) -> None:
     prompt = task_dir / 'CODEX_TASK_PROMPT.md'
     retry_context = task_dir / 'RETRY_CONTEXT.md'
@@ -132,8 +149,8 @@ def summarize_failure(attempt: dict) -> str:
 
 def create_worktree(repo_root: Path, worktree_root: Path, run_id: str, task_id: str, attempt: int, start_point: str) -> tuple[Path, str, dict]:
     timestamp = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
-    safe_run = safe_name(run_id)
-    safe_task = safe_name(task_id)
+    safe_run = short_name(run_id, 28)
+    safe_task = short_name(task_id, 36)
     branch_name = f'zoo/{safe_run}/{safe_task}/attempt-{attempt}-{timestamp}'
     worktree_path = worktree_root / f'attempt-{attempt}'
     if worktree_path.exists():
@@ -185,6 +202,8 @@ def run_codex_worker(args, task_dir: Path, worktree_path: Path) -> dict:
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
     ]
     if args.codex_home:
         cmd += ['--codex-home', args.codex_home]
@@ -194,6 +213,8 @@ def run_codex_worker(args, task_dir: Path, worktree_path: Path) -> dict:
         cmd += ['--ephemeral']
     if args.json_events:
         cmd += ['--json-events']
+    if args.skip_git_repo_check:
+        cmd += ['--skip-git-repo-check']
     return run_command(cmd, ROOT, timeout=args.timeout_seconds + 30 if args.timeout_seconds > 0 else None)
 
 
@@ -225,6 +246,8 @@ def capture_task_baseline(args, task_id: str, worktree_path: Path) -> dict:
         'fast' if args.fast_prompt else args.execution_path,
         '--input-text',
         args.objective,
+        '--output',
+        str(worktree_path / '.zoo-agent' / 't' / short_name(args.run_id, 18) / short_name(task_id, 24) / 'task-baseline.json'),
     ]
     for pattern in args.allowed_file:
         cmd += ['--allowed-file', pattern]
@@ -239,7 +262,7 @@ def capture_task_baseline(args, task_id: str, worktree_path: Path) -> dict:
     return {'command_result': result, 'path': payload.get('path', ''), 'payload': payload}
 
 
-def compare_task_baseline(args, baseline_path: str, worktree_path: Path) -> dict:
+def compare_task_baseline(args, baseline_path: str, worktree_path: Path, task_id: str) -> dict:
     if not baseline_path:
         return {'command_result': {'returncode': 2, 'stderr': 'missing baseline path'}, 'path': '', 'payload': {}}
     cmd = [
@@ -249,6 +272,8 @@ def compare_task_baseline(args, baseline_path: str, worktree_path: Path) -> dict
         baseline_path,
         '--workspace',
         str(worktree_path),
+        '--output',
+        str(worktree_path / '.zoo-agent' / 't' / short_name(args.run_id, 18) / short_name(task_id, 24) / 'task-delta.json'),
     ]
     for pattern in args.denied_file:
         cmd += ['--denied-file', pattern]
@@ -276,6 +301,11 @@ def collect_result(args, task_id: str, task_dir: Path, worktree_path: Path) -> t
     ]
     collect = run_command(cmd, worktree_path)
     result_json = worktree_path / '.zoo-agent' / 'runs' / args.run_id / 'codex-results' / task_id / 'result.json'
+    output_lines = [line.strip() for line in str(collect.get('stdout') or '').splitlines() if line.strip()]
+    if output_lines:
+        candidate = Path(output_lines[-1]) / 'result.json'
+        if candidate.exists():
+            result_json = candidate
     parsed = None
     if result_json.exists():
         parsed = json.loads(result_json.read_text(encoding='utf-8'))
@@ -286,7 +316,15 @@ def choose_policy(codex_result: dict, test_results: list[dict], collected: dict 
     scope = (collected or {}).get('scope_guard', {})
     scope_status = scope.get('status', 'not_run')
     failed_tests = [r for r in test_results if r.get('returncode') != 0]
+    worker_status = (collected or {}).get('worker_status') if isinstance((collected or {}).get('worker_status'), dict) else {}
+    worker_state = str(worker_status.get('status') or '')
 
+    if worker_state in {'timeout', 'no_output_timeout', 'spawn_failed', 'exception'}:
+        return {
+            'status': 'retryable_worker_failure',
+            'recommended_next_action': 'inspect_codex_worker_status_and_logs_before_retry',
+            'retryable': True,
+        }
     if codex_result.get('returncode') != 0:
         return {
             'status': 'retryable_worker_failure',
@@ -367,6 +405,7 @@ def main() -> int:
     ap.add_argument('--profile', default='')
     ap.add_argument('--codex-home', default='')
     ap.add_argument('--timeout-seconds', type=int, default=360)
+    ap.add_argument('--no-output-timeout-seconds', type=int, default=600)
     ap.add_argument('--test-timeout-seconds', type=int, default=0)
     ap.add_argument('--max-retries', type=int, default=0)
     ap.add_argument('--allow-hard-risk', action='store_true')
@@ -375,6 +414,7 @@ def main() -> int:
     ap.add_argument('--discard-failed-worktree', action='store_true')
     ap.add_argument('--ephemeral', action='store_true')
     ap.add_argument('--json-events', action='store_true')
+    ap.add_argument('--skip-git-repo-check', action='store_true')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
 
@@ -389,7 +429,7 @@ def main() -> int:
 
     repo_root = Path(git_output(['rev-parse', '--show-toplevel'], workspace)).resolve()
     base_status = run_command(['git', 'status', '--short'], repo_root)
-    worktree_root = Path(args.worktree_root).resolve() if args.worktree_root else repo_root / '.zoo-agent' / 'worktrees' / safe_name(args.run_id) / safe_name(args.task_id)
+    worktree_root = Path(args.worktree_root).resolve() if args.worktree_root else repo_root / '.zoo-agent' / 'worktrees' / short_name(args.run_id, 28) / short_name(args.task_id, 36)
     run_report_path = repo_root / '.zoo-agent' / 'runs' / args.run_id / 'optimistic-runs' / f'{safe_name(args.task_id)}.json'
 
     hard_risk_hits = detect_hard_risk(args.objective, args.allowed_file)
@@ -422,7 +462,7 @@ def main() -> int:
             ),
         }
         write_json(run_report_path, payload)
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print(json.dumps(payload, ensure_ascii=True, indent=2))
         return 0 if args.dry_run else 20
 
     attempts = []
@@ -455,7 +495,7 @@ def main() -> int:
             final_policy = attempt['policy']
             break
 
-        task_dir = worktree_path / '.zoo-agent' / 'runs' / args.run_id / 'codex-tasks' / attempt_task_id
+        task_dir = worktree_path / '.zoo-agent' / 't' / short_name(args.run_id, 18) / short_name(attempt_task_id, 24)
         pack_result = generate_task_pack(args, attempt_task_id, task_dir, worktree_path)
         attempt['task_dir'] = str(task_dir)
         attempt['task_pack'] = pack_result
@@ -478,11 +518,18 @@ def main() -> int:
         codex_result = run_codex_worker(args, task_dir, worktree_path)
         codex_ms = round(float(codex_result.get('elapsed_seconds') or 0.0) * 1000, 3)
         attempt['codex_worker'] = codex_result
+        codex_report = parse_json_text(str(codex_result.get('stdout') or ''))
+        if codex_report:
+            attempt['codex_worker_report'] = codex_report
+            if isinstance(codex_report.get('worker_status'), dict):
+                attempt['worker_status'] = codex_report['worker_status']
+            if codex_report.get('worker_status_path'):
+                attempt['worker_status_path'] = codex_report.get('worker_status_path')
         test_results = run_tests(args.test_command, worktree_path, args.test_timeout_seconds)
         attempt['test_results'] = test_results
         (task_dir / 'harness-tests.json').write_text(json.dumps(test_results, ensure_ascii=False, indent=2), encoding='utf-8')
 
-        delta = compare_task_baseline(args, str(baseline.get('path') or ''), worktree_path)
+        delta = compare_task_baseline(args, str(baseline.get('path') or ''), worktree_path, attempt_task_id)
         attempt['task_delta'] = delta
         collect, parsed = collect_result(args, attempt_task_id, task_dir, worktree_path)
         attempt['collect_result'] = collect
@@ -525,7 +572,7 @@ def main() -> int:
         ),
     }
     write_json(run_report_path, summary)
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(json.dumps(summary, ensure_ascii=True, indent=2))
 
     if summary['status'] in {'merge_candidate', 'merge_candidate_partial'}:
         return 0

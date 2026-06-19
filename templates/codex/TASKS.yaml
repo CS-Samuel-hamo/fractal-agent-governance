@@ -2,7 +2,7 @@ tasks:
   - id: "{{TASK_ID}}"
     status: "pending"
     goal_id: "{{GOAL_ID}}"
-    objective: "{{OBJECTIVE}}"
+    objective: {{OBJECTIVE_YAML}}
     branch_id: "{{BRANCH_ID}}"
     allowed_files:
 {{ALLOWED_FILES}}

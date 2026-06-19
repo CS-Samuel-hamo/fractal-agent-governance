@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, json, subprocess, datetime, shutil, sys
+import argparse, json, subprocess, datetime, shutil, sys, hashlib
 from pathlib import Path
 
 
@@ -104,6 +104,18 @@ def load_json(path: Path) -> dict:
         return {}
 
 
+def safe_name(value: str) -> str:
+    return ''.join(ch if ch.isalnum() or ch in '._-' else '-' for ch in value).strip('-') or 'task'
+
+
+def short_name(value: str, limit: int = 32) -> str:
+    safe = safe_name(value)
+    if len(safe) <= limit:
+        return safe
+    digest = hashlib.sha1(value.encode('utf-8', errors='replace')).hexdigest()[:8]
+    return f'{safe[: max(1, limit - 9)]}-{digest}'
+
+
 def package_declares_or_installs(frontend: Path, package_name: str) -> bool:
     try:
         package_json = json.loads((frontend / 'package.json').read_text(encoding='utf-8'))
@@ -167,7 +179,7 @@ def main():
 
     task_dir = Path(args.task_dir).resolve()
     workspace = Path(args.workspace).resolve()
-    out_dir = workspace / '.zoo-agent' / 'runs' / args.run_id / 'codex-results' / args.task_id
+    out_dir = workspace / '.zoo-agent' / 'runs' / args.run_id / 'codex-results' / short_name(args.task_id, 28)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     status = run(['git','status','--short'], workspace)
@@ -179,7 +191,15 @@ def main():
     task_evidence_dir = workspace / '.zoo-agent' / 'runs' / args.run_id / 'tasks' / args.task_id
     task_baseline_path = task_evidence_dir / 'task-baseline.json'
     task_delta_path = task_evidence_dir / 'task-delta.json'
+    if not task_baseline_path.exists() and (task_dir / 'task-baseline.json').exists():
+        task_baseline_path = task_dir / 'task-baseline.json'
+    if not task_delta_path.exists() and (task_dir / 'task-delta.json').exists():
+        task_delta_path = task_dir / 'task-delta.json'
     delivery_outcome_path = workspace / '.zoo-agent' / 'runs' / args.run_id / 'delivery-outcome.json'
+    worker_status_path = task_dir / 'codex-worker-status.json'
+    codex_stdout_log = task_dir / 'codex-stdout.log'
+    codex_stderr_log = task_dir / 'codex-stderr.log'
+    final_message_path = task_dir / 'codex-final-message.md'
 
     # Run scope guard from task dir with workspace as cwd so no helper files pollute git status.
     scope = {'status': 'not_run'}
@@ -215,6 +235,7 @@ def main():
     result = {
         'run_id': args.run_id,
         'task_id': args.task_id,
+        'result_task_dir_name': out_dir.name,
         'workspace': str(workspace),
         'task_dir': str(task_dir),
         'environment_fingerprint': environment_fingerprint(workspace),
@@ -228,6 +249,12 @@ def main():
         'task_delta': load_json(task_delta_path),
         'delivery_outcome_path': str(delivery_outcome_path) if delivery_outcome_path.exists() else '',
         'delivery_outcome': load_json(delivery_outcome_path),
+        'worker_status_path': str(worker_status_path) if worker_status_path.exists() else '',
+        'worker_status': load_json(worker_status_path),
+        'codex_stdout_log': str(codex_stdout_log) if codex_stdout_log.exists() else '',
+        'codex_stderr_log': str(codex_stderr_log) if codex_stderr_log.exists() else '',
+        'codex_final_message_path': str(final_message_path) if final_message_path.exists() else '',
+        'codex_final_message_exists': final_message_path.exists(),
         'final_message': final_msg,
         'progress_md': progress,
         'blockers_md': blockers,

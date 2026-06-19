@@ -97,6 +97,8 @@ def run_optimistic(args) -> dict:
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
         '--test-timeout-seconds',
         str(args.test_timeout_seconds),
         '--max-retries',
@@ -143,6 +145,8 @@ def run_planned_isolated(args) -> dict:
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
         '--test-timeout-seconds',
         str(args.test_timeout_seconds),
         '--max-retries',
@@ -449,7 +453,7 @@ def finish(report_path: Path, report: dict, args, repo_root: Path, returncode: i
     if summary.get('returncode') != 0:
         report['summary_refresh'] = summary
         write_json(report_path, report)
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return returncode
 
 
@@ -473,12 +477,14 @@ def main() -> int:
     ap.add_argument('--profile', default='')
     ap.add_argument('--codex-home', default='')
     ap.add_argument('--timeout-seconds', type=int, default=360)
+    ap.add_argument('--no-output-timeout-seconds', type=int, default=600)
     ap.add_argument('--test-timeout-seconds', type=int, default=0)
     ap.add_argument('--max-retries', type=int, default=1)
     ap.add_argument('--allow-hard-risk', action='store_true')
     ap.add_argument('--full-prompt', action='store_true')
     ap.add_argument('--discard-failed-worktree', action='store_true')
     ap.add_argument('--ephemeral', action='store_true')
+    ap.add_argument('--skip-health-check', action='store_true', help='Accepted for route_task compatibility; health is checked before dispatch.')
     ap.add_argument('--execute-planned', action='store_true', help='Run planned worker immediately after task pack generation')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()

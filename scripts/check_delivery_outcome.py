@@ -93,6 +93,9 @@ CODING_TERMS = {
 
 DOC_TERMS = {'readme', 'doc', 'docs', 'documentation', 'typo', 'markdown'}
 
+WORKER_BLOCKED_STATUSES = {'timeout', 'no_output_timeout', 'spawn_failed', 'exception'}
+WORKER_FAILED_STATUSES = {'failed'}
+
 NO_OP_PHRASES = [
     'no change needed',
     'no changes needed',
@@ -327,9 +330,11 @@ def compare_from_baseline(baseline_path: Path, denied_files: list[str]) -> tuple
 
 
 def codex_returncode(attempt: dict[str, Any], cli_report: dict[str, Any]) -> int | None:
+    worker_status, _ = worker_status_from_attempt(attempt)
     codex = attempt.get('codex_worker') if isinstance(attempt.get('codex_worker'), dict) else {}
     stdout_payload = parse_json_text(str(codex.get('stdout') or ''))
     for value in [
+        worker_status.get('returncode'),
         stdout_payload.get('returncode'),
         codex.get('returncode'),
         (cli_report.get('execution') or {}).get('returncode') if isinstance(cli_report.get('execution'), dict) else None,
@@ -340,9 +345,44 @@ def codex_returncode(attempt: dict[str, Any], cli_report: dict[str, Any]) -> int
 
 
 def codex_timed_out(attempt: dict[str, Any]) -> bool:
+    worker_status, _ = worker_status_from_attempt(attempt)
+    if str(worker_status.get('status') or '') in {'timeout', 'no_output_timeout'}:
+        return True
     codex = attempt.get('codex_worker') if isinstance(attempt.get('codex_worker'), dict) else {}
     stdout_payload = parse_json_text(str(codex.get('stdout') or ''))
     return bool(stdout_payload.get('timed_out') or codex.get('timed_out'))
+
+
+def worker_status_from_attempt(attempt: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    candidates: list[Any] = [
+        attempt.get('worker_status'),
+        nested_get(attempt, 'codex_worker_report', 'worker_status'),
+        nested_get(attempt, 'collected_result', 'worker_status'),
+    ]
+    codex = attempt.get('codex_worker') if isinstance(attempt.get('codex_worker'), dict) else {}
+    stdout_payload = parse_json_text(str(codex.get('stdout') or ''))
+    candidates.append(stdout_payload.get('worker_status'))
+
+    path_candidates: list[Any] = [
+        attempt.get('worker_status_path'),
+        nested_get(attempt, 'codex_worker_report', 'worker_status_path'),
+        nested_get(attempt, 'collected_result', 'worker_status_path'),
+        stdout_payload.get('worker_status_path'),
+    ]
+    for path_value in path_candidates:
+        path = existing_path(path_value)
+        if path:
+            loaded = load_json(path)
+            if loaded:
+                candidates.insert(0, loaded)
+                for candidate in candidates:
+                    if isinstance(candidate, dict) and candidate:
+                        return candidate, str(path)
+
+    for candidate in candidates:
+        if isinstance(candidate, dict) and candidate:
+            return candidate, ''
+    return {}, ''
 
 
 def infer_task_type(text: str, allowed_files: list[str], business_files: list[str], explicit: str = '') -> str:
@@ -513,6 +553,8 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     tests_status = args.tests_status or tests_status_from_attempt(attempt, cli_report, task_type)
     returncode = codex_returncode(attempt, cli_report)
     timed_out = codex_timed_out(attempt)
+    worker_status, worker_status_path = worker_status_from_attempt(attempt)
+    worker_state = str(worker_status.get('status') or '')
     evidence_text = collected_text(attempt, run_dir, args.task_id)
     no_op_evidence = no_op_has_evidence(evidence_text)
 
@@ -528,6 +570,14 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         outcome = 'unsafe'
         reason = 'scope_guard_failed_or_denied_files_touched'
         next_action = 'stop_and_review_scope'
+    elif worker_state in WORKER_BLOCKED_STATUSES:
+        outcome = 'blocked'
+        reason = 'worker_execution_failed'
+        next_action = 'inspect_codex_worker_status_and_logs'
+    elif worker_state in WORKER_FAILED_STATUSES:
+        outcome = 'blocked'
+        reason = 'worker_returned_nonzero'
+        next_action = 'inspect_codex_worker_status_and_logs'
     elif timed_out or (returncode is not None and returncode != 0):
         outcome = 'blocked'
         reason = 'worker_failed_or_timed_out'
@@ -584,6 +634,9 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         'governance_changed_files': governance_files,
         'unchanged_existing_diff': unchanged_existing_diff,
         'ignored_generated_files': ignored_files,
+        'worker_status': worker_status,
+        'worker_status_path': worker_status_path,
+        'worker_execution_status': worker_state,
         'codex_returncode': returncode,
         'scope_guard_status': scope_status,
         'tests_status': tests_status,
@@ -618,7 +671,7 @@ def main() -> int:
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     code, payload = evaluate(args)
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(json.dumps(payload, ensure_ascii=True, indent=2))
     return code
 
 

@@ -190,7 +190,7 @@ def main() -> int:
         },
     }
     write_json(run_dir / 'runtime-review.json', report)
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0 if status == 'pass' else (10 if status == 'needs_review' else 20)
 
 

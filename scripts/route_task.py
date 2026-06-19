@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import subprocess
 import sys
@@ -42,6 +43,7 @@ FAST_SKIPPED_GOVERNANCE = [
 LOCAL_OPTIMIZATION_TERMS = ['optimize', 'optimization', 'cleanup', 'polish', 'tune', 'refactor', 'local', '\u4f18\u5316', '\u6574\u7406']
 CODING_INTENT_TERMS = ['implement', 'code', 'build', 'validation', 'bug', 'form', 'api', 'schema', 'database', '\u5b9e\u73b0', '\u4fee\u590d', '\u65b0\u589e']
 DOC_INTENT_TERMS = ['readme', 'doc', 'docs', 'documentation', 'typo', 'markdown', '\u6587\u6863']
+HEALTHY_CODEX_WORKER_VERDICTS = {'HEALTHY', 'HEALTHY_WITH_WARNINGS'}
 
 
 def run_command(command: list[str], cwd: Path, *, timeout: int = 0) -> dict[str, Any]:
@@ -85,6 +87,46 @@ def task_id_default(text: str) -> str:
 def add_repeated_args(command: list[str], flag: str, values: list[str]) -> None:
     for value in values:
         command.extend([flag, str(value)])
+
+
+def latest_codex_health_report() -> dict[str, Any]:
+    candidates: list[Path] = []
+    latest = ROOT / '.tmp' / 'codex-worker-health-latest.json'
+    if latest.exists():
+        candidates.append(latest)
+    candidates.extend(sorted((ROOT / '.tmp').glob('codex-worker-health-*.json'), reverse=True))
+    seen: set[Path] = set()
+    for path in candidates:
+        resolved = path.resolve()
+        if resolved in seen or not resolved.exists():
+            continue
+        seen.add(resolved)
+        payload = load_json(resolved)
+        if payload:
+            payload['_path'] = str(resolved)
+            return payload
+    return {}
+
+
+def codex_health_ok(max_age_hours: int = 24) -> tuple[bool, dict[str, Any]]:
+    payload = latest_codex_health_report()
+    if not payload:
+        return False, {'verdict': 'missing', 'message': 'No Codex worker health report found.'}
+    verdict = str(payload.get('verdict') or payload.get('health_verdict') or '')
+    generated_at = str(payload.get('generated_at') or payload.get('created_at') or '')
+    stale = False
+    if generated_at:
+        try:
+            created = datetime.datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=datetime.timezone.utc)
+            age = datetime.datetime.now(datetime.timezone.utc) - created.astimezone(datetime.timezone.utc)
+            stale = age.total_seconds() > max_age_hours * 3600
+        except ValueError:
+            stale = False
+    if stale:
+        payload['_health_stale'] = True
+    return verdict in HEALTHY_CODEX_WORKER_VERDICTS and not stale, payload
 
 
 def has_local_optimization_intent(text: str) -> bool:
@@ -135,6 +177,8 @@ def dispatcher_base(args, project: Path, goal_id: str, path: str) -> list[str]:
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
         '--test-timeout-seconds',
         str(args.test_timeout_seconds),
         '--max-retries',
@@ -156,6 +200,8 @@ def dispatcher_base(args, project: Path, goal_id: str, path: str) -> list[str]:
         command.append('--ephemeral')
     if args.dry_run or args.worker_dry_run:
         command.append('--dry-run')
+    if args.skip_health_check:
+        command.append('--skip-health-check')
     add_repeated_args(command, '--allowed-file', args.allowed_file)
     add_repeated_args(command, '--denied-file', args.denied_file)
     add_repeated_args(command, '--test-command', args.test_command)
@@ -262,6 +308,8 @@ def execute_parallel(project: Path, args, leaf_index: str, goal_id: str) -> dict
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
         '--test-timeout-seconds',
         str(args.test_timeout_seconds),
         '--max-retries',
@@ -405,12 +453,25 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
             scope_guard_status, tests_status = fast_statuses(execution)
     elif selected_path == 'fast':
-        command = dispatcher_base(args, project, goal_id, 'fast')
         pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
-        execution = run_command(command, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0)
-        codex_execution_ms = round(float(execution.get('elapsed_seconds') or 0.0) * 1000, 3)
-        scope_guard_status, tests_status = fast_statuses(execution)
-        returncode = int(execution.get('returncode') or 0)
+        health_ok, health_report = (True, {'verdict': 'skipped_for_worker_dry_run'}) if args.worker_dry_run else codex_health_ok()
+        if not health_ok and not args.skip_health_check:
+            execution = {
+                'status': 'blocked_codex_health_check_required',
+                'message': 'Codex worker health check is missing, stale, or unhealthy. Run agent codex-health before actual fast execution.',
+                'codex_launched': False,
+                'health_report': health_report,
+                'recommended_next_action': 'agent codex-health',
+            }
+            scope_guard_status = 'not_run'
+            tests_status = 'not_run'
+            returncode = 21
+        else:
+            command = dispatcher_base(args, project, goal_id, 'fast')
+            execution = run_command(command, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0)
+            codex_execution_ms = round(float(execution.get('elapsed_seconds') or 0.0) * 1000, 3)
+            scope_guard_status, tests_status = fast_statuses(execution)
+            returncode = int(execution.get('returncode') or 0)
     elif selected_path == 'parallel':
         if not classification.get('independent'):
             execution = {
@@ -567,7 +628,7 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         elif fast_gate:
             returncode = 20
         write_json(report_path, report)
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return returncode, report
 
 
@@ -593,11 +654,13 @@ def main() -> int:
     parser.add_argument('--profile', default='')
     parser.add_argument('--codex-home', default='')
     parser.add_argument('--timeout-seconds', type=int, default=360)
+    parser.add_argument('--no-output-timeout-seconds', type=int, default=600)
     parser.add_argument('--test-timeout-seconds', type=int, default=0)
     parser.add_argument('--max-retries', type=int, default=0)
     parser.add_argument('--discard-failed-worktree', action='store_true')
     parser.add_argument('--ephemeral', action='store_true')
     parser.add_argument('--worker-dry-run', action='store_true')
+    parser.add_argument('--skip-health-check', action='store_true')
     parser.add_argument('--allow-ambiguous-fast', action='store_true')
     parser.add_argument('--no-execute-governed-workers', dest='execute_governed_workers', action='store_false')
     parser.add_argument('--dry-run', action='store_true')

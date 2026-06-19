@@ -21,6 +21,10 @@ def yaml_list(items, indent='      '):
     return '\n'.join(indent + '- "' + str(x).replace('"','\\"') + '"' for x in items)
 
 
+def yaml_scalar(value: str) -> str:
+    return json.dumps(str(value), ensure_ascii=False)
+
+
 def copy_task_context(context_path: Path, out: Path) -> None:
     if context_path.suffix.lower() == '.md':
         shutil.copy2(context_path, out / 'TASK_CONTEXT.md')
@@ -75,6 +79,7 @@ def main():
         'GOAL_ID': goal_binding['goal_id'],
         'BRANCH_ID': args.branch_id or args.task_id,
         'OBJECTIVE': args.objective,
+        'OBJECTIVE_YAML': yaml_scalar(args.objective),
         'ALLOWED_FILES': yaml_list(list(args.allowed_file) + [f'.zoo-agent/runs/{args.run_id}/codex-tasks/{args.task_id}/**']),
         'DENIED_FILES': yaml_list(args.denied_file or ['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**']),
         'ACCEPTANCE': yaml_list(args.acceptance or ['Scope guard passes', 'Relevant tests pass or blockers are documented']),

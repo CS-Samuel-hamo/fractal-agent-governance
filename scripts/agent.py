@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.4.2-delivery-baseline-hardening'
+VERSION = '0.4.3-codex-worker-stability-windows'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -23,6 +23,7 @@ KNOWN_COMMANDS = {
     'map',
     'standards',
     'review',
+    'codex-health',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -489,10 +490,13 @@ def run(args) -> int:
         command.append('--discard-failed-worktree')
     if args.ephemeral:
         command.append('--ephemeral')
+    if args.skip_health_check:
+        command.append('--skip-health-check')
     for flag, value in [
         ('--changed-file-estimate', args.changed_file_estimate),
         ('--max-workers', args.max_workers),
         ('--timeout-seconds', args.timeout_seconds),
+        ('--no-output-timeout-seconds', args.no_output_timeout_seconds),
         ('--test-timeout-seconds', args.test_timeout_seconds),
         ('--max-retries', args.max_retries),
         ('--max-iteration', args.max_iteration),
@@ -617,6 +621,20 @@ def review(args) -> int:
     return delegate('runtime_review.py', command)
 
 
+def codex_health(args) -> int:
+    command = [
+        '--timeout-seconds',
+        str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
+    ]
+    if args.codex_home:
+        command.extend(['--codex-home', args.codex_home])
+    if args.skip_real_codex:
+        command.append('--skip-real-codex')
+    return delegate('check_codex_worker_health.py', command)
+
+
 def latest_run_id(project: Path) -> str:
     runs = project / '.zoo-agent' / 'runs'
     if not runs.exists():
@@ -646,6 +664,7 @@ def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
         profile='',
         codex_home='',
         timeout_seconds=360,
+        no_output_timeout_seconds=600,
         test_timeout_seconds=0,
         max_retries=0,
         max_iteration=10,
@@ -653,6 +672,7 @@ def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
         discard_failed_worktree=False,
         ephemeral=False,
         worker_dry_run=False,
+        skip_health_check=False,
         allow_ambiguous_fast=False,
         no_execute_governed_workers=False,
         dry_run=dry_run,
@@ -809,6 +829,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--profile', default='')
     run_parser.add_argument('--codex-home', default='')
     run_parser.add_argument('--timeout-seconds', type=int, default=360)
+    run_parser.add_argument('--no-output-timeout-seconds', type=int, default=600)
     run_parser.add_argument('--test-timeout-seconds', type=int, default=0)
     run_parser.add_argument('--max-retries', type=int, default=0)
     run_parser.add_argument('--max-iteration', type=int, default=10)
@@ -816,6 +837,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--discard-failed-worktree', action='store_true')
     run_parser.add_argument('--ephemeral', action='store_true')
     run_parser.add_argument('--worker-dry-run', action='store_true')
+    run_parser.add_argument('--skip-health-check', action='store_true')
     run_parser.add_argument('--allow-ambiguous-fast', action='store_true')
     run_parser.add_argument('--no-execute-governed-workers', action='store_true')
     run_parser.add_argument('--dry-run', action='store_true')
@@ -883,6 +905,13 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument('--allow-architecture-blocks', action='store_true')
     review_parser.add_argument('--accept-parent-aggregation', action='store_true')
     review_parser.set_defaults(handler=review)
+
+    health_parser = sub.add_parser('codex-health', help='Check local Codex worker execution health.')
+    health_parser.add_argument('--codex-home', default=os.environ.get('CODEX_HOME', ''))
+    health_parser.add_argument('--timeout-seconds', type=int, default=240)
+    health_parser.add_argument('--no-output-timeout-seconds', type=int, default=120)
+    health_parser.add_argument('--skip-real-codex', action='store_true')
+    health_parser.set_defaults(handler=codex_health)
 
     args = parser.parse_args(raw_argv)
     if args.command == 'run' and not ' '.join(args.input).strip():
