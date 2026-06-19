@@ -85,7 +85,7 @@ def main() -> int:
         help_result = run([sys.executable, str(AGENT), '--help'], ROOT, env=env)
         assert 'bootstrap' in help_result.stdout
         version_result = run([sys.executable, str(AGENT), '--version'], ROOT, env=env)
-        assert '0.4.0-local-alpha' in version_result.stdout
+        assert '0.4.1-real-project-alpha-hardening' in version_result.stdout
 
         existing = init_existing_repo(env)
         src_hash = sha(existing / 'src' / 'app.py')

@@ -36,6 +36,24 @@ def run(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedP
     return proc
 
 
+def run_may_fail(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    printable = ' '.join(str(part) for part in cmd)
+    print(f'$ {printable}')
+    proc = subprocess.run(
+        cmd,
+        cwd=str(cwd),
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if proc.stdout:
+        print(proc.stdout)
+    return proc
+
+
 def temp_root() -> Path:
     configured = os.environ.get('AGENT_ALPHA_TEMP_ROOT')
     base = Path(configured) if configured else Path(tempfile.gettempdir())
@@ -65,6 +83,66 @@ def read_json(path: Path) -> dict:
 
 def cli_report(repo: Path, run_id: str, task_id: str) -> dict:
     return read_json(repo / '.zoo-agent' / 'runs' / run_id / 'cli-runtime' / f'{task_id}.json')
+
+
+def write_fast_cli_report(
+    repo: Path,
+    run_id: str,
+    task_id: str,
+    text: str,
+    *,
+    tests_status: str = 'not_applicable',
+    allowed_files: list[str] | None = None,
+) -> None:
+    write(
+        repo / '.zoo-agent' / 'runs' / run_id / 'cli-runtime' / f'{task_id}.json',
+        json.dumps(
+            {
+                'schema_version': '4.0',
+                'generated_by': 'test_cli_real_usage_alpha.py',
+                'run_id': run_id,
+                'task_id': task_id,
+                'workspace': str(repo),
+                'input': text,
+                'route': 'fast',
+                'selected_path': 'fast',
+                'classification': {'allowed_files': allowed_files or ['README.md'], 'denied_files': ['.env', '.env.*', '.codex/**']},
+                'execution': {'status': 'merge_candidate_partial', 'returncode': 0},
+                'scope_guard_status': 'pass',
+                'tests_status': tests_status,
+            },
+            indent=2,
+        ),
+    )
+
+
+def write_fast_optimistic_report(repo: Path, run_id: str, task_id: str, *, changed_files: list[str], final_message: str = 'Done.') -> None:
+    write(
+        repo / '.zoo-agent' / 'runs' / run_id / 'optimistic-runs' / f'{task_id}.json',
+        json.dumps(
+            {
+                'status': 'merge_candidate_partial',
+                'attempts': [
+                    {
+                        'task_id': task_id,
+                        'codex_worker': {'returncode': 0, 'timed_out': False},
+                        'test_results': [],
+                        'collected_result': {
+                            'scope_guard': {'status': 'pass'},
+                            'git_diff_name_only': changed_files,
+                            'final_message': final_message,
+                        },
+                        'policy': {'status': 'merge_candidate_partial'},
+                    }
+                ],
+            },
+            indent=2,
+        ),
+    )
+
+
+def blocker_types(payload: dict) -> set[str]:
+    return {str(item.get('type')) for item in payload.get('blockers') or [] if isinstance(item, dict)}
 
 
 def init_repo(repo: Path, env: dict[str, str], *, docs: bool = False) -> None:
@@ -127,6 +205,113 @@ def main() -> int:
     assert not (existing / '.zoo-agent' / 'runtime-status.json').exists()
     run([AGENT, 'status', '--workspace', str(existing), '--no-write'], existing, env)
     assert not (existing / '.zoo-agent' / 'runtime-status.json').exists()
+
+    no_diff = unique_dir('agent-no-diff-alpha')
+    init_repo(no_diff, env)
+    write_fast_cli_report(no_diff, 'run-no-diff', 'task-no-diff', 'fix a typo in README')
+    write_fast_optimistic_report(no_diff, 'run-no-diff', 'task-no-diff', changed_files=[])
+    proc = run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(no_diff), '--run-id', 'run-no-diff', '--task-id', 'task-no-diff'],
+        ROOT,
+        env,
+    )
+    assert proc.returncode == 1, 'no-diff fast run must fail delivery outcome'
+    no_diff_outcome = read_json(no_diff / '.zoo-agent' / 'runs' / 'run-no-diff' / 'delivery-outcome.json')
+    assert no_diff_outcome['delivery_outcome'] == 'no_delivery'
+    proc = run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_fast_path_gate.py'), '--workspace', str(no_diff), '--run-id', 'run-no-diff', '--task-id', 'task-no-diff'],
+        ROOT,
+        env,
+    )
+    assert proc.returncode == 20, 'no_delivery must fail fast path gate'
+    no_diff_gate = read_json(no_diff / '.zoo-agent' / 'runs' / 'run-no-diff' / 'fast-path-gate.json')
+    assert no_diff_gate['verdict'] == 'FAST_NO_DELIVERY'
+
+    docs_delivered = unique_dir('agent-docs-delivered-alpha')
+    init_repo(docs_delivered, env)
+    write(docs_delivered / 'README.md', '# Demo\n\nTypo fixed.\n')
+    write_fast_cli_report(docs_delivered, 'run-docs-delivered', 'task-docs-delivered', 'fix typo in README', tests_status='not_applicable')
+    write_fast_optimistic_report(docs_delivered, 'run-docs-delivered', 'task-docs-delivered', changed_files=['README.md'])
+    run(
+        [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(docs_delivered), '--run-id', 'run-docs-delivered', '--task-id', 'task-docs-delivered'],
+        ROOT,
+        env,
+    )
+    docs_outcome = read_json(docs_delivered / '.zoo-agent' / 'runs' / 'run-docs-delivered' / 'delivery-outcome.json')
+    assert docs_outcome['delivery_outcome'] == 'delivered'
+    run(
+        [sys.executable, str(ROOT / 'scripts' / 'check_fast_path_gate.py'), '--workspace', str(docs_delivered), '--run-id', 'run-docs-delivered', '--task-id', 'task-docs-delivered'],
+        ROOT,
+        env,
+    )
+    docs_gate = read_json(docs_delivered / '.zoo-agent' / 'runs' / 'run-docs-delivered' / 'fast-path-gate.json')
+    assert docs_gate['verdict'] == 'FAST_DELIVERED'
+    run([sys.executable, str(ROOT / 'scripts' / 'runtime_review.py'), '--workspace', str(docs_delivered), '--run-id', 'run-docs-delivered'], ROOT, env)
+    docs_review = read_json(docs_delivered / '.zoo-agent' / 'runs' / 'run-docs-delivered' / 'runtime-review.json')
+    assert docs_review['status'] == 'pass'
+    assert docs_review['verdict'] == 'FAST_DELIVERED'
+
+    runtime_only = unique_dir('agent-runtime-only-alpha')
+    init_repo(runtime_only, env)
+    write(runtime_only / '.zoo-agent' / 'tmp' / 'evidence.txt', 'runtime only\n')
+    write_fast_cli_report(
+        runtime_only,
+        'run-runtime-only',
+        'task-runtime-only',
+        'fix a local bug in src/example.py',
+        tests_status='passed',
+        allowed_files=['src/example.py'],
+    )
+    write_fast_optimistic_report(runtime_only, 'run-runtime-only', 'task-runtime-only', changed_files=['.zoo-agent/tmp/evidence.txt'])
+    proc = run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_delivery_outcome.py'), '--workspace', str(runtime_only), '--run-id', 'run-runtime-only', '--task-id', 'task-runtime-only'],
+        ROOT,
+        env,
+    )
+    assert proc.returncode == 1
+    runtime_outcome = read_json(runtime_only / '.zoo-agent' / 'runs' / 'run-runtime-only' / 'delivery-outcome.json')
+    assert runtime_outcome['delivery_outcome'] == 'no_delivery'
+
+    dirty = unique_dir('agent-dirty-readiness-alpha')
+    init_repo(dirty, env)
+    write(dirty / 'README.md', '# Dirty\n')
+    run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_project_readiness.py'), '--workspace', str(dirty), '--output', str(dirty / '.zoo-agent' / 'project-readiness.json')],
+        ROOT,
+        env,
+    )
+    dirty_readiness = read_json(dirty / '.zoo-agent' / 'project-readiness.json')
+    assert 'dirty_worktree' in blocker_types(dirty_readiness)
+
+    unborn = unique_dir('agent-unborn-readiness-alpha')
+    run(['git', 'init'], unborn, env)
+    write(unborn / 'README.md', '# Unborn\n')
+    run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_project_readiness.py'), '--workspace', str(unborn), '--output', str(unborn / '.zoo-agent' / 'project-readiness.json')],
+        ROOT,
+        env,
+    )
+    unborn_readiness = read_json(unborn / '.zoo-agent' / 'project-readiness.json')
+    assert 'unborn_repo' in blocker_types(unborn_readiness)
+
+    nested = unique_dir('agent-nested-readiness-alpha')
+    init_repo(nested, env)
+    run(['git', 'init', 'RULES'], nested, env)
+    run_may_fail(
+        [sys.executable, str(ROOT / 'scripts' / 'check_project_readiness.py'), '--workspace', str(nested), '--output', str(nested / '.zoo-agent' / 'project-readiness.json')],
+        ROOT,
+        env,
+    )
+    nested_readiness = read_json(nested / '.zoo-agent' / 'project-readiness.json')
+    assert 'nested_git_repo' in blocker_types(nested_readiness)
+
+    unborn_bootstrap = unique_dir('agent-unborn-bootstrap-alpha')
+    run(['git', 'init'], unborn_bootstrap, env)
+    write(unborn_bootstrap / 'README.md', '# No auto commit\n')
+    run_may_fail([AGENT, 'bootstrap', '--workspace', str(unborn_bootstrap)], unborn_bootstrap, env)
+    assert run_may_fail(['git', 'rev-parse', '--verify', 'HEAD'], unborn_bootstrap, env).returncode != 0
+    cached = run_may_fail(['git', 'diff', '--cached', '--name-only'], unborn_bootstrap, env)
+    assert not cached.stdout.strip(), 'bootstrap must not stage files with git add all'
 
     run(
         [

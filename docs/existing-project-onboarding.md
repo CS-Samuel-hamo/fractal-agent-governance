@@ -19,6 +19,14 @@ Bootstrap performs metadata-only scanning and writes reviewable runtime files:
 
 It does not edit `src`, `tests`, `backend`, `frontend`, or other business source directories. It does not commit.
 
+Existing project safety rules:
+
+- Bootstrap never runs `git add .` or any `git add all` equivalent.
+- Bootstrap never creates an initial commit.
+- Bootstrap writes only governance files, proposals, and patches.
+- `project-readiness.json` reports blockers such as `dirty_worktree`, `nested_git_repo`, and `stale_git_index_lock`.
+- Suggested files to commit must be reviewed by the user before any manual commit.
+
 Second bootstrap:
 
 ```powershell

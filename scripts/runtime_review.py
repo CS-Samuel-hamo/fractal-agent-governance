@@ -72,6 +72,33 @@ def merge_queue_findings(run_dir: Path) -> tuple[list[dict[str, Any]], list[dict
     return blockers, warnings
 
 
+def cli_runtime_reports(run_dir: Path) -> list[dict[str, Any]]:
+    reports: list[dict[str, Any]] = []
+    for path in sorted((run_dir / 'cli-runtime').glob('*.json')):
+        payload = load_json(path)
+        if payload:
+            payload['_path'] = str(path)
+            reports.append(payload)
+    return reports
+
+
+def fast_only_run(run_dir: Path) -> bool:
+    reports = cli_runtime_reports(run_dir)
+    return bool(reports) and all(str(item.get('route') or item.get('selected_path') or '') == 'fast' for item in reports)
+
+
+def fast_review_verdict(quality_payload: dict[str, Any]) -> str:
+    gates = quality_payload.get('fast_path_gates') if isinstance(quality_payload.get('fast_path_gates'), list) else []
+    verdicts = [str(item.get('verdict') or '') for item in gates if isinstance(item, dict)]
+    if any(item == 'FAST_NO_DELIVERY' for item in verdicts):
+        return 'FAST_NO_DELIVERY'
+    if any(item == 'FAST_BLOCKED' for item in verdicts):
+        return 'FAST_BLOCKED'
+    if verdicts and all(item in {'FAST_DELIVERED', 'FAST_NO_OP_ACCEPTED'} for item in verdicts):
+        return 'FAST_NO_OP_ACCEPTED' if all(item == 'FAST_NO_OP_ACCEPTED' for item in verdicts) else 'FAST_DELIVERED'
+    return 'FAST_BLOCKED' if quality_payload.get('gate_status') == 'blocked' else 'FAST_DELIVERED'
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Run CLI-first runtime review closure checks for a run.')
     parser.add_argument('--workspace', default='.')
@@ -87,6 +114,7 @@ def main() -> int:
 
     project = project_root(args.workspace)
     run_dir = project / '.zoo-agent' / 'runs' / args.run_id
+    is_fast_run = fast_only_run(run_dir)
     risk = ensure_risk_register(project, args.run_id)
 
     task_board_cmd = [
@@ -124,14 +152,18 @@ def main() -> int:
     blockers, warnings = merge_queue_findings(run_dir)
     quality_payload = load_json(run_dir / 'quality-gate.json')
     task_board_payload = load_json(run_dir / 'task-board-consistency.json')
+    if is_fast_run:
+        blockers = []
+        warnings = []
     if quality_payload.get('gate_status') == 'blocked':
         blockers.extend(quality_payload.get('blockers') or [])
     elif quality_payload.get('gate_status') == 'needs_review':
         warnings.extend(quality_payload.get('warnings') or [])
-    if task_board_payload.get('status') == 'warnings' and not args.allow_task_board_warnings:
+    if not is_fast_run and task_board_payload.get('status') == 'warnings' and not args.allow_task_board_warnings:
         blockers.append({'id': 'task_board_consistency_warnings', 'message': 'Task-board consistency warnings remain.'})
 
-    status = 'blocked' if blockers else ('needs_review' if warnings else 'pass')
+    status = 'blocked' if blockers else ('pass' if is_fast_run else ('needs_review' if warnings else 'pass'))
+    verdict = fast_review_verdict(quality_payload) if is_fast_run else ('GOVERNED_REVIEW_REQUIRED' if status != 'pass' else 'GOVERNED_REVIEW_PASS')
     report = {
         'schema_version': '1.0',
         'generated_by': 'runtime_review.py',
@@ -139,6 +171,8 @@ def main() -> int:
         'workspace': str(project),
         'run_id': args.run_id,
         'status': status,
+        'verdict': verdict,
+        'gate_profile': 'fast_path' if is_fast_run else 'governed_path',
         'risk_register': risk,
         'task_board_consistency': task_board,
         'quality_gate': quality_gate,

@@ -17,11 +17,13 @@ from runtime_common import (  # noqa: E402
     advance_loop,
     alignment_report,
     ensure_goal,
+    load_json,
     project_root,
     safe_name,
     utc_now,
     write_json,
 )
+from check_task_specificity import evaluate as evaluate_specificity  # noqa: E402
 from task_classifier import classify  # noqa: E402
 from update_runtime_metrics import update_metrics  # noqa: E402
 
@@ -296,6 +298,38 @@ def write_runtime_marker(project: Path) -> None:
     write_json(project / '.zoo-agent' / 'runtime-v4.json', marker)
 
 
+def run_fast_post_checks(project: Path, args) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    delivery_command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'check_delivery_outcome.py'),
+        '--workspace',
+        str(project),
+        '--run-id',
+        args.run_id,
+        '--task-id',
+        args.task_id,
+    ]
+    delivery_run = run_command(delivery_command, ROOT)
+    gate_command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'check_fast_path_gate.py'),
+        '--workspace',
+        str(project),
+        '--run-id',
+        args.run_id,
+        '--task-id',
+        args.task_id,
+    ]
+    gate_run = run_command(gate_command, ROOT)
+    run_dir = project / '.zoo-agent' / 'runs' / args.run_id
+    return (
+        load_json(run_dir / 'delivery-outcome.json'),
+        load_json(run_dir / 'fast-path-gate.json'),
+        delivery_run,
+        gate_run,
+    )
+
+
 def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     wall_started = time.monotonic()
     project = project_root(args.workspace)
@@ -336,6 +370,7 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     run_dir = project / '.zoo-agent' / 'runs' / args.run_id
     report_path = run_dir / 'cli-runtime' / f'{safe_name(args.task_id)}.json'
     execution: dict[str, Any] = {'status': 'not_started'}
+    task_specificity: dict[str, Any] = {}
     returncode = 0
     pre_codex_overhead_ms = 0.0
     codex_execution_ms = 0.0
@@ -343,7 +378,28 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     scope_guard_status = 'not_applicable'
     tests_status = 'not_applicable'
 
-    if args.dry_run:
+    if selected_path == 'fast':
+        task_specificity = evaluate_specificity(args.input_text, args.allowed_file, route='fast')
+        write_json(run_dir / 'task-specificity' / f'{safe_name(args.task_id)}.json', task_specificity)
+
+    fast_needs_clarification = (
+        selected_path == 'fast'
+        and task_specificity.get('status') != 'pass'
+        and not args.allow_ambiguous_fast
+    )
+    if fast_needs_clarification:
+        pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
+        execution = {
+            'status': 'NEEDS_CLARIFICATION' if args.dry_run else 'no_execution',
+            'message': 'Fast path task is too ambiguous for actual execution.',
+            'task_specificity': task_specificity,
+            'codex_launched': False,
+            'recommended_next_action': 'clarify_task_or_pass_--allow-ambiguous-fast',
+        }
+        scope_guard_status = 'not_run'
+        tests_status = 'not_run'
+        returncode = 0 if args.dry_run else 10
+    elif args.dry_run:
         execution = {'status': 'dry_run', 'message': 'No Codex backend command was launched.'}
         if selected_path == 'fast':
             pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
@@ -471,6 +527,7 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         'classification': classification,
         'route': selected_path,
         'selected_path': selected_path,
+        'task_specificity': task_specificity,
         'goal_alignment': alignment,
         'execution': execution,
         'fast_path_report': fast_path_report,
@@ -493,6 +550,23 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         },
     }
     write_json(report_path, report)
+    if selected_path == 'fast' and not args.dry_run and not args.worker_dry_run and execution.get('codex_launched') is not False:
+        delivery_outcome, fast_gate, delivery_run, gate_run = run_fast_post_checks(project, args)
+        report['delivery_outcome'] = delivery_outcome
+        report['fast_path_gate'] = fast_gate
+        report['post_execution_checks'] = {
+            'delivery_outcome_check': delivery_run,
+            'fast_path_gate_check': gate_run,
+        }
+        report['safety_status'] = 'safe' if fast_gate.get('checks', {}).get('scope_guard_pass') else 'unsafe_or_unknown'
+        report['delivery_status'] = fast_gate.get('delivery_outcome') or delivery_outcome.get('delivery_outcome') or 'unknown'
+        if fast_gate.get('gate_status') == 'pass':
+            returncode = 0
+        elif fast_gate.get('verdict') == 'FAST_NO_DELIVERY':
+            returncode = 11
+        elif fast_gate:
+            returncode = 20
+        write_json(report_path, report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return returncode, report
 
@@ -524,6 +598,7 @@ def main() -> int:
     parser.add_argument('--discard-failed-worktree', action='store_true')
     parser.add_argument('--ephemeral', action='store_true')
     parser.add_argument('--worker-dry-run', action='store_true')
+    parser.add_argument('--allow-ambiguous-fast', action='store_true')
     parser.add_argument('--no-execute-governed-workers', dest='execute_governed_workers', action='store_false')
     parser.add_argument('--dry-run', action='store_true')
     parser.set_defaults(execute_governed_workers=True)

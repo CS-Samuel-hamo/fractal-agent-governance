@@ -65,6 +65,113 @@ def warning(warnings: list[dict], warning_id: str, message: str, *, evidence: st
     warnings.append({'id': warning_id, 'message': message, 'evidence': evidence})
 
 
+def cli_runtime_reports(run_dir: Path) -> list[dict]:
+    reports: list[dict] = []
+    for path in sorted((run_dir / 'cli-runtime').glob('*.json')):
+        payload = load_json(path)
+        if payload:
+            payload['_path'] = str(path)
+            reports.append(payload)
+    return reports
+
+
+def is_fast_only_run(reports: list[dict]) -> bool:
+    return bool(reports) and all(str(item.get('route') or item.get('selected_path') or '') == 'fast' for item in reports)
+
+
+def run_fast_gate(repo_root: Path, run_id: str, task_id: str) -> dict:
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'check_fast_path_gate.py'),
+            '--workspace',
+            str(repo_root),
+            '--run-id',
+            run_id,
+            '--task-id',
+            task_id,
+        ],
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    payload = load_json(repo_root / '.zoo-agent' / 'runs' / run_id / 'fast-path-gate.json')
+    payload['_command_returncode'] = proc.returncode
+    payload['_stdout'] = proc.stdout
+    payload['_stderr'] = proc.stderr
+    return payload
+
+
+def run_fast_quality_gate(repo_root: Path, run_id: str, run_dir: Path, output_path: Path, reports: list[dict]) -> int:
+    blockers: list[dict] = []
+    warnings: list[dict] = []
+    gates: list[dict] = []
+    for report in reports:
+        task_id = str(report.get('task_id') or '')
+        if not task_id:
+            blocker(blockers, 'fast_task_id_missing', 'A fast cli-runtime report is missing task_id.', severity='high')
+            continue
+        gate = run_fast_gate(repo_root, run_id, task_id)
+        gates.append(gate)
+        if gate.get('gate_status') == 'blocked':
+            blockers.extend(gate.get('blockers') or [])
+        else:
+            warnings.extend(gate.get('warnings') or [])
+
+    gate_status = 'blocked' if blockers else 'pass'
+    closure = {
+        'execution_closure': bool(reports),
+        'evidence_closure': not blockers,
+        'goal_alignment_closure': True,
+        'state_closure': True,
+        'integration_closure': False,
+    }
+    payload = {
+        'schema_version': '1.0',
+        'generated_by': 'run_quality_gate.py',
+        'generated_at': utc_now(),
+        'run_id': run_id,
+        'workspace': str(repo_root),
+        'gate_profile': 'fast_path',
+        'gate_status': gate_status,
+        'closure': closure,
+        'readiness_flags': {
+            'merge_queue_processing_recommended': False,
+            'merge_queue_processing_authorized': False,
+            'approved_for_merge': False,
+            'approved_for_deploy': False,
+            'approved_for_release': False,
+        },
+        'fast_path_gates': gates,
+        'blockers': blockers,
+        'warnings': warnings,
+        'summary_path': str(run_dir / 'ai-native-summary.json'),
+        'merge_queue_path': str(run_dir / 'merge-queue.json'),
+        'skipped_governed_requirements': [
+            'task_board_evidence',
+            'parent_aggregation',
+            'implementation_queue',
+            'governed_reviewer',
+            'curator',
+            'eval_suite',
+            'release_readiness',
+            'operational_readiness',
+            'full_test_matrix',
+            'product_docs',
+        ],
+        'operator_inputs': {'fast_path_gate': True},
+    }
+    write_json(output_path, payload)
+    write_markdown(output_path.with_suffix('.md'), payload)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if gate_status == 'pass':
+        return 0
+    return 10 if gate_status == 'needs_review' else 20
+
+
 def optimistic_attempts(run_dir: Path) -> list[dict]:
     attempts = []
     for path in sorted((run_dir / 'optimistic-runs').glob('*.json')):
@@ -196,6 +303,9 @@ def main() -> int:
     repo_root = git_root(Path(args.workspace).resolve())
     run_dir = repo_root / '.zoo-agent' / 'runs' / args.run_id
     output_path = Path(args.output).resolve() if args.output else run_dir / 'quality-gate.json'
+    reports = cli_runtime_reports(run_dir)
+    if is_fast_only_run(reports):
+        return run_fast_quality_gate(repo_root, args.run_id, run_dir, output_path, reports)
 
     refresh = {'skipped': True}
     if not args.no_refresh_summary:

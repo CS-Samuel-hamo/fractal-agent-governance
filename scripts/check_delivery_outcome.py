@@ -1,0 +1,445 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+
+from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
+
+
+RUNTIME_PATTERNS = [
+    '.zoo-agent/**',
+    'AGENTS.md.new',
+    '.gitignore.agent.patch',
+    '.roo/rules.new/**',
+]
+
+IGNORED_GENERATED_PATTERNS = [
+    '__pycache__/**',
+    '**/__pycache__/**',
+    '.pytest_cache/**',
+    '**/.pytest_cache/**',
+    '*.pyc',
+    '**/*.pyc',
+]
+
+CODE_PATTERNS = [
+    '*.py',
+    '*.js',
+    '*.jsx',
+    '*.ts',
+    '*.tsx',
+    '*.go',
+    '*.rs',
+    '*.java',
+    '*.cs',
+    '*.cpp',
+    '*.c',
+    '*.h',
+    '*.hpp',
+    'src/**',
+    'app/**',
+    'lib/**',
+    'backend/**',
+    'frontend/**',
+]
+
+TEST_PATTERNS = [
+    'tests/**',
+    'test/**',
+    'spec/**',
+    '**/*test*',
+    '**/*spec*',
+]
+
+DOC_PATTERNS = [
+    'README*',
+    '*.md',
+    'docs/**',
+    'doc/**',
+]
+
+CODING_TERMS = {
+    'implement',
+    'code',
+    'bug',
+    'validation',
+    'form',
+    'api',
+    'schema',
+    'database',
+    'test',
+    'function',
+    'fix login',
+}
+
+DOC_TERMS = {'readme', 'doc', 'docs', 'documentation', 'typo', 'markdown'}
+
+NO_OP_PHRASES = [
+    'no change needed',
+    'no changes needed',
+    'nothing to change',
+    'no modification needed',
+    'already correct',
+    'already up to date',
+    'no typo found',
+    'no typos found',
+    'did not find',
+    '无需修改',
+    '没有需要修改',
+    '未发现',
+]
+
+EVIDENCE_TERMS = [
+    'checked',
+    'inspected',
+    'reviewed',
+    'verified',
+    'looked at',
+    'readme',
+    'docs/',
+    '.md',
+    '检查',
+    '查看',
+    '验证',
+]
+
+
+def run_git(args: list[str], cwd: Path) -> str:
+    proc = subprocess.run(
+        ['git', *args],
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return proc.stdout if proc.returncode == 0 else ''
+
+
+def changed_files_from_status(status: str) -> list[str]:
+    files: list[str] = []
+    for line in status.splitlines():
+        if not line.strip():
+            continue
+        path = line[3:].strip() if len(line) > 3 else line.strip()
+        if ' -> ' in path:
+            path = path.split(' -> ', 1)[1]
+        path = path.strip('"').replace('\\', '/')
+        if path:
+            files.append(path)
+    return files
+
+
+def git_changed_files(project: Path) -> list[str]:
+    files = set()
+    for command in [['diff', '--name-only'], ['diff', '--cached', '--name-only']]:
+        for line in run_git(command, project).splitlines():
+            if line.strip():
+                files.add(line.strip().replace('\\', '/'))
+    status = run_git(['status', '--porcelain=v1', '-uall'], project)
+    files.update(changed_files_from_status(status))
+    return sorted(files)
+
+
+def matches_any(path: str, patterns: list[str]) -> bool:
+    normalized = path.replace('\\', '/')
+    return any(fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns)
+
+
+def split_changed_files(files: list[str]) -> tuple[list[str], list[str], list[str]]:
+    business: list[str] = []
+    runtime: list[str] = []
+    ignored: list[str] = []
+    for item in sorted(set(file.replace('\\', '/') for file in files if file)):
+        if matches_any(item, RUNTIME_PATTERNS):
+            runtime.append(item)
+        elif matches_any(item, IGNORED_GENERATED_PATTERNS):
+            ignored.append(item)
+        else:
+            business.append(item)
+    return business, runtime, ignored
+
+
+def load_cli_report(run_dir: Path, task_id: str) -> dict[str, Any]:
+    path = run_dir / 'cli-runtime' / f'{safe_name(task_id)}.json'
+    if path.exists():
+        payload = load_json(path)
+        if payload:
+            payload['_path'] = str(path)
+            return payload
+    reports = sorted((run_dir / 'cli-runtime').glob('*.json'))
+    if len(reports) == 1:
+        payload = load_json(reports[0])
+        payload['_path'] = str(reports[0])
+        return payload
+    return {}
+
+
+def parse_json_text(text: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(text)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def latest_attempt(run_dir: Path, task_id: str) -> dict[str, Any]:
+    candidates = [run_dir / 'optimistic-runs' / f'{safe_name(task_id)}.json']
+    candidates.extend(sorted((run_dir / 'optimistic-runs').glob('*.json')))
+    for path in candidates:
+        payload = load_json(path)
+        attempts = payload.get('attempts') if isinstance(payload.get('attempts'), list) else []
+        if attempts:
+            attempt = attempts[-1]
+            if isinstance(attempt, dict):
+                attempt['_optimistic_report'] = str(path)
+                attempt['_optimistic_status'] = payload.get('status', '')
+                attempt['_recommended_next_action'] = payload.get('recommended_next_action', '')
+                return attempt
+    return {}
+
+
+def codex_returncode(attempt: dict[str, Any], cli_report: dict[str, Any]) -> int | None:
+    codex = attempt.get('codex_worker') if isinstance(attempt.get('codex_worker'), dict) else {}
+    stdout_payload = parse_json_text(str(codex.get('stdout') or ''))
+    for value in [
+        stdout_payload.get('returncode'),
+        codex.get('returncode'),
+        (cli_report.get('execution') or {}).get('returncode') if isinstance(cli_report.get('execution'), dict) else None,
+    ]:
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def codex_timed_out(attempt: dict[str, Any]) -> bool:
+    codex = attempt.get('codex_worker') if isinstance(attempt.get('codex_worker'), dict) else {}
+    stdout_payload = parse_json_text(str(codex.get('stdout') or ''))
+    return bool(stdout_payload.get('timed_out') or codex.get('timed_out'))
+
+
+def infer_task_type(text: str, allowed_files: list[str], business_files: list[str], explicit: str = '') -> str:
+    if explicit:
+        return explicit
+    surface = ' '.join([text, *allowed_files, *business_files]).lower()
+    if any(term in surface for term in DOC_TERMS) or (business_files and all(matches_any(path, DOC_PATTERNS) for path in business_files)):
+        return 'docs'
+    if any(term in surface for term in CODING_TERMS) or any(matches_any(path, CODE_PATTERNS + TEST_PATTERNS) for path in [*allowed_files, *business_files]):
+        return 'coding'
+    return 'edit'
+
+
+def no_op_has_evidence(text: str) -> bool:
+    lowered = text.lower()
+    if len(lowered.strip()) < 60:
+        return False
+    has_reason = any(phrase in lowered for phrase in NO_OP_PHRASES)
+    has_evidence = any(term in lowered for term in EVIDENCE_TERMS)
+    has_file_reference = bool(re.search(r'([A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+|README|docs?/', text, re.IGNORECASE))
+    return has_reason and has_evidence and has_file_reference
+
+
+def tests_status_from_attempt(attempt: dict[str, Any], cli_report: dict[str, Any], task_type: str) -> str:
+    if isinstance(cli_report.get('tests_status'), str) and cli_report.get('tests_status'):
+        status = str(cli_report['tests_status'])
+        if status not in {'passed_or_not_reported', 'failed_or_not_reported'}:
+            return status
+    results = attempt.get('test_results') if isinstance(attempt.get('test_results'), list) else []
+    if results:
+        failed = [item for item in results if isinstance(item, dict) and item.get('returncode') not in {0, None}]
+        return 'failed' if failed else 'passed'
+    if task_type == 'docs':
+        return 'not_applicable'
+    return 'not_run'
+
+
+def scope_status_from_attempt(attempt: dict[str, Any], cli_report: dict[str, Any]) -> str:
+    collected = attempt.get('collected_result') if isinstance(attempt.get('collected_result'), dict) else {}
+    scope = collected.get('scope_guard') if isinstance(collected.get('scope_guard'), dict) else {}
+    if scope.get('status'):
+        return str(scope['status'])
+    if cli_report.get('scope_guard_status'):
+        return str(cli_report['scope_guard_status'])
+    return 'not_reported'
+
+
+def collected_text(attempt: dict[str, Any], run_dir: Path, task_id: str) -> str:
+    parts: list[str] = []
+    collected = attempt.get('collected_result') if isinstance(attempt.get('collected_result'), dict) else {}
+    for key in ['final_message', 'progress_md', 'blockers_md']:
+        value = collected.get(key)
+        if isinstance(value, str):
+            parts.append(value)
+    result_dir = run_dir / 'codex-results' / task_id
+    for name in ['result.md', 'result.json']:
+        path = result_dir / name
+        if path.exists():
+            parts.append(path.read_text(encoding='utf-8', errors='replace'))
+    return '\n\n'.join(parts)
+
+
+def denied_hits(files: list[str], denied_files: list[str]) -> list[str]:
+    return [path for path in files if matches_any(path, denied_files)]
+
+
+def code_or_test_diff(files: list[str]) -> bool:
+    return any(matches_any(path, CODE_PATTERNS + TEST_PATTERNS) for path in files)
+
+
+def docs_diff(files: list[str]) -> bool:
+    return any(matches_any(path, DOC_PATTERNS) for path in files)
+
+
+def write_markdown(path: Path, payload: dict[str, Any]) -> None:
+    lines = [
+        f"# Delivery Outcome: {payload['run_id']} / {payload['task_id']}",
+        '',
+        f"- route: {payload['route']}",
+        f"- task_type: {payload['task_type']}",
+        f"- delivery_outcome: {payload['delivery_outcome']}",
+        f"- reason: {payload['reason']}",
+        f"- next_action: {payload['next_action']}",
+        '',
+        '## Business Changed Files',
+        '',
+    ]
+    if payload['business_changed_files']:
+        lines.extend(f"- {item}" for item in payload['business_changed_files'])
+    else:
+        lines.append('- none')
+    lines.extend(['', '## Runtime Changed Files', ''])
+    if payload['runtime_changed_files']:
+        lines.extend(f"- {item}" for item in payload['runtime_changed_files'])
+    else:
+        lines.append('- none')
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+
+def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    project = project_root(args.workspace)
+    run_dir = project / '.zoo-agent' / 'runs' / args.run_id
+    cli_report = load_cli_report(run_dir, args.task_id)
+    attempt = latest_attempt(run_dir, args.task_id)
+    collected = attempt.get('collected_result') if isinstance(attempt.get('collected_result'), dict) else {}
+
+    changed = git_changed_files(project)
+    changed.extend(args.changed_file or [])
+    changed.extend(str(item) for item in collected.get('git_diff_name_only') or [] if item)
+    business_files, runtime_files, ignored_files = split_changed_files(changed)
+
+    route = args.route or str(cli_report.get('route') or cli_report.get('selected_path') or '')
+    task_text = args.input_text or str(cli_report.get('input') or '')
+    classification = cli_report.get('classification') if isinstance(cli_report.get('classification'), dict) else {}
+    allowed_files = [str(item) for item in classification.get('allowed_files') or []]
+    denied_files = [str(item) for item in classification.get('denied_files') or []]
+    denied_files.extend(args.denied_file or [])
+    task_type = infer_task_type(task_text, allowed_files, business_files, args.task_type)
+    scope_status = args.scope_guard_status or scope_status_from_attempt(attempt, cli_report)
+    tests_status = args.tests_status or tests_status_from_attempt(attempt, cli_report, task_type)
+    returncode = codex_returncode(attempt, cli_report)
+    timed_out = codex_timed_out(attempt)
+    evidence_text = collected_text(attempt, run_dir, args.task_id)
+    no_op_evidence = no_op_has_evidence(evidence_text)
+    denied = denied_hits(business_files, denied_files)
+
+    outcome = 'executed'
+    reason = 'worker_executed_without_delivery_requirement'
+    next_action = 'review_result'
+
+    if denied or scope_status == 'fail':
+        outcome = 'unsafe'
+        reason = 'scope_guard_failed_or_denied_files_touched'
+        next_action = 'stop_and_review_scope'
+    elif timed_out or (returncode is not None and returncode != 0):
+        outcome = 'blocked'
+        reason = 'worker_failed_or_timed_out'
+        next_action = 'inspect_worker_output_or_retry'
+    elif not business_files:
+        if no_op_evidence:
+            outcome = 'no_op_with_evidence'
+            reason = 'no_business_diff_but_explicit_no_op_evidence_present'
+            next_action = 'accept_no_op_or_clarify_task'
+        elif route == 'fast' and task_type in {'coding', 'docs', 'edit'}:
+            outcome = 'no_delivery'
+            reason = 'fast_task_finished_without_business_diff_or_no_op_evidence'
+            next_action = 'clarify_task_or_specify_file_and_change'
+        else:
+            outcome = 'executed'
+            reason = 'no_business_diff_for_non_delivery_task'
+            next_action = 'review_result'
+    elif task_type == 'coding' and not code_or_test_diff(business_files):
+        outcome = 'no_delivery'
+        reason = 'coding_task_changed_no_code_or_test_files'
+        next_action = 'schedule_implementation_pass'
+    elif task_type == 'docs' and not docs_diff(business_files):
+        outcome = 'no_delivery'
+        reason = 'docs_task_changed_no_docs_or_readme_files'
+        next_action = 'clarify_docs_target'
+    elif tests_status in {'failed', 'failed_or_not_reported'}:
+        outcome = 'blocked'
+        reason = 'tests_failed_or_not_reported_as_failed'
+        next_action = 'inspect_test_results'
+    else:
+        outcome = 'delivered'
+        reason = 'business_diff_present_and_policy_checks_passed'
+        next_action = 'review_diff_before_merge'
+
+    payload = {
+        'schema_version': '1.0',
+        'generated_by': 'check_delivery_outcome.py',
+        'generated_at': utc_now(),
+        'run_id': args.run_id,
+        'task_id': args.task_id,
+        'route': route,
+        'task_type': task_type,
+        'business_changed_files': business_files,
+        'runtime_changed_files': runtime_files,
+        'ignored_generated_files': ignored_files,
+        'codex_returncode': returncode,
+        'scope_guard_status': scope_status,
+        'tests_status': tests_status,
+        'result_collected': bool(attempt.get('collected_result') or (run_dir / 'codex-results' / args.task_id).exists()),
+        'denied_files_touched': denied,
+        'no_op_evidence_present': no_op_evidence,
+        'delivery_outcome': outcome,
+        'reason': reason,
+        'next_action': next_action,
+    }
+    output = Path(args.output).resolve() if args.output else run_dir / 'delivery-outcome.json'
+    write_json(output, payload)
+    write_markdown(output.with_suffix('.md'), payload)
+    return 0 if outcome in {'executed', 'delivered', 'no_op_with_evidence'} else 1, payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description='Classify execution versus delivery for a runtime run.')
+    parser.add_argument('--workspace', required=True)
+    parser.add_argument('--run-id', required=True)
+    parser.add_argument('--task-id', required=True)
+    parser.add_argument('--route', default='')
+    parser.add_argument('--task-type', choices=['coding', 'docs', 'edit', 'analysis', 'governance'], default='')
+    parser.add_argument('--input-text', default='')
+    parser.add_argument('--scope-guard-status', default='')
+    parser.add_argument('--tests-status', default='')
+    parser.add_argument('--changed-file', action='append', default=[])
+    parser.add_argument('--denied-file', action='append', default=[])
+    parser.add_argument('--output', default='')
+    args = parser.parse_args()
+    code, payload = evaluate(args)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return code
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

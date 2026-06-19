@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.4.0-local-alpha'
+VERSION = '0.4.1-real-project-alpha-hardening'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -26,6 +26,7 @@ KNOWN_COMMANDS = {
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
+from check_project_readiness import analyze_project_readiness  # noqa: E402
 from update_runtime_metrics import update_metrics  # noqa: E402
 
 
@@ -100,7 +101,8 @@ def detect_profile(project: Path) -> dict:
     }
 
 
-def readiness_for_profile(project: Path, profile: dict, *, initialized_git: bool = False) -> dict:
+def readiness_for_profile(project: Path, profile: dict, *, initialized_git: bool = False, base_readiness: dict | None = None) -> dict:
+    readiness = base_readiness or analyze_project_readiness(project)
     blockers = []
     warnings = []
     next_actions = []
@@ -114,18 +116,28 @@ def readiness_for_profile(project: Path, profile: dict, *, initialized_git: bool
         next_actions.append('Add or document a test command before relying on merge readiness.')
     if not (project / 'AGENTS.md').exists() and not (project / 'AGENTS.md.new').exists():
         warnings.append('project_instructions_missing')
-    return {
+    legacy = {
         'schema_version': '1.0',
         'generated_by': 'agent.py bootstrap',
         'generated_at': utc_now(),
         'workspace': str(project),
-        'safe_for_level_0_1_trial': not blockers,
+        'safe_for_bootstrap': readiness.get('safe_for_bootstrap', not blockers),
+        'safe_for_level_0_1_trial': readiness.get('safe_for_level_0_1_trial', not blockers),
+        'safe_for_codex_actual_run': readiness.get('safe_for_codex_actual_run', False),
+        'blockers': readiness.get('blockers', []),
         'blocking_issues': blockers,
         'warnings': warnings,
         'next_actions': next_actions or ['Run agent "fix typo in README" for a bounded dry-run/fast-path trial.'],
         'initialized_git': initialized_git,
         'codex_cli_detected': bool(shutil_which('codex')),
     }
+    typed_blocking = [item.get('type') for item in readiness.get('blockers', []) if item.get('severity') == 'blocking']
+    typed_warnings = [item.get('type') for item in readiness.get('blockers', []) if item.get('severity') == 'warning']
+    legacy['blocking_issues'] = sorted(set([*blockers, *[str(item) for item in typed_blocking if item]]))
+    legacy['warnings'] = sorted(set([*warnings, *[str(item) for item in typed_warnings if item]]))
+    if readiness.get('next_actions'):
+        legacy['next_actions'] = readiness['next_actions']
+    return legacy
 
 
 def shutil_which(binary: str) -> str:
@@ -237,8 +249,9 @@ def prepare_bootstrap_workspace(project: Path, args) -> tuple[int, dict]:
     }
 
 
-def write_onboarding_artifacts(project: Path, args, *, initialized_git: bool, already_bootstrapped: bool) -> dict:
+def write_onboarding_artifacts(project: Path, args, *, initialized_git: bool, already_bootstrapped: bool, base_readiness: dict | None = None) -> dict:
     actions: list[dict] = []
+    base_readiness = base_readiness or analyze_project_readiness(project)
     if initialized_git or args.new or args.force_new_project or not any(project.iterdir()):
         write_text_if_missing(project / 'README.md', '# New Agent Project\n\nBootstrapped for CLI-first AI coding runtime.\n', actions, reason='new project README')
         write_text_if_missing(
@@ -253,7 +266,7 @@ def write_onboarding_artifacts(project: Path, args, *, initialized_git: bool, al
 
     write_roo_rules_proposal(project, actions)
     profile = detect_profile(project)
-    readiness = readiness_for_profile(project, profile, initialized_git=initialized_git)
+    readiness = readiness_for_profile(project, profile, initialized_git=initialized_git, base_readiness=base_readiness)
     write_json(project / '.zoo-agent' / 'project-profile.json', profile)
     write_json(project / '.zoo-agent' / 'project-readiness.json', readiness)
     write_bootstrap_report(project, profile, readiness, actions, already_bootstrapped=already_bootstrapped)
@@ -290,6 +303,7 @@ def bootstrap(args) -> int:
             )
         )
         return 0
+    initial_readiness = analyze_project_readiness(project)
     missing_artifacts = [
         str(path)
         for path in [
@@ -383,6 +397,7 @@ def bootstrap(args) -> int:
         args,
         initialized_git=bool(prepare_report.get('initialized_git')),
         already_bootstrapped=already_bootstrapped,
+        base_readiness=initial_readiness,
     )
 
     report = {
@@ -466,6 +481,8 @@ def run(args) -> int:
         command.append('--dry-run')
     if args.worker_dry_run:
         command.append('--worker-dry-run')
+    if args.allow_ambiguous_fast:
+        command.append('--allow-ambiguous-fast')
     if args.no_execute_governed_workers:
         command.append('--no-execute-governed-workers')
     if args.discard_failed_worktree:
@@ -636,6 +653,7 @@ def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
         discard_failed_worktree=False,
         ephemeral=False,
         worker_dry_run=False,
+        allow_ambiguous_fast=False,
         no_execute_governed_workers=False,
         dry_run=dry_run,
     )
@@ -798,6 +816,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--discard-failed-worktree', action='store_true')
     run_parser.add_argument('--ephemeral', action='store_true')
     run_parser.add_argument('--worker-dry-run', action='store_true')
+    run_parser.add_argument('--allow-ambiguous-fast', action='store_true')
     run_parser.add_argument('--no-execute-governed-workers', action='store_true')
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
