@@ -1,0 +1,15 @@
+# Task Readiness Gate
+
+Leaf readiness verdicts:
+
+- `READY_FOR_DRY_RUN`
+- `READY_FOR_ACTUAL_CODEX`
+- `READY_FOR_MANUAL_REVIEW`
+- `BLOCKED_MISSING_ACCEPTANCE`
+- `BLOCKED_MISSING_SCOPE`
+- `BLOCKED_UNSTABLE_CONSUMES`
+- `BLOCKED_HIGH_RISK`
+- `BLOCKED_BACKEND_UNHEALTHY`
+- `BLOCKED_TEST_POLICY_UNKNOWN`
+
+Readiness pass does not mean parent aggregation pass.

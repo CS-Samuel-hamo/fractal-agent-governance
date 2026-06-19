@@ -544,27 +544,91 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             execution['leaf_index'] = leaf_index
             returncode = 0 if execution.get('status') == 'parallel_executed' else 10
     else:
-        command = dispatcher_base(args, project, goal_id, 'governed')
-        parent = run_command(command, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0)
-        implementation_queue = {
-            'schema_version': '1.0',
-            'generated_by': 'route_task.py',
-            'generated_at': utc_now(),
-            'run_id': args.run_id,
-            'parent_task_id': args.task_id,
-            'status': 'parent_decomposition_recorded',
-            'parent_dispatcher': parent,
-            'decision_layer': 'gpt_review_required',
-            'worker_backend': 'codex_cli',
-        }
-        write_json(run_dir / 'implementation-queue.json', implementation_queue)
-        execution = {'status': 'governed_parent_recorded', 'parent_dispatcher': parent, 'implementation_queue': implementation_queue}
-        returncode = int(parent.get('returncode') or 0)
-        leaf_index_path = run_dir / 'fractal-workstreams' / safe_name(args.task_id) / 'leaf-tasks' / 'leaf-tasks.json'
-        if parent.get('returncode') == 0 and leaf_index_path.exists() and args.execute_governed_workers:
-            worker_result = execute_parallel(project, args, str(leaf_index_path), goal_id)
-            execution['worker_execution'] = worker_result
-            returncode = 0 if worker_result.get('status') == 'parallel_executed' else 10
+        if classification.get('task_scale') == 'big':
+            contract_run = run_command(
+                [
+                    sys.executable,
+                    str(ROOT / 'scripts' / 'generate_big_task_contract.py'),
+                    '--workspace',
+                    str(project),
+                    '--run-id',
+                    args.run_id,
+                    '--goal-id',
+                    goal_id,
+                    '--input-text',
+                    args.input_text,
+                ],
+                ROOT,
+                timeout=60,
+            )
+            decompose_run = run_command(
+                [
+                    sys.executable,
+                    str(ROOT / 'scripts' / 'decompose_big_task_to_leaf_contracts.py'),
+                    '--workspace',
+                    str(project),
+                    '--run-id',
+                    args.run_id,
+                ],
+                ROOT,
+                timeout=60,
+            )
+            schedule_run = run_command(
+                [
+                    sys.executable,
+                    str(ROOT / 'scripts' / 'schedule_leaf_execution.py'),
+                    '--workspace',
+                    str(project),
+                    '--run-id',
+                    args.run_id,
+                ],
+                ROOT,
+                timeout=60,
+            )
+            implementation_queue = {
+                'schema_version': '1.0',
+                'generated_by': 'route_task.py',
+                'generated_at': utc_now(),
+                'run_id': args.run_id,
+                'parent_task_id': args.task_id,
+                'status': 'big_task_readiness_recorded',
+                'root_codex_actual_launched': False,
+                'default_big_task_actual_execution': 'disabled',
+                'contract_run': contract_run,
+                'decompose_run': decompose_run,
+                'schedule_run': schedule_run,
+                'decision_layer': 'GPT/human gate required before high-risk leaf actual',
+            }
+            write_json(run_dir / 'implementation-queue.json', implementation_queue)
+            execution = {
+                'status': 'big_task_readiness_recorded',
+                'message': 'Big task was converted to readiness/leaf contracts; root Codex actual execution is disabled.',
+                'codex_launched': False,
+                'implementation_queue': implementation_queue,
+            }
+            returncode = 0 if contract_run.get('returncode') in {0, 10} and decompose_run.get('returncode') == 0 else 10
+        else:
+            command = dispatcher_base(args, project, goal_id, 'governed')
+            parent = run_command(command, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0)
+            implementation_queue = {
+                'schema_version': '1.0',
+                'generated_by': 'route_task.py',
+                'generated_at': utc_now(),
+                'run_id': args.run_id,
+                'parent_task_id': args.task_id,
+                'status': 'parent_decomposition_recorded',
+                'parent_dispatcher': parent,
+                'decision_layer': 'gpt_review_required',
+                'worker_backend': 'codex_cli',
+            }
+            write_json(run_dir / 'implementation-queue.json', implementation_queue)
+            execution = {'status': 'governed_parent_recorded', 'parent_dispatcher': parent, 'implementation_queue': implementation_queue}
+            returncode = int(parent.get('returncode') or 0)
+            leaf_index_path = run_dir / 'fractal-workstreams' / safe_name(args.task_id) / 'leaf-tasks' / 'leaf-tasks.json'
+            if parent.get('returncode') == 0 and leaf_index_path.exists() and args.execute_governed_workers:
+                worker_result = execute_parallel(project, args, str(leaf_index_path), goal_id)
+                execution['worker_execution'] = worker_result
+                returncode = 0 if worker_result.get('status') == 'parallel_executed' else 10
         gpt_review = {
             'schema_version': '1.0',
             'generated_by': 'route_task.py',

@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.4.3-codex-risk-aware-goal-loop-runtime'
+VERSION = '0.5.0-big-task-readiness-and-aggregation'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -26,6 +26,10 @@ KNOWN_COMMANDS = {
     'codex-health',
     'goal',
     'loop',
+    'plan-big',
+    'decompose',
+    'aggregate',
+    'integration-check',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -522,6 +526,49 @@ def run(args) -> int:
     return run_command(command, ROOT)
 
 
+def plan_big(args) -> int:
+    run_id = args.run_id or 'run-big-task'
+    text = ' '.join(args.input).strip()
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id, '--input-text', text]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    result = delegate('generate_big_task_contract.py', command)
+    delegate('render_big_task_plan.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
+    return result
+
+
+def decompose_big(args) -> int:
+    run_id = args.run_id or 'run-big-task'
+    text = ' '.join(args.input).strip()
+    if text:
+        command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id, '--input-text', text]
+        if args.goal_id:
+            command.extend(['--goal-id', args.goal_id])
+        result = delegate('generate_big_task_contract.py', command)
+        if result not in {0, 10}:
+            return result
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id]
+    if args.allow_leaf_actual:
+        command.append('--allow-leaf-actual')
+    result = delegate('decompose_big_task_to_leaf_contracts.py', command)
+    delegate('check_leaf_task_contracts.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
+    delegate('schedule_leaf_execution.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
+    return result
+
+
+def aggregate_big(args) -> int:
+    return delegate('run_parent_aggregation_gate.py', ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id])
+
+
+def integration_check(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id]
+    if args.yes:
+        command.append('--yes')
+    else:
+        command.append('--dry-run')
+    return delegate('create_integration_worktree.py', command)
+
+
 def status(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace)]
     if args.run_id:
@@ -863,7 +910,7 @@ def main(argv: list[str] | None = None) -> int:
         return interactive_shell('.')
     raw_argv = normalize_argv(raw_argv)
 
-    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v4.0.')
+    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v0.5.')
     parser.add_argument('--version', action='version', version=f'agent {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
 
@@ -915,6 +962,32 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--no-execute-governed-workers', action='store_true')
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
+
+    plan_big_parser = sub.add_parser('plan-big', help='Create a big task readiness contract without Codex actual execution.')
+    plan_big_parser.add_argument('input', nargs='*')
+    plan_big_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    plan_big_parser.add_argument('--run-id', default='run-big-task')
+    plan_big_parser.add_argument('--goal-id', default='')
+    plan_big_parser.set_defaults(handler=plan_big)
+
+    decompose_parser = sub.add_parser('decompose', help='Decompose a big task into leaf task contracts.')
+    decompose_parser.add_argument('input', nargs='*')
+    decompose_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    decompose_parser.add_argument('--run-id', default='run-big-task')
+    decompose_parser.add_argument('--goal-id', default='')
+    decompose_parser.add_argument('--allow-leaf-actual', action='store_true')
+    decompose_parser.set_defaults(handler=decompose_big)
+
+    aggregate_parser = sub.add_parser('aggregate', help='Run parent aggregation gate for a big task run.')
+    aggregate_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    aggregate_parser.add_argument('--run-id', required=True)
+    aggregate_parser.set_defaults(handler=aggregate_big)
+
+    integration_parser = sub.add_parser('integration-check', help='Render or create an integration worktree candidate report.')
+    integration_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    integration_parser.add_argument('--run-id', required=True)
+    integration_parser.add_argument('--yes', action='store_true', help='Actually create the isolated integration worktree.')
+    integration_parser.set_defaults(handler=integration_check)
 
     status_parser = sub.add_parser('status', help='Summarize runtime, run, map, metrics, and gate state.')
     status_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

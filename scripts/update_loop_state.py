@@ -26,12 +26,17 @@ def update_state(
     failure_type: str = '',
     doc_only: bool = False,
     local_optimization: bool = False,
+    phase: str = '',
+    decomposition_round: bool = False,
+    leaf_redo: bool = False,
     max_iterations: int = 5,
 ) -> dict[str, Any]:
     state = initialize_loop(project, max_iteration=max_iterations, source='update_loop_state.py')
     state['run_id'] = run_id
     state['goal_id'] = goal_id or state.get('goal_id', '')
     state['last_route'] = route or 'unknown'
+    if phase:
+        state['phase'] = phase
     state['last_delivery_outcome'] = delivery_outcome
     state['max_iterations'] = int(state.get('max_iterations') or state.get('max_iteration') or max_iterations)
     state['max_iteration'] = state['max_iterations']
@@ -54,6 +59,12 @@ def update_state(
         state['doc_only_count'] = int(state.get('doc_only_count') or 0) + 1
     if local_optimization:
         state['local_optimization_count'] = int(state.get('local_optimization_count') or 0) + 1
+    if decomposition_round:
+        state['decomposition_rounds'] = int(state.get('decomposition_rounds') or 0) + 1
+        state['max_decomposition_rounds'] = int(state.get('max_decomposition_rounds') or 2)
+    if leaf_redo:
+        state['leaf_redo_count'] = int(state.get('leaf_redo_count') or 0) + 1
+        state['max_leaf_redo_count'] = int(state.get('max_leaf_redo_count') or 2)
 
     state['progress_score'] = 1.0 if delivery_outcome == 'delivered' else float(state.get('progress_score') or 0.0)
     state['last_decision'] = 'continue'
@@ -78,6 +89,14 @@ def update_state(
         state['status'] = 'converged'
         state['last_decision'] = 'defer_local_optimization'
         state['next_action'] = 'record_follow_up'
+    elif int(state.get('decomposition_rounds') or 0) > int(state.get('max_decomposition_rounds') or 2):
+        state['status'] = 'diverging'
+        state['last_decision'] = 'max_decomposition_rounds_reached'
+        state['next_action'] = 'GPT_or_human_decision'
+    elif int(state.get('leaf_redo_count') or 0) > int(state.get('max_leaf_redo_count') or 2):
+        state['status'] = 'blocked'
+        state['last_decision'] = 'max_leaf_redo_count_reached'
+        state['next_action'] = 'clarify_leaf_contracts'
     elif int(state.get('iteration') or 0) >= int(state.get('max_iterations') or max_iterations):
         state['status'] = 'diverging'
         state['last_decision'] = 'max_iterations_reached'
@@ -103,6 +122,9 @@ def main() -> int:
     parser.add_argument('--failure-type', default='')
     parser.add_argument('--doc-only', action='store_true')
     parser.add_argument('--local-optimization', action='store_true')
+    parser.add_argument('--phase', choices=['', 'readiness', 'decomposition', 'leaf_dry_run', 'leaf_actual', 'aggregation', 'integration_check'], default='')
+    parser.add_argument('--decomposition-round', action='store_true')
+    parser.add_argument('--leaf-redo', action='store_true')
     parser.add_argument('--max-iterations', type=int, default=5)
     args = parser.parse_args()
     project = project_root(args.workspace)
@@ -115,6 +137,9 @@ def main() -> int:
         failure_type=args.failure_type,
         doc_only=args.doc_only,
         local_optimization=args.local_optimization,
+        phase=args.phase,
+        decomposition_round=args.decomposition_round,
+        leaf_redo=args.leaf_redo,
         max_iterations=args.max_iterations,
     )
     print(json.dumps({'status': 'ok', 'workspace': str(project), 'loop_state': state}, ensure_ascii=True, indent=2))

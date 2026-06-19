@@ -94,6 +94,20 @@ PARALLEL_GOVERNANCE_TERMS = [
     'implementation queue',
 ]
 
+BIG_TASK_TERMS = [
+    'architecture',
+    'system',
+    'project',
+    'multi-module',
+    'cross-module',
+    'end-to-end',
+    'database schema',
+    'public api',
+    'api response',
+    'migration',
+    'refactor',
+]
+
 PATH_RE = re.compile(
     r'(?P<path>(?:[A-Za-z0-9_.-]+[\\/])+[A-Za-z0-9_.@-]+\.(?:py|ts|tsx|js|jsx|json|md|yml|yaml|toml|css|scss|html|go|rs|java|cs))'
 )
@@ -221,6 +235,21 @@ def score_level(value: int) -> str:
     return 'high'
 
 
+def detect_big_task(text: str, allowed_files: list[str], changed_file_estimate: int, hard_risk_hits: list[str], cross_surface_hits: list[str]) -> tuple[bool, list[str]]:
+    lowered = text.lower()
+    reasons: list[str] = []
+    for term in BIG_TASK_TERMS:
+        if term in lowered:
+            reasons.append(f'big_term:{term}')
+    if len(allowed_files) > 4 or changed_file_estimate > 8:
+        reasons.append('large_file_surface')
+    if hard_risk_hits:
+        reasons.append('hard_risk_surface')
+    if len(cross_surface_hits) >= 2:
+        reasons.append('cross_surface_change')
+    return bool(reasons), reasons
+
+
 def classify(
     project: Path,
     text: str,
@@ -239,6 +268,7 @@ def classify(
     blast_hits = term_hits(text, BLAST_RADIUS_TERMS)
     semantic_hits = semantic_resource_hits(text, allowed)
     broad_allowed = allowed == ['**'] or len(allowed) > 4
+    big_task, big_task_reasons = detect_big_task(text, allowed, changed_file_estimate, hard_risk_hits, cross_surface_hits)
 
     coupling_score = 0
     if len(cross_surface_hits) >= 2:
@@ -301,9 +331,9 @@ def classify(
     elif independent:
         path = 'parallel'
         reason = 'independent_non_overlapping_tasks'
-    elif blast_score >= 2 or coupling_score >= 2 or uncertainty_score >= 2 or dependency_score >= 1:
+    elif big_task or blast_score >= 2 or coupling_score >= 2 or uncertainty_score >= 2 or dependency_score >= 1:
         path = 'governed'
-        reason = 'risk_or_coupling_requires_governance'
+        reason = 'big_task_readiness_required' if big_task else 'risk_or_coupling_requires_governance'
     else:
         path = 'fast'
         reason = 'low_coupling_low_uncertainty_low_blast_radius'
@@ -315,6 +345,13 @@ def classify(
         'input': text,
         'path': path,
         'reason': reason,
+        'task_scale': 'big' if big_task else 'small',
+        'big_task_reasons': big_task_reasons,
+        'big_task_policy': {
+            'root_codex_actual_allowed': False,
+            'required_entrypoints': ['agent plan-big', 'agent decompose', 'agent aggregate', 'agent integration-check'] if big_task else [],
+            'default_execution_mode': 'decomposition_only' if big_task else 'route_default',
+        },
         'independent': independent,
         'scores': {
             'coupling': score_level(coupling_score),
