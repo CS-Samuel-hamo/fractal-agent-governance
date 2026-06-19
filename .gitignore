@@ -5,6 +5,7 @@ codex_home/
 .env
 .env.*
 .tmp/
+.zoo-agent/
 .zoo-agent/runs/
 .zoo-agent/tmp/
 .zoo-agent/worktrees/
