@@ -152,7 +152,7 @@ def dispatcher_base(args, project: Path, goal_id: str, path: str) -> list[str]:
         command.append('--discard-failed-worktree')
     if args.ephemeral:
         command.append('--ephemeral')
-    if args.dry_run:
+    if args.dry_run or args.worker_dry_run:
         command.append('--dry-run')
     add_repeated_args(command, '--allowed-file', args.allowed_file)
     add_repeated_args(command, '--denied-file', args.denied_file)
