@@ -197,6 +197,18 @@ def test_project_readiness_blocker_stops_decomposition(env: dict[str, str]) -> N
     assert not (repo / '.zoo-agent' / 'runs' / 'run-readiness-blocked' / 'leaf-tasks').exists()
 
 
+def test_allow_leaf_actual_requires_backend_health(env: dict[str, str]) -> None:
+    repo = init_repo('allow-actual-needs-backend', env)
+    goal_id = set_goal(repo, env, 'Update docs only when backend health is known')
+    run([sys.executable, str(AGENT), 'decompose', 'update docs/a.md', '--workspace', str(repo), '--run-id', 'run-allow-actual', '--goal-id', goal_id, '--allow-leaf-actual'], repo, check=False, env=env)
+    contract = load(repo / '.zoo-agent' / 'runs' / 'run-allow-actual' / 'big-task-contract.json')
+    leaf = load(repo / '.zoo-agent' / 'runs' / 'run-allow-actual' / 'leaf-tasks' / 'leaf-001.json')
+    assert contract['allowed_execution_mode'] == 'leaf_dry_run'
+    assert leaf['execution_allowed'] is False
+    assert leaf['execution_mode'] == 'blocked'
+    assert leaf['task_readiness']['verdict'] == 'BLOCKED_BACKEND_UNHEALTHY'
+
+
 def test_loop_divergence(env: dict[str, str]) -> None:
     repo = init_repo('loop-divergence', env)
     goal_id = set_goal(repo, env)
@@ -260,6 +272,7 @@ def main() -> int:
     test_goal_missing_blocks(env)
     test_agent_run_big_task_does_not_create_transient_goal(env)
     test_project_readiness_blocker_stops_decomposition(env)
+    test_allow_leaf_actual_requires_backend_health(env)
     test_loop_divergence(env)
     test_high_risk_leaf_blocked(env)
     test_unknown_resource_not_independent(env)

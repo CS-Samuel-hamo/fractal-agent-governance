@@ -48,6 +48,10 @@ def main() -> int:
         gate = leaf_readiness(leaf, backend)
         leaf['task_readiness'] = gate
         leaf['task_readiness_ref'] = f".zoo-agent/runs/{args.run_id}/leaf-tasks/{leaf['leaf_id']}-readiness.json"
+        leaf['execution_allowed'] = bool(gate.get('execution_allowed'))
+        if not leaf['execution_allowed'] and leaf.get('execution_mode') == 'actual_allowed':
+            leaf['execution_mode'] = 'blocked'
+            leaf['preferred_route'] = 'dry_run_only'
         leaf['blocking_reasons'] = gate.get('blocking_reasons') or []
         readiness.append(gate)
     index = write_leaf_contracts(project, args.run_id, leaves)

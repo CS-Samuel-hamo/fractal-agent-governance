@@ -228,9 +228,9 @@ def classify_readiness(contract: dict[str, Any]) -> tuple[str, str, list[str], s
     if not criteria:
         blockers.append('success_criteria_not_verifiable')
         return 'READY_FOR_DECOMPOSITION_ONLY', 'decomposition_only', blockers, 'Clarify success criteria before leaf dry-run.'
-    if backend_status == 'unhealthy':
-        blockers.append('backend_unhealthy')
-        return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Use dry-run/manual task packs until backend health recovers.'
+    if backend_status not in {'healthy', 'healthy_with_warnings'}:
+        blockers.append(f'backend_not_ready:{backend_status}')
+        return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Use dry-run/manual task packs until backend health is healthy enough for actual execution.'
     if test_status == 'unknown':
         blockers.append('testability_unknown')
         return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Leaf actual requires known or explicit test policy.'
@@ -518,8 +518,8 @@ def leaf_readiness(leaf: dict[str, Any], backend_profile: dict[str, Any] | None 
     elif leaf.get('risk_level') in {'high', 'critical'}:
         blockers.append('high_risk_leaf')
         verdict = 'BLOCKED_HIGH_RISK'
-    elif backend_status == 'unhealthy' and leaf.get('execution_mode') == 'actual_allowed':
-        blockers.append('backend_unhealthy')
+    elif leaf.get('execution_mode') == 'actual_allowed' and backend_status not in {'healthy', 'healthy_with_warnings'}:
+        blockers.append(f'backend_not_ready:{backend_status}')
         verdict = 'BLOCKED_BACKEND_UNHEALTHY'
     elif leaf.get('test_policy') == 'unknown':
         blockers.append('test_policy_unknown')
