@@ -452,7 +452,8 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     backend_profile_snapshot = backend_profile(project)
     if selected_path in {'fast', 'parallel'} and not args.dry_run and not args.worker_dry_run and not args.skip_health_check:
         allowed_now, current_backend = backend_actual_allowed(project, require_parallel=selected_path == 'parallel')
-        if not allowed_now:
+        needs_full_health = not current_backend or current_backend.get('health_status') == 'missing' or current_backend.get('_health_stale')
+        if not allowed_now and needs_full_health:
             backend_check_run = run_full_backend_check(project, args)
             backend_health_check_counted = True
             backend_profile_snapshot = backend_profile(project)
