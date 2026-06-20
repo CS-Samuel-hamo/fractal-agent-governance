@@ -19,6 +19,7 @@ required = [
 required.extend([
  'scripts/cockpit_schema.py','scripts/cockpit_data_builder.py','scripts/cockpit_html_template.py','scripts/cockpit_renderer.py',
  'scripts/test_project_cockpit_data.py','scripts/test_project_cockpit_render.py','scripts/test_project_cockpit_ux.py',
+ 'scripts/cockpit_demo_fixture_builder.py','scripts/cockpit_quality_gate.py','scripts/cockpit_dogfood_runner.py','scripts/cockpit_ux_report_generator.py','scripts/test_project_cockpit_dogfood.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

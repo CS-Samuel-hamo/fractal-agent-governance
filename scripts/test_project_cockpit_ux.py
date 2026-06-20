@@ -61,7 +61,10 @@ def main() -> int:
     cockpit = run([sys.executable, str(AGENT), 'cockpit', '--workspace', str(repo)], repo)
     assert_clean_output(cockpit.stdout)
     cockpit_payload = payload(cockpit)
-    assert cockpit_payload == {'task': 'project cockpit', 'mode': 'ready', 'result': '.zoo-agent/cockpit/index.html'}
+    assert cockpit_payload['task'] == 'project cockpit'
+    assert cockpit_payload['mode'] == 'ready'
+    assert 'Open: .zoo-agent/cockpit/index.html' in cockpit_payload['result']
+    assert 'agent continue' in cockpit_payload['result']
     assert (repo / '.zoo-agent' / 'cockpit' / 'index.html').exists()
     assert (repo / '.zoo-agent' / 'cockpit' / 'cockpit_data.json').exists()
 

@@ -39,7 +39,7 @@ def module_cards(modules: list[dict[str, Any]]) -> str:
         rows.append(
             f'''<article class="item">
   <div class="item-head"><strong>{esc(item.get('name'))}</strong>{badge(item.get('status'))}</div>
-  <div class="meta">confidence {esc(item.get('confidence'))} · evidence {esc(item.get('evidence_count'))}</div>
+  <div class="meta">confidence {esc(item.get('confidence'))} | evidence {esc(item.get('evidence_count'))}</div>
   <div class="files">{files}</div>
 </article>'''
         )
@@ -91,7 +91,7 @@ def action_cards(actions: list[dict[str, Any]]) -> str:
   <div class="item-head"><strong>{esc(item.get('title'))}</strong>{badge(item.get('risk_level'))}</div>
   <p><b>Why now:</b> {esc(item.get('why_now'))}</p>
   <p><b>Impact:</b> {esc(item.get('expected_impact'))}</p>
-  <div class="meta">mode {esc(item.get('execution_mode'))} · evidence {esc(item.get('evidence_count'))} · {files}</div>
+  <div class="meta">mode {esc(item.get('execution_mode'))} | evidence {esc(item.get('evidence_count'))} | {files}</div>
 </article>'''
         )
     return ''.join(rows)
@@ -212,7 +212,7 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
     <h1>{esc(project.get('name') or 'Project Cockpit')}</h1>
     <div>{badge(project.get('state'))}</div>
     <p class="goal">{esc(project.get('main_goal') or 'No project goal available yet.')}</p>
-    <p>Type: {esc(project.get('type') or 'not available')} · Last updated: {esc(project.get('last_updated') or data.get('generated_at') or 'not available')}</p>
+    <p>Type: {esc(project.get('type') or 'not available')} | Last updated: {esc(project.get('last_updated') or data.get('generated_at') or 'not available')}</p>
   </header>
 
   <section class="grid">

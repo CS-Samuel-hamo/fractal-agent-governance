@@ -841,6 +841,21 @@ def status(args) -> int:
 
 def cockpit_command(args) -> int:
     project = project_root(args.workspace)
+    if getattr(args, 'dogfood', False):
+        result = delegate_capture('cockpit_dogfood_runner.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        readiness = str(payload.get('readiness_value') or 'unknown')
+        print_json(
+            {
+                'task': 'project cockpit dogfood',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f'Report: .zoo-agent/cockpit_dogfood/cockpit_ux_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
     result = delegate_capture('cockpit_renderer.py', ['--workspace', str(project)])
     if getattr(args, 'debug', False):
         print(str(result.get('stdout') or '').strip())
@@ -848,7 +863,7 @@ def cockpit_command(args) -> int:
     if result.get('returncode') != 0:
         print_json({'task': 'project cockpit', 'mode': 'blocked', 'result': 'could not generate Project Cockpit'})
         return int(result.get('returncode') or 1)
-    print_json({'task': 'project cockpit', 'mode': 'ready', 'result': '.zoo-agent/cockpit/index.html'})
+    print_json({'task': 'project cockpit', 'mode': 'ready', 'result': 'Open: .zoo-agent/cockpit/index.html; Then: agent status, agent continue, agent stop, agent undo'})
     return 0
 
 
@@ -1667,6 +1682,7 @@ def main(argv: list[str] | None = None) -> int:
 
     cockpit_parser = sub.add_parser('cockpit', help='Generate a local Project Cockpit.')
     cockpit_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    cockpit_parser.add_argument('--dogfood', action='store_true', help=argparse.SUPPRESS)
     cockpit_parser.add_argument('--debug', action='store_true')
     cockpit_parser.set_defaults(handler=cockpit_command)
 
