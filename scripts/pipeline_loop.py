@@ -61,8 +61,8 @@ def update_metrics(project: Path, payload: dict[str, Any]) -> None:
         'fast_path_rate': 1.0 if payload.get('selected_path') == 'fast' else 0.0,
         'parallel_execution_rate': 1.0 if payload.get('selected_path') == 'parallel' else 0.0,
         'governed_path_rate': 1.0 if payload.get('selected_path') == 'governed' else 0.0,
-        'fast_path_pre_codex_overhead_ms': payload.get('fast_path_pre_codex_overhead_ms', 0.0),
-        'codex_execution_latency': payload.get('codex_execution_ms', 0.0),
+        'fast_path_pre_backend_overhead_ms': payload.get('fast_path_pre_backend_overhead_ms', 0.0),
+        'backend_execution_latency': payload.get('backend_execution_ms', 0.0),
         'doc_overproduction_rate': 1.0 if payload.get('doc_only_task') else 0.0,
         'doc_only_task_rate': 1.0 if payload.get('doc_only_task') else 0.0,
         'code_delivery_rate': 0.0,
@@ -103,8 +103,8 @@ def write_cli_runtime_compat_report(
         * 1000
     )
     leaf_results = execution.get('leaf_results') or []
-    codex_ms = int(
-        sum(float(((item.get('codex_result') or {}).get('duration_seconds') or 0.0)) for item in leaf_results)
+    backend_ms = int(
+        sum(float(((item.get('backend_result') or {}).get('duration_seconds') or 0.0)) for item in leaf_results)
         * 1000
     )
     loop_state_path = project / '.zoo-agent' / 'loop_state.json'
@@ -126,11 +126,11 @@ def write_cli_runtime_compat_report(
     fast_report = {
         'route': 'fast',
         'skipped_governance': FAST_SKIPPED_GOVERNANCE,
-        'codex_latency': codex_ms / 1000.0,
+        'backend_latency': backend_ms / 1000.0,
         'scope_guard_status': 'not_run_dry_run' if dry_run else 'pass',
         'tests_status': 'not_run_dry_run' if dry_run else 'unknown',
-        'fast_path_pre_codex_overhead_ms': max(duration_ms - codex_ms, 0),
-        'codex_execution_ms': codex_ms,
+        'fast_path_pre_backend_overhead_ms': max(duration_ms - backend_ms, 0),
+        'backend_execution_ms': backend_ms,
         'total_wall_time_ms': duration_ms,
     }
     payload = {
@@ -150,8 +150,8 @@ def write_cli_runtime_compat_report(
             'pipeline_execution_result': str(execution_path),
         },
         'fast_path_report': fast_report if selected_path == 'fast' else {},
-        'fast_path_pre_codex_overhead_ms': max(duration_ms - codex_ms, 0),
-        'codex_execution_ms': codex_ms,
+        'fast_path_pre_backend_overhead_ms': max(duration_ms - backend_ms, 0),
+        'backend_execution_ms': backend_ms,
         'total_wall_time_ms': duration_ms,
         'scope_guard_status': 'pass' if not dry_run else 'not_run_dry_run',
         'tests_status': 'not_applicable' if selected_path == 'fast' and any(item.endswith('.md') for item in allowed_files) else ('not_run_dry_run' if dry_run else 'unknown'),
@@ -238,8 +238,8 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
             executor_cmd.append('--dry-run')
         if args.allow_actual:
             executor_cmd.append('--allow-actual')
-        if args.codex_home:
-            executor_cmd += ['--codex-home', args.codex_home]
+        for item in args.backend_option:
+            executor_cmd += ['--backend-option', item]
         stage_results['executor'] = run_stage(executor_cmd)
         if stage_results['executor']['returncode']:
             iterations.append({'iteration': iteration, 'stages': stage_results})
@@ -309,8 +309,8 @@ def main() -> int:
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--allow-actual', action='store_true')
     parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
-    parser.add_argument('--codex-home', default='')
     parser.add_argument('--backend', default='codex')
+    parser.add_argument('--backend-option', action='append', default=[])
     parser.add_argument('--timeout-seconds', type=int, default=360)
     parser.add_argument('--max-retries', type=int, default=2)
     args = parser.parse_args()

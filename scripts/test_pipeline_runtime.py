@@ -133,8 +133,9 @@ def test_stage_contracts() -> None:
     assert execution_payload['scheduler_used'] is False
     assert execution_payload['conflict_detector_used'] is False
     assert execution_payload['aggregation_used'] is False
-    assert execution_payload['codex_backend']['allowed_in_stage'] is True
-    assert execution_payload['codex_backend']['invoked'] is False
+    assert execution_payload['execution_backend']['replaceable'] is True
+    assert execution_payload['execution_backend']['invoked'] is False
+    assert 'codex_backend' not in execution_payload
 
     run(
         [
@@ -149,7 +150,8 @@ def test_stage_contracts() -> None:
     )
     final_payload = load(final)
     assert final_payload['stage'] == 'verifier'
-    assert final_payload['codex_invoked'] is False
+    assert final_payload['backend_invoked'] is False
+    assert 'codex_invoked' not in final_payload
     assert final_payload['planner_invoked'] is False
     assert final_payload['executor_invoked'] is False
     assert final_payload['checks']['scheduler_not_used_by_executor'] is True

@@ -86,7 +86,14 @@ def main() -> int:
         assert 'bootstrap' in help_result.stdout
         version_result = run([sys.executable, str(AGENT), '--version'], ROOT, env=env)
         assert 'agent ' in version_result.stdout
-        assert 'three-stage-pipeline-runtime' in version_result.stdout or 'runtime-engine-productization' in version_result.stdout
+        assert any(
+            marker in version_result.stdout
+            for marker in [
+                'three-stage-pipeline-runtime',
+                'runtime-engine-productization',
+                'semantic-decoupling-runtime-engine',
+            ]
+        )
 
         existing = init_existing_repo(env)
         src_hash = sha(existing / 'src' / 'app.py')
@@ -121,7 +128,7 @@ def main() -> int:
         fast = cli_report(existing, 'run-fast', 'task-fast')
         assert fast.get('route') == 'fast'
         assert fast.get('fast_path_report', {}).get('route') == 'fast'
-        assert fast.get('fast_path_pre_codex_overhead_ms') is not None
+        assert fast.get('fast_path_pre_backend_overhead_ms') is not None
 
         run([sys.executable, str(AGENT), 'run', '--workspace', str(existing), '--run-id', 'run-parallel', '--task-id', 'task-parallel', '--parallel', '--dry-run', 'update docs/a.md', 'update docs/b.md'], existing, env=env)
         parallel = cli_report(existing, 'run-parallel', 'task-parallel')

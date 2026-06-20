@@ -18,7 +18,7 @@ FORBIDDEN_RESPONSIBILITIES = [
     'goal_selection',
     'scheduling',
     'conflict_detection',
-    'codex_execution',
+    'backend_execution',
     'worker_spawn',
 ]
 
@@ -63,7 +63,7 @@ def verify_execution(args: argparse.Namespace) -> dict[str, Any]:
         'input_contract': 'execution_result.json',
         'output_contract': 'final_result.json',
         'forbidden_responsibilities': FORBIDDEN_RESPONSIBILITIES,
-        'codex_invoked': False,
+        'backend_invoked': False,
         'planner_invoked': False,
         'executor_invoked': False,
         'aggregation_role': 'collapsed_into_verifier',

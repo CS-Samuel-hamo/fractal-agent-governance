@@ -9,8 +9,8 @@ from typing import Any
 
 RETRYABLE_STATUSES = {'timeout'}
 RETRYABLE_REASONS = {
-    'codex_worker_timeout',
-    'codex_worker_spawn_or_exception',
+    'backend_worker_timeout',
+    'backend_worker_spawn_or_exception',
     'response_stream_disconnected',
     'no_output_timeout',
 }

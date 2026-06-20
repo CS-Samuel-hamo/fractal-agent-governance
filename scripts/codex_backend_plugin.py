@@ -46,8 +46,9 @@ class CodexExecutionBackend(ExecutionBackend):
             str(context.timeout_seconds),
             '--require-leaf-resolution',
         ]
-        if context.codex_home:
-            command += ['--codex-home', context.codex_home]
+        codex_home = str(context.backend_options.get('codex_home') or '')
+        if codex_home:
+            command += ['--codex-home', codex_home]
         if context.dry_run:
             command.append('--dry-run')
         started = time.monotonic()

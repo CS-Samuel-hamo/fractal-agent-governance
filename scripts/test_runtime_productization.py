@@ -68,10 +68,10 @@ def test_runtime_pipeline_with_mock_backend() -> None:
     execution = current_execution_result(result['pipeline'])
     assert execution['execution_backend']['selected'] == 'mock'
     assert execution['execution_backend']['invoked'] is True
-    assert execution['codex_backend']['invoked'] is False
     leaf = execution['leaf_results'][0]
     assert leaf['delivery_outcome'] == 'delivered'
     assert leaf['backend'] == 'mock'
+    assert 'codex_invoked' not in leaf
     assert 'Mock backend delivered.' in (repo / 'README.md').read_text(encoding='utf-8')
 
 

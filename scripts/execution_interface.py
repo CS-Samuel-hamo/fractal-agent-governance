@@ -35,7 +35,6 @@ class ExecutionContext:
     workspace: str
     task_dir: str
     sandbox: str = 'workspace-write'
-    codex_home: str = ''
     timeout_seconds: int = 360
     dry_run: bool = False
     backend_options: dict[str, Any] = field(default_factory=dict)

@@ -17,9 +17,9 @@ METRIC_KEYS = [
     'fast_path_rate',
     'parallel_execution_rate',
     'governed_path_rate',
-    'codex_latency',
-    'fast_path_pre_codex_overhead_ms',
-    'codex_execution_latency',
+    'backend_latency',
+    'fast_path_pre_backend_overhead_ms',
+    'backend_execution_latency',
     'doc_overproduction_rate',
     'doc_only_task_rate',
     'code_delivery_rate',
@@ -39,14 +39,14 @@ METRIC_KEYS = [
     'leaf_defer_rate',
     'leaf_merge_rate',
     'convergence_failure_rate',
-    'codex_execution_from_leaf_rate',
+    'backend_execution_from_leaf_rate',
     'goal_completion_rate',
     'loop_convergence_rate',
     'leaf_to_goal_contribution_ratio',
     'stuck_loop_rate',
     'over_decomposition_rate',
     'no_delivery_goal_impact',
-    'codex_execution_success_rate',
+    'backend_execution_success_rate',
     'goal_drift_frequency',
 ]
 
@@ -55,9 +55,9 @@ def update_metrics(
     project: Path,
     *,
     path: str,
-    codex_latency: float = 0.0,
-    fast_path_pre_codex_overhead_ms: float = 0.0,
-    codex_execution_ms: float = 0.0,
+    backend_latency: float = 0.0,
+    fast_path_pre_backend_overhead_ms: float = 0.0,
+    backend_execution_ms: float = 0.0,
     code_delivered: bool = False,
     doc_overproduction: bool = False,
     doc_only_task: bool = False,
@@ -78,13 +78,13 @@ def update_metrics(
     leaf_deferred: bool = False,
     leaf_merged: bool = False,
     leaf_convergence_failure: bool = False,
-    codex_execution_from_leaf: bool = False,
+    backend_execution_from_leaf: bool = False,
     goal_completed: bool = False,
     loop_converged_event: bool = False,
     stuck_loop: bool = False,
     over_decomposition: bool = False,
     no_delivery_goal_impact: int = 0,
-    codex_execution_success: bool = False,
+    backend_execution_success: bool = False,
     goal_drift: bool = False,
     leaf_goal_contribution_count: int = 0,
     leaf_goal_total_count: int = 0,
@@ -97,23 +97,23 @@ def update_metrics(
     path_counts = counters.get('path_counts') if isinstance(counters.get('path_counts'), dict) else {}
     path_counts[path] = int(path_counts.get(path) or 0) + 1
 
-    latency_count = int(counters.get('codex_latency_count') or 0)
-    latency_total = float(counters.get('codex_latency_total') or 0.0)
-    if codex_latency > 0:
+    latency_count = int(counters.get('backend_latency_count') or 0)
+    latency_total = float(counters.get('backend_latency_total') or 0.0)
+    if backend_latency > 0:
         latency_count += 1
-        latency_total += codex_latency
+        latency_total += backend_latency
 
-    overhead_count = int(counters.get('fast_path_pre_codex_overhead_count') or 0)
-    overhead_total = float(counters.get('fast_path_pre_codex_overhead_total_ms') or 0.0)
-    if fast_path_pre_codex_overhead_ms > 0:
+    overhead_count = int(counters.get('fast_path_pre_backend_overhead_count') or 0)
+    overhead_total = float(counters.get('fast_path_pre_backend_overhead_total_ms') or 0.0)
+    if fast_path_pre_backend_overhead_ms > 0:
         overhead_count += 1
-        overhead_total += fast_path_pre_codex_overhead_ms
+        overhead_total += fast_path_pre_backend_overhead_ms
 
-    codex_execution_count = int(counters.get('codex_execution_count') or 0)
-    codex_execution_total = float(counters.get('codex_execution_total_ms') or 0.0)
-    if codex_execution_ms > 0:
-        codex_execution_count += 1
-        codex_execution_total += codex_execution_ms
+    backend_execution_count = int(counters.get('backend_execution_count') or 0)
+    backend_execution_total = float(counters.get('backend_execution_total_ms') or 0.0)
+    if backend_execution_ms > 0:
+        backend_execution_count += 1
+        backend_execution_total += backend_execution_ms
 
     code_delivery_count = int(counters.get('code_delivery_count') or 0) + (1 if code_delivered else 0)
     doc_overproduction_count = int(counters.get('doc_overproduction_count') or 0) + (1 if doc_overproduction else 0)
@@ -131,7 +131,7 @@ def update_metrics(
     )
     manual_intervention_count = int(counters.get('manual_intervention_count') or 0) + (1 if manual_intervention else 0)
     leaf_total_count = int(counters.get('leaf_total_count') or 0) + (
-        1 if any([leaf_resolved, leaf_collapsed, leaf_deferred, leaf_merged, leaf_convergence_failure, codex_execution_from_leaf]) else 0
+        1 if any([leaf_resolved, leaf_collapsed, leaf_deferred, leaf_merged, leaf_convergence_failure, backend_execution_from_leaf]) else 0
     )
     leaf_refinement_total = int(counters.get('leaf_refinement_count') or 0) + max(int(leaf_refinement_count or 0), 0)
     leaf_resolved_count = int(counters.get('leaf_resolved_count') or 0) + (1 if leaf_resolved else 0)
@@ -139,7 +139,7 @@ def update_metrics(
     leaf_defer_count = int(counters.get('leaf_defer_count') or 0) + (1 if leaf_deferred else 0)
     leaf_merge_count = int(counters.get('leaf_merge_count') or 0) + (1 if leaf_merged else 0)
     leaf_convergence_failure_count = int(counters.get('leaf_convergence_failure_count') or 0) + (1 if leaf_convergence_failure else 0)
-    codex_execution_from_leaf_count = int(counters.get('codex_execution_from_leaf_count') or 0) + (1 if codex_execution_from_leaf else 0)
+    backend_execution_from_leaf_count = int(counters.get('backend_execution_from_leaf_count') or 0) + (1 if backend_execution_from_leaf else 0)
     goal_loop_total_count = int(counters.get('goal_loop_total_count') or 0) + (
         1 if any([goal_completed, loop_converged_event, stuck_loop, over_decomposition, goal_drift, leaf_goal_total_count, no_delivery_goal_impact]) else 0
     )
@@ -148,7 +148,7 @@ def update_metrics(
     stuck_loop_count = int(counters.get('stuck_loop_count') or 0) + (1 if stuck_loop else 0)
     over_decomposition_count = int(counters.get('over_decomposition_count') or 0) + (1 if over_decomposition else 0)
     no_delivery_goal_impact_count = int(counters.get('no_delivery_goal_impact_count') or 0) + max(int(no_delivery_goal_impact or 0), 0)
-    codex_execution_success_count = int(counters.get('codex_execution_success_count') or 0) + (1 if codex_execution_success else 0)
+    backend_execution_success_count = int(counters.get('backend_execution_success_count') or 0) + (1 if backend_execution_success else 0)
     goal_drift_count = int(counters.get('goal_drift_count') or 0) + (1 if goal_drift else 0)
     leaf_goal_contribution_total = int(counters.get('leaf_goal_contribution_count') or 0) + max(int(leaf_goal_contribution_count or 0), 0)
     leaf_goal_total = int(counters.get('leaf_goal_total_count') or 0) + max(int(leaf_goal_total_count or 0), 0)
@@ -160,12 +160,12 @@ def update_metrics(
         {
             'total_runs': total,
             'path_counts': path_counts,
-            'codex_latency_count': latency_count,
-            'codex_latency_total': round(latency_total, 3),
-            'fast_path_pre_codex_overhead_count': overhead_count,
-            'fast_path_pre_codex_overhead_total_ms': round(overhead_total, 3),
-            'codex_execution_count': codex_execution_count,
-            'codex_execution_total_ms': round(codex_execution_total, 3),
+            'backend_latency_count': latency_count,
+            'backend_latency_total': round(latency_total, 3),
+            'fast_path_pre_backend_overhead_count': overhead_count,
+            'fast_path_pre_backend_overhead_total_ms': round(overhead_total, 3),
+            'backend_execution_count': backend_execution_count,
+            'backend_execution_total_ms': round(backend_execution_total, 3),
             'code_delivery_count': code_delivery_count,
             'doc_overproduction_count': doc_overproduction_count,
             'doc_only_task_count': doc_only_task_count,
@@ -187,14 +187,14 @@ def update_metrics(
             'leaf_defer_count': leaf_defer_count,
             'leaf_merge_count': leaf_merge_count,
             'leaf_convergence_failure_count': leaf_convergence_failure_count,
-            'codex_execution_from_leaf_count': codex_execution_from_leaf_count,
+            'backend_execution_from_leaf_count': backend_execution_from_leaf_count,
             'goal_loop_total_count': goal_loop_total_count,
             'goal_completed_count': goal_completed_count,
             'loop_convergence_event_count': loop_convergence_event_count,
             'stuck_loop_count': stuck_loop_count,
             'over_decomposition_count': over_decomposition_count,
             'no_delivery_goal_impact_count': no_delivery_goal_impact_count,
-            'codex_execution_success_count': codex_execution_success_count,
+            'backend_execution_success_count': backend_execution_success_count,
             'goal_drift_count': goal_drift_count,
             'leaf_goal_contribution_count': leaf_goal_contribution_total,
             'leaf_goal_total_count': leaf_goal_total,
@@ -204,9 +204,9 @@ def update_metrics(
         'fast_path_rate': round(path_counts.get('fast', 0) / total, 4),
         'parallel_execution_rate': round(path_counts.get('parallel', 0) / total, 4),
         'governed_path_rate': round(path_counts.get('governed', 0) / total, 4),
-        'codex_latency': round(latency_total / latency_count, 3) if latency_count else 0.0,
-        'fast_path_pre_codex_overhead_ms': round(overhead_total / overhead_count, 3) if overhead_count else 0.0,
-        'codex_execution_latency': round(codex_execution_total / codex_execution_count, 3) if codex_execution_count else 0.0,
+        'backend_latency': round(latency_total / latency_count, 3) if latency_count else 0.0,
+        'fast_path_pre_backend_overhead_ms': round(overhead_total / overhead_count, 3) if overhead_count else 0.0,
+        'backend_execution_latency': round(backend_execution_total / backend_execution_count, 3) if backend_execution_count else 0.0,
         'doc_overproduction_rate': round(doc_overproduction_count / total, 4),
         'doc_only_task_rate': round(doc_only_task_count / total, 4),
         'code_delivery_rate': round(code_delivery_count / total, 4),
@@ -227,14 +227,14 @@ def update_metrics(
         'leaf_defer_rate': round(leaf_defer_count / leaf_total_count, 4) if leaf_total_count else 0.0,
         'leaf_merge_rate': round(leaf_merge_count / leaf_total_count, 4) if leaf_total_count else 0.0,
         'convergence_failure_rate': round(leaf_convergence_failure_count / leaf_total_count, 4) if leaf_total_count else 0.0,
-        'codex_execution_from_leaf_rate': round(codex_execution_from_leaf_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'backend_execution_from_leaf_rate': round(backend_execution_from_leaf_count / leaf_total_count, 4) if leaf_total_count else 0.0,
         'goal_completion_rate': round(goal_completed_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
         'loop_convergence_rate': round(loop_convergence_event_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
         'leaf_to_goal_contribution_ratio': round(leaf_goal_contribution_total / leaf_goal_total, 4) if leaf_goal_total else 0.0,
         'stuck_loop_rate': round(stuck_loop_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
         'over_decomposition_rate': round(over_decomposition_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
         'no_delivery_goal_impact': no_delivery_goal_impact_count,
-        'codex_execution_success_rate': round(codex_execution_success_count / max(codex_execution_count, 1), 4) if codex_execution_count else 0.0,
+        'backend_execution_success_rate': round(backend_execution_success_count / max(backend_execution_count, 1), 4) if backend_execution_count else 0.0,
         'goal_drift_frequency': round(goal_drift_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
     }
     payload = {
@@ -245,9 +245,9 @@ def update_metrics(
         'latest_event': {
             'path': path,
             'status': status,
-            'codex_latency': codex_latency,
-            'fast_path_pre_codex_overhead_ms': fast_path_pre_codex_overhead_ms,
-            'codex_execution_ms': codex_execution_ms,
+            'backend_latency': backend_latency,
+            'fast_path_pre_backend_overhead_ms': fast_path_pre_backend_overhead_ms,
+            'backend_execution_ms': backend_execution_ms,
             'code_delivered': code_delivered,
             'doc_overproduction': doc_overproduction,
             'doc_only_task': doc_only_task,
@@ -268,13 +268,13 @@ def update_metrics(
             'leaf_deferred': leaf_deferred,
             'leaf_merged': leaf_merged,
             'leaf_convergence_failure': leaf_convergence_failure,
-            'codex_execution_from_leaf': codex_execution_from_leaf,
+            'backend_execution_from_leaf': backend_execution_from_leaf,
             'goal_completed': goal_completed,
             'loop_converged_event': loop_converged_event,
             'stuck_loop': stuck_loop,
             'over_decomposition': over_decomposition,
             'no_delivery_goal_impact': no_delivery_goal_impact,
-            'codex_execution_success': codex_execution_success,
+            'backend_execution_success': backend_execution_success,
             'goal_drift': goal_drift,
             'leaf_goal_contribution_count': leaf_goal_contribution_count,
             'leaf_goal_total_count': leaf_goal_total_count,
@@ -289,9 +289,9 @@ def update_metrics(
             'fast_path_rate': 'increase_when_safe',
             'parallel_execution_rate': 'increase_only_for_independent_tasks',
             'governed_path_rate': 'reserved_for_complex_tasks',
-            'codex_latency': 'keep_low',
-            'fast_path_pre_codex_overhead_ms': 'keep_low',
-            'codex_execution_latency': 'keep_low',
+            'backend_latency': 'keep_low',
+            'fast_path_pre_backend_overhead_ms': 'keep_low',
+            'backend_execution_latency': 'keep_low',
             'parallel_denial_count': 'increase_when_parallel_is_unsafe',
             'backend_health_check_count': 'avoid_full_health_on_every_fast_task',
             'backend_failure_count': 'backend_failures_do_not_pollute_task_delivery_metrics',
@@ -307,14 +307,14 @@ def update_metrics(
             'leaf_defer_rate': 'tracks leaves deferred to backlog instead of blocking the run',
             'leaf_merge_rate': 'tracks leaves merged back to parent aggregation',
             'convergence_failure_rate': 'target 0 unresolved leaf convergence failures',
-            'codex_execution_from_leaf_rate': 'tracks Codex execution entered through resolved leaf contracts',
+            'backend_execution_from_leaf_rate': 'tracks backend execution entered through resolved leaf contracts',
             'goal_completion_rate': 'tracks goals completed by parent aggregation evidence',
             'loop_convergence_rate': 'tracks loops that stop because the goal is complete',
             'leaf_to_goal_contribution_ratio': 'tracks delivered leaf contribution to goal progress',
             'stuck_loop_rate': 'decrease; detects loops that cannot progress',
             'over_decomposition_rate': 'decrease; detects excessive leaf decomposition',
             'no_delivery_goal_impact': 'decrease; no_delivery leafs should not count as goal progress',
-            'codex_execution_success_rate': 'increase for actual leaf execution',
+            'backend_execution_success_rate': 'increase for actual leaf execution',
             'goal_drift_frequency': 'decrease; drift should trigger warning or stop',
         },
     }
@@ -358,9 +358,9 @@ def main() -> int:
         project,
         path=args.path,
         status=args.status,
-        codex_latency=args.codex_latency,
-        fast_path_pre_codex_overhead_ms=args.fast_path_pre_codex_overhead_ms,
-        codex_execution_ms=args.codex_execution_ms,
+        backend_latency=args.backend_latency,
+        fast_path_pre_backend_overhead_ms=args.fast_path_pre_backend_overhead_ms,
+        backend_execution_ms=args.backend_execution_ms,
         code_delivered=args.code_delivered,
         doc_overproduction=args.doc_overproduction,
         doc_only_task=args.doc_only_task,
@@ -381,7 +381,7 @@ def main() -> int:
         leaf_deferred=args.leaf_deferred,
         leaf_merged=args.leaf_merged,
         leaf_convergence_failure=args.leaf_convergence_failure,
-        codex_execution_from_leaf=args.codex_execution_from_leaf,
+        backend_execution_from_leaf=args.backend_execution_from_leaf,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0

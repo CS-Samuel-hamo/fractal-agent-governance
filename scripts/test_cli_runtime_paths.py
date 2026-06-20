@@ -124,7 +124,7 @@ def test_fast_path_contract(repo: Path) -> None:
     run_dir = repo / '.zoo-agent' / 'runs' / 'run-alias'
     for artifact in ['implementation-queue.json', 'gpt-review.json', 'merge-queue.json', 'parent-aggregation.json']:
         assert not (run_dir / artifact).exists(), f'fast path wrote governed artifact: {artifact}'
-    for metric in ['fast_path_pre_codex_overhead_ms', 'codex_execution_ms', 'total_wall_time_ms']:
+    for metric in ['fast_path_pre_backend_overhead_ms', 'backend_execution_ms', 'total_wall_time_ms']:
         assert metric in payload, f'missing fast timing metric: {metric}'
 
 
@@ -257,8 +257,8 @@ def test_metrics_keys(repo: Path) -> None:
         'fast_path_rate',
         'parallel_execution_rate',
         'governed_path_rate',
-        'fast_path_pre_codex_overhead_ms',
-        'codex_execution_latency',
+        'fast_path_pre_backend_overhead_ms',
+        'backend_execution_latency',
         'doc_overproduction_rate',
         'code_delivery_rate',
         'parallel_denial_count',

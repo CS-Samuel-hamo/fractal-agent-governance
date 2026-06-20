@@ -80,7 +80,6 @@ def execute_with_fake(plan: Path, fake: Callable[..., dict[str, Any]], *, max_re
             workspace=kwargs['workspace'],
             task_dir=kwargs['task_dir'],
             sandbox=kwargs['sandbox'],
-            codex_home=kwargs['codex_home'],
             timeout_seconds=kwargs['timeout_seconds'],
             dry_run=kwargs['dry_run'],
         )
@@ -95,9 +94,9 @@ def execute_with_fake(plan: Path, fake: Callable[..., dict[str, Any]], *, max_re
             dry_run=False,
             allow_actual=True,
             sandbox='workspace-write',
-            codex_home='',
             timeout_seconds=120,
             max_retries=max_retries,
+            backend='mock',
         )
         return pipeline_executor.execute_plan(args)
     finally:
@@ -109,7 +108,7 @@ def test_timeout_retry_success() -> None:
     plan = write_plan(repo, 'retry-success', 'append a line to README.md', ['README.md'])
     calls = {'count': 0}
 
-    def fake(*, workspace: Path, task_dir: Path, sandbox: str, codex_home: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
+    def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
         calls['count'] += 1
         if calls['count'] == 1:
             return {'returncode': 124, 'stdout_tail': '{"status":"timeout","returncode":124}', 'stderr_tail': '', 'duration_seconds': 120.0}
@@ -128,7 +127,7 @@ def test_partial_execution_detection() -> None:
     repo = temp_repo()
     plan = write_plan(repo, 'partial', 'add multiply and test', ['src/app.py', 'tests/test_app.py'])
 
-    def fake(*, workspace: Path, task_dir: Path, sandbox: str, codex_home: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
+    def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
         (workspace / 'src' / 'app.py').write_text('def add(a, b):\n    return a + b\n\n\ndef multiply(a, b):\n    return a * b\n', encoding='utf-8')
         return {'returncode': 0, 'stdout_tail': '{"status":"succeeded","returncode":0}', 'stderr_tail': '', 'duration_seconds': 1.0}
 
@@ -143,7 +142,7 @@ def test_fallback_chain_activation() -> None:
     repo = temp_repo()
     plan = write_plan(repo, 'fallback', 'append a line to README.md', ['README.md'])
 
-    def fake(*, workspace: Path, task_dir: Path, sandbox: str, codex_home: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
+    def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
         return {'returncode': 124, 'stdout_tail': '{"status":"timeout","returncode":124}', 'stderr_tail': '', 'duration_seconds': 120.0}
 
     result = execute_with_fake(plan, fake, max_retries=1)
@@ -158,7 +157,7 @@ def test_execution_split_success() -> None:
     plan = write_plan(repo, 'split-success', 'update code and test', ['src/app.py', 'tests/test_app.py'])
     calls = {'count': 0}
 
-    def fake(*, workspace: Path, task_dir: Path, sandbox: str, codex_home: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
+    def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
         calls['count'] += 1
         prompt = (task_dir / 'CODEX_TASK_PROMPT.md').read_text(encoding='utf-8')
         if calls['count'] == 1:
@@ -188,7 +187,7 @@ def test_health_scoring_downgrade() -> None:
 
 
 def test_returncode_zero_no_diff_not_success() -> None:
-    model = build_execution_result_model(task_id='leaf-001', codex_returncode=0, worker_status='succeeded', business_changed_files=[])
+    model = build_execution_result_model(task_id='leaf-001', backend_returncode=0, worker_status='succeeded', business_changed_files=[])
     assert model['execution_status'] == 'failed'
     assert model['reason'] == 'returncode_zero_without_business_diff'
 

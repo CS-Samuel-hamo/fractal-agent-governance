@@ -487,7 +487,7 @@ def main() -> int:
     skipped = set((fast.get('fast_path_report') or {}).get('skipped_governance') or [])
     for item in ['product_doc_generation', 'full_planning_loop', 'fractal_decomposition', 'governed_reviewer', 'merge_queue']:
         assert item in skipped, f'fast path did not record skipped governance: {item}'
-    for metric in ['fast_path_pre_codex_overhead_ms', 'codex_execution_ms', 'total_wall_time_ms']:
+    for metric in ['fast_path_pre_backend_overhead_ms', 'backend_execution_ms', 'total_wall_time_ms']:
         assert metric in fast, f'missing fast metric: {metric}'
 
     run(

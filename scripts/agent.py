@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.8.0-runtime-engine-productization'
+VERSION = '0.8.2-semantic-decoupling-runtime-engine'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -591,7 +591,7 @@ def pipeline(args) -> int:
     if args.allow_actual:
         command.append('--allow-actual')
     if args.codex_home:
-        command.extend(['--codex-home', args.codex_home])
+        command.extend(['--backend-option', f'codex_home={args.codex_home}'])
     for item in args.allowed_file:
         command.extend(['--allowed-file', item])
     for item in args.denied_file:

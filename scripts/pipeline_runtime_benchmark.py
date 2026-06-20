@@ -122,7 +122,7 @@ def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actua
     leaf_results = execution.get('leaf_results') or []
     over = any(item.get('denied_files_touched') or item.get('out_of_scope_files') for item in leaf_results)
     under = any(item.get('delivery_outcome') in {'no_delivery', 'blocked'} for item in leaf_results)
-    codex_count = sum(1 for item in leaf_results if item.get('codex_invoked'))
+    backend_count = sum(1 for item in leaf_results if item.get('backend_invoked'))
     return {
         'run_id': run_id,
         'command_returncode': result['returncode'],
@@ -130,7 +130,7 @@ def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actua
         'timed_out': result['timed_out'],
         'generated_by': loop_payload.get('generated_by', ''),
         'final_verdict': final.get('final_verdict', ''),
-        'codex_execution_count': codex_count,
+        'backend_execution_count': backend_count,
         'over_execution': over,
         'under_execution': under,
         'verifier_blocked': final.get('final_verdict') in {'BLOCKED', 'NO_DELIVERY'},
@@ -170,7 +170,7 @@ def run_legacy_dry(repo: Path, task: dict[str, Any], timeout_seconds: int) -> di
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='Benchmark the three-stage pipeline against legacy dry-run routing.')
-    parser.add_argument('--allow-actual', action='store_true', help='Allow real Codex actual execution in temp repositories.')
+    parser.add_argument('--allow-actual', action='store_true', help='Allow real backend actual execution in temp repositories.')
     parser.add_argument('--timeout-seconds', type=int, default=360)
     parser.add_argument('--max-retries', type=int, default=2)
     parser.add_argument('--json-output', default='')
@@ -217,7 +217,7 @@ def main() -> int:
             'dry_run_seconds_total': round(sum(legacy_latencies), 3),
             'dry_run_seconds_avg': round(sum(legacy_latencies) / max(len(legacy_latencies), 1), 3),
         },
-        'codex_execution_count': sum(row.get('codex_execution_count', 0) for row in actual_rows),
+        'backend_execution_count': sum(row.get('backend_execution_count', 0) for row in actual_rows),
         'over_execution_rate': round(sum(1 for row in actual_rows if row.get('over_execution')) / max(len(actual_rows), 1), 4),
         'under_execution_rate': round(sum(1 for row in actual_rows if row.get('under_execution')) / max(len(actual_rows), 1), 4),
         'verifier_block_rate': round(sum(1 for row in actual_rows if row.get('verifier_blocked')) / max(len(actual_rows), 1), 4),

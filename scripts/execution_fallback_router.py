@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-FALLBACK_CHAIN = ['retry_codex', 'split_execution', 'reduce_scope_execution', 'dry_run_mode', 'escalate_to_planner']
+FALLBACK_CHAIN = ['retry_backend', 'split_execution', 'reduce_scope_execution', 'dry_run_mode', 'escalate_to_planner']
 
 
 def fallback_decision(
@@ -21,8 +21,8 @@ def fallback_decision(
     status = str(model.get('execution_status') or '')
     if status == 'success':
         action = 'complete'
-    elif retry_available and 'retry_codex' not in history:
-        action = 'retry_codex'
+    elif retry_available and 'retry_backend' not in history:
+        action = 'retry_backend'
     elif split_available and 'split_execution' not in history:
         action = 'split_execution'
     elif split_available and 'reduce_scope_execution' not in history:
