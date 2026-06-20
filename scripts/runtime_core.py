@@ -110,11 +110,19 @@ class RuntimeCore:
                 'progress': progress_text,
                 'result': 'ready',
             }
+        safety = load_json(self.workspace / '.zoo-agent' / 'explain' / 'safety_summary.json')
+        trust = load_json(self.workspace / '.zoo-agent' / 'trust' / 'trust_score.json')
         return {
             'workspace': str(self.workspace),
             'backend': self.backend,
             'backend_selection': read_backend_selection(self.workspace),
             'goal': goal_payload,
+            'trust_summary': {
+                'confidence_level': trust.get('confidence_level', ''),
+                'trust_score': trust.get('trust_score', ''),
+                'risk_level': safety.get('risk_level', ''),
+                'safe_to_deploy': safety.get('safe_to_deploy', ''),
+            },
             'runtime_api': ['run_goal', 'run_task', 'run_pipeline', 'get_status', 'switch_backend', 'pause', 'resume'],
         }
 

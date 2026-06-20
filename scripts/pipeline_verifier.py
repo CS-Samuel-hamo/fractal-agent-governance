@@ -68,6 +68,7 @@ def verify_execution(args: argparse.Namespace) -> dict[str, Any]:
         'executor_invoked': False,
         'aggregation_role': 'collapsed_into_verifier',
         'loop_role': 'verifier_reports_convergence_only',
+        'trust_explainability_role': 'provides_final_result_for_human_readable_summary',
         'final_verdict': verdict,
         'goal_converged': converged,
         'reason': reason,

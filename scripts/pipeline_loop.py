@@ -13,7 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from invisible_eval_engine import run_invisible_eval  # noqa: E402
+from explanation_engine import build_execution_explanation  # noqa: E402
+from impact_analyzer import analyze_impact  # noqa: E402
 from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from safety_summary_generator import build_safety_summary  # noqa: E402
+from trust_score_engine import build_trust_score  # noqa: E402
 
 
 STAGES = ['planner', 'executor', 'verifier']
@@ -173,6 +177,53 @@ def write_cli_runtime_compat_report(
     update_metrics(project, payload)
 
 
+def run_trust_explainability_layer(
+    *,
+    project: Path,
+    run_id: str,
+    plan_path: Path,
+    execution_path: Path,
+    final_path: Path,
+    eval_payload: dict[str, Any],
+) -> dict[str, Any]:
+    plan = load_json(plan_path)
+    execution = load_json(execution_path)
+    final_result = load_json(final_path)
+    impact = analyze_impact(plan, execution, final_result)
+    trust = build_trust_score(project, eval_payload, impact)
+    explanation = build_execution_explanation(
+        plan=plan,
+        execution=execution,
+        final_result=final_result,
+        impact=impact,
+        trust=trust,
+    )
+    safety = build_safety_summary(explanation, impact, trust, final_result)
+
+    run_base = project / '.zoo-agent' / 'runs' / run_id
+    write_json(project / '.zoo-agent' / 'impact' / 'impact_summary.json', impact)
+    write_json(run_base / 'impact' / 'impact_summary.json', impact)
+    write_json(project / '.zoo-agent' / 'trust' / 'trust_score.json', trust)
+    write_json(run_base / 'trust' / 'trust_score.json', trust)
+    write_json(project / '.zoo-agent' / 'explain' / 'execution_explanation.json', explanation)
+    write_json(run_base / 'explain' / 'execution_explanation.json', explanation)
+    write_json(project / '.zoo-agent' / 'explain' / 'safety_summary.json', safety)
+    write_json(run_base / 'explain' / 'safety_summary.json', safety)
+    safety_md = project / '.zoo-agent' / 'explain' / 'safety_summary.md'
+    safety_md.parent.mkdir(parents=True, exist_ok=True)
+    safety_md.write_text(str(safety.get('summary') or '') + '\n', encoding='utf-8')
+    run_safety_md = run_base / 'explain' / 'safety_summary.md'
+    run_safety_md.parent.mkdir(parents=True, exist_ok=True)
+    run_safety_md.write_text(str(safety.get('summary') or '') + '\n', encoding='utf-8')
+    return {
+        'status': 'ok',
+        'trust_score': trust.get('trust_score', 0.0),
+        'confidence_level': trust.get('confidence_level', ''),
+        'risk_level': safety.get('risk_level', ''),
+        'safe_to_deploy': bool(safety.get('safe_to_deploy')),
+    }
+
+
 def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
     project = project_root(args.workspace)
     objective = args.input_text or ' '.join(args.input).strip()
@@ -273,6 +324,24 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
                 'error': str(exc),
             }
             write_json(project / '.zoo-agent' / 'eval' / 'invisible_eval_error.json', invisible_eval_result)
+        trust_explainability_result: dict[str, Any] = {}
+        try:
+            eval_payload = load_json(project / '.zoo-agent' / 'runs' / run_id / 'eval' / 'invisible_eval.json')
+            trust_explainability_result = run_trust_explainability_layer(
+                project=project,
+                run_id=run_id,
+                plan_path=plan_path,
+                execution_path=execution_path,
+                final_path=final_path,
+                eval_payload=eval_payload,
+            )
+        except Exception as exc:
+            trust_explainability_result = {
+                'status': 'error',
+                'run_id': run_id,
+                'error': str(exc),
+            }
+            write_json(project / '.zoo-agent' / 'explain' / 'trust_explainability_error.json', trust_explainability_result)
         write_cli_runtime_compat_report(
             project=project,
             run_id=run_id,
@@ -292,6 +361,11 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
                 'invisible_eval': {
                     'status': invisible_eval_result.get('status', ''),
                     'governance_action': invisible_eval_result.get('governance_action', ''),
+                },
+                'trust_explainability': {
+                    'status': trust_explainability_result.get('status', ''),
+                    'confidence_level': trust_explainability_result.get('confidence_level', ''),
+                    'risk_level': trust_explainability_result.get('risk_level', ''),
                 },
             }
         )

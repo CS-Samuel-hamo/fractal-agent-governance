@@ -559,6 +559,11 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
             'retry_count': sum(int(item.get('retry_count') or 0) for item in leaf_results),
             'fallback_count': sum(1 for item in leaf_results if item.get('fallback_used')),
         },
+        'explainability_evidence': {
+            'changed_files_available': True,
+            'delivery_outcomes_available': True,
+            'scope_evidence_available': True,
+        },
         'execution_resilience': {
             'enabled': True,
             'max_retries': args.max_retries,

@@ -2,7 +2,7 @@
 
 Natural-language CLI for safe local AI tasks.
 
-Status: `0.9.1-alpha`. The product surface is intentionally small:
+Status: `0.9.2-alpha`. The product surface is intentionally small:
 
 ```text
 ask -> preview -> apply
@@ -17,7 +17,7 @@ cd agent-runtime
 agent "fix README typo"
 ```
 
-By default, `agent "<task>"` runs in preview mode. It explains what would happen without applying changes.
+By default, `agent "<task>"` runs in preview mode. It shows what would happen without applying changes.
 
 Apply is explicit:
 
