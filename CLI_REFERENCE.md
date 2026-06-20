@@ -11,10 +11,16 @@ agent --version
 ```powershell
 agent "<task>"
 agent "<task>" --preview
-agent "<task>" --apply
+agent "<task>" -f <file> --apply
 ```
 
 Default mode is preview. Use `--apply` to allow changes.
+
+Use `-f` when you want to limit the task to one file:
+
+```powershell
+agent "fix README typo" -f README.md --apply
+```
 
 ## Status
 

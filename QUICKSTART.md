@@ -19,7 +19,7 @@ This is safe by default. The command previews the work and prints a concise resu
 ## 2. Apply Only When Ready
 
 ```powershell
-agent "add a short README note" --apply
+agent "add a short README note" -f README.md --apply
 ```
 
 Use `--apply` only after the preview looks right.

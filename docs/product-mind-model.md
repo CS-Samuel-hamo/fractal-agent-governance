@@ -31,7 +31,7 @@ Preview is the default. The tool reports what it can do without applying changes
 Apply is explicit:
 
 ```powershell
-agent "fix README typo" --apply
+agent "fix README typo" -f README.md --apply
 ```
 
 ## Result

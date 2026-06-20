@@ -9,7 +9,7 @@ agent "add a README troubleshooting note"
 ## Documentation Apply
 
 ```powershell
-agent "fix README typo" --apply
+agent "fix README typo" -f README.md --apply
 ```
 
 ## Small Code Preview

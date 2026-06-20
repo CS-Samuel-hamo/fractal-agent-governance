@@ -1259,7 +1259,7 @@ default:
 examples:
   agent "fix README typo"
   agent "add a short README note" --preview
-  agent "fix README typo" --apply
+  agent "fix README typo" -f README.md --apply
   agent status
   agent undo
 
@@ -1271,7 +1271,7 @@ def product_subcommand_help(argv: list[str]) -> str:
     if len(argv) == 2 and argv[1] in {'-h', '--help'}:
         command = argv[0]
         if command == 'ask':
-            return 'usage: agent "<task>" [--preview|--apply] [--workspace .]\n\nPreview by default. Use --apply only when you want changes.\n'
+            return 'usage: agent "<task>" [-f file] [--preview|--apply] [--workspace .]\n\nPreview by default. Use --apply only when you want changes.\n'
         if command == 'undo':
             return 'usage: agent undo [--preview|--apply] [--workspace .]\n\nPreview an undo plan by default.\n'
         if command == 'config':
@@ -1426,7 +1426,7 @@ def main(argv: list[str] | None = None) -> int:
     ask_parser = sub.add_parser('ask', help=argparse.SUPPRESS)
     ask_parser.add_argument('input', nargs='*')
     ask_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
-    ask_parser.add_argument('--allowed-file', action='append', default=[])
+    ask_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
     ask_parser.add_argument('--preview', action='store_true')
     ask_parser.add_argument('--apply', action='store_true')
     ask_parser.add_argument('--debug', action='store_true')
@@ -1456,7 +1456,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--run-id', default='')
     run_parser.add_argument('--task-id', default='')
     run_parser.add_argument('--goal-id', default='')
-    run_parser.add_argument('--allowed-file', action='append', default=[])
+    run_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
     run_parser.add_argument('--denied-file', action='append', default=[])
     run_parser.add_argument('--test-command', action='append', default=[])
     run_parser.add_argument('--changed-file-estimate', type=int, default=0)
@@ -1491,7 +1491,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--run-id', default='')
     pipeline_parser.add_argument('--task-id', default='')
     pipeline_parser.add_argument('--goal-id', default='')
-    pipeline_parser.add_argument('--allowed-file', action='append', default=[])
+    pipeline_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
     pipeline_parser.add_argument('--denied-file', action='append', default=[])
     pipeline_parser.add_argument('--force-path', choices=['', 'fast', 'parallel', 'governed'], default='')
     pipeline_parser.add_argument('--max-iterations', type=int, default=1)

@@ -12,7 +12,7 @@ ask -> preview -> apply
 
 ```powershell
 agent "fix README typo"
-agent "fix README typo" --apply
+agent "fix README typo" -f README.md --apply
 agent status
 agent undo
 ```
@@ -23,6 +23,7 @@ Preview is the default. Applying changes requires `--apply`.
 
 - The homepage now teaches natural-language tasks first.
 - Default output uses `task`, `mode`, and `result`.
+- `-f <file>` is the short form for constraining a task to one file.
 - System concepts are hidden from normal CLI help.
 - Advanced diagnostics are available only through explicit debug commands.
 - The runtime architecture remains unchanged; this is a product surface hardening release.

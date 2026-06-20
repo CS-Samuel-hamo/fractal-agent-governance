@@ -22,7 +22,7 @@ By default, `agent "<task>"` runs in preview mode. It explains what would happen
 Apply is explicit:
 
 ```powershell
-agent "fix README typo" --apply
+agent "fix README typo" -f README.md --apply
 ```
 
 ## Everyday Commands
@@ -30,7 +30,7 @@ agent "fix README typo" --apply
 ```powershell
 agent "add a short README note"
 agent "add a short README note" --preview
-agent "fix README typo" --apply
+agent "fix README typo" -f README.md --apply
 agent status
 agent undo
 ```
