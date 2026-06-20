@@ -1,11 +1,11 @@
 # Agent Runtime
 
-Natural-language CLI for safe local AI tasks.
+AI Project Operator for safe local project progress.
 
 Status: `0.9.3-alpha`. The product surface is intentionally small:
 
 ```text
-ask -> preview -> apply
+goal -> progress -> result
 ```
 
 ## Three-Minute Start
@@ -25,12 +25,23 @@ Apply is explicit:
 agent "fix README typo" -f README.md --apply
 ```
 
+For project-level progress, start with a goal:
+
+```powershell
+agent start "improve project readiness"
+agent status
+agent continue
+```
+
 ## Everyday Commands
 
 ```powershell
 agent "add a short README note"
 agent "add a short README note" --preview
 agent "fix README typo" -f README.md --apply
+agent start "improve project readiness"
+agent continue
+agent stop
 agent status
 agent undo
 ```
@@ -48,7 +59,8 @@ The default output is concise:
 ## Safety
 
 - Preview is the default.
-- File changes require `--apply`.
+- Single task file changes require `--apply`.
+- Project mode can advance low-impact, reversible work and pauses when attention is needed.
 - No automatic merge.
 - No automatic push.
 - No deployment or production migration.

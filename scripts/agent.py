@@ -20,9 +20,12 @@ KNOWN_COMMANDS = {
     'backend',
     'config',
     'debug',
+    'continue',
     'pipeline',
     'run',
+    'start',
     'status',
+    'stop',
     'undo',
     'rollback',
     'reroute',
@@ -759,7 +762,57 @@ def integration_check(args) -> int:
     return delegate('create_integration_worktree.py', command)
 
 
+def start_command(args) -> int:
+    project = project_root(args.workspace)
+    goal = ' '.join(args.goal).strip()
+    if not goal:
+        print_json(user_task_result(task='', mode='blocked', result='please describe the project goal'))
+        return 2
+    command = ['--workspace', str(project), '--mode', args.mode]
+    if args.max_steps:
+        command.extend(['--max-steps', str(args.max_steps)])
+    if args.backend:
+        command.extend(['--backend', args.backend])
+    command.append(goal)
+    result = delegate_capture('autopilot_session_engine.py', command)
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+    else:
+        print(str(result.get('stdout') or '').strip())
+    return int(result.get('returncode') or 0)
+
+
+def stop_command(args) -> int:
+    project = project_root(args.workspace)
+    result = delegate_capture('autopilot_session_engine.py', ['--workspace', str(project), '--stop'])
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+    else:
+        print_json(user_task_result(task='autopilot', mode='stop', result='stopped' if result.get('returncode') == 0 else 'could not stop'))
+    return int(result.get('returncode') or 0)
+
+
+def continue_command(args) -> int:
+    project = project_root(args.workspace)
+    command = ['--workspace', str(project), '--continue-session', '--mode', args.mode]
+    if args.max_steps:
+        command.extend(['--max-steps', str(args.max_steps)])
+    if args.backend:
+        command.extend(['--backend', args.backend])
+    result = delegate_capture('autopilot_session_engine.py', command)
+    print(str(result.get('stdout') or '').strip())
+    return int(result.get('returncode') or 0)
+
+
 def status(args) -> int:
+    project = project_root(args.workspace)
+    session = load_json(project / '.zoo-agent' / 'autopilot' / 'session.json')
+    progress_payload = load_json(project / '.zoo-agent' / 'autopilot' / 'progress.json')
+    if session and not getattr(args, 'debug', False):
+        task = str(session.get('goal') or 'project')
+        result_text = str(session.get('status') or progress_payload.get('status') or 'doing')
+        print_json({'task': task, 'mode': 'status', 'result': result_text})
+        return 0
     command = ['--workspace', workspace_arg(args.workspace)]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
@@ -1248,19 +1301,25 @@ def normalize_argv(argv: list[str]) -> list[str]:
 
 def product_help() -> str:
     return f"""usage: agent "<task>" [--preview|--apply]
+       agent start "<project goal>"
        agent status
+       agent continue
+       agent stop
        agent undo
 
-AI task runner: ask -> preview -> apply.
+AI Project Operator.
+task flow: ask -> preview -> apply.
 
 default:
-  preview only. Use --apply to allow changes.
+  task commands preview only. start uses standard mode for small, reversible work.
 
 examples:
   agent "fix README typo"
   agent "add a short README note" --preview
   agent "fix README typo" -f README.md --apply
+  agent start "improve project readiness"
   agent status
+  agent continue
   agent undo
 
 version: {VERSION}
@@ -1274,6 +1333,12 @@ def product_subcommand_help(argv: list[str]) -> str:
             return 'usage: agent "<task>" [-f file] [--preview|--apply] [--workspace .]\n\nPreview by default. Use --apply only when you want changes.\n'
         if command == 'undo':
             return 'usage: agent undo [--preview|--apply] [--workspace .]\n\nPreview an undo plan by default.\n'
+        if command == 'start':
+            return 'usage: agent start "<project goal>" [--mode preview|standard|autopilot]\n\nStart map-backed project progress. Standard mode advances trusted, reversible work.\n'
+        if command == 'continue':
+            return 'usage: agent continue [--workspace .]\n\nContinue the current project session.\n'
+        if command == 'stop':
+            return 'usage: agent stop [--workspace .]\n\nStop the current project session.\n'
         if command == 'config':
             return 'usage: agent config backend <mock|dry_run|codex>\n\nAdvanced: choose an execution provider.\n'
         if command == 'debug':
@@ -1549,6 +1614,27 @@ def main(argv: list[str] | None = None) -> int:
     integration_parser.add_argument('--run-id', required=True)
     integration_parser.add_argument('--yes', action='store_true', help='Actually create the isolated integration worktree.')
     integration_parser.set_defaults(handler=integration_check)
+
+    start_parser = sub.add_parser('start', help='Start map-backed project progress.')
+    start_parser.add_argument('goal', nargs='*')
+    start_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    start_parser.add_argument('--mode', choices=['preview', 'standard', 'autopilot'], default='standard')
+    start_parser.add_argument('--max-steps', type=int, default=0)
+    start_parser.add_argument('--backend', default='')
+    start_parser.add_argument('--debug', action='store_true')
+    start_parser.set_defaults(handler=start_command)
+
+    continue_parser = sub.add_parser('continue', help='Continue the current project session.')
+    continue_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    continue_parser.add_argument('--mode', choices=['preview', 'standard', 'autopilot'], default='standard')
+    continue_parser.add_argument('--max-steps', type=int, default=0)
+    continue_parser.add_argument('--backend', default='')
+    continue_parser.set_defaults(handler=continue_command)
+
+    stop_parser = sub.add_parser('stop', help='Stop the current project session.')
+    stop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    stop_parser.add_argument('--debug', action='store_true')
+    stop_parser.set_defaults(handler=stop_command)
 
     status_parser = sub.add_parser('status', help='Show workspace runtime status.')
     status_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
