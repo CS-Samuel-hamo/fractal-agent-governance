@@ -130,10 +130,19 @@ def _legacy_active_goal_id(project: Path, state: dict[str, Any]) -> str:
     )
 
 
+def is_goal_record_payload(payload: dict[str, Any]) -> bool:
+    return bool(payload.get('goal_id') and (payload.get('goal') or payload.get('root_goal')))
+
+
 def load_goal_state(project: Path) -> dict[str, Any]:
     new_path, legacy_path = state_paths(project)
     raw = load_json(new_path) or load_json(legacy_path)
     if isinstance(raw.get('goals'), list) and isinstance(raw.get('global_loop_state'), dict):
+        raw['goals'] = [
+            dict(item)
+            for item in raw.get('goals') or []
+            if isinstance(item, dict) and item.get('goal_id') and (item.get('goal') or item.get('root_goal'))
+        ]
         raw.setdefault('revision', 0)
         raw.setdefault('event_log', [])
         return raw
@@ -142,6 +151,8 @@ def load_goal_state(project: Path) -> dict[str, Any]:
     seen: set[str] = set()
     for path in sorted((project / '.zoo-agent' / 'goals').glob('*.json')):
         payload = load_json(path)
+        if not is_goal_record_payload(payload):
+            continue
         goal_id = str(payload.get('goal_id') or path.stem)
         if not goal_id or goal_id in seen:
             continue
@@ -454,6 +465,8 @@ def sync_goals(project: Path) -> dict[str, Any]:
     existing = {str(item.get('goal_id')): dict(item) for item in state.get('goals') or []}
     for path in sorted((project / '.zoo-agent' / 'goals').glob('*.json')):
         payload = load_json(path)
+        if not is_goal_record_payload(payload):
+            continue
         goal_id = str(payload.get('goal_id') or path.stem)
         if not goal_id:
             continue
