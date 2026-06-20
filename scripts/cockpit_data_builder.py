@@ -211,6 +211,7 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data = default_cockpit_data(project)
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
     project_state = load_json(project / '.zoo-agent' / 'map' / 'project_state.json')
+    session_state = load_json(project / '.zoo-agent' / 'session' / 'session_state.json')
     session = load_json(project / '.zoo-agent' / 'autopilot' / 'session.json')
     progress = load_json(project / '.zoo-agent' / 'autopilot' / 'progress.json')
     action_history = load_json(project / '.zoo-agent' / 'autopilot' / 'action_history.json')
@@ -221,17 +222,18 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     actions = build_action_rows(project_map)
 
     data['generated_at'] = utc_now()
+    combined_session = {**session, **{key: value for key, value in session_state.items() if value not in ['', None]}}
     data['project'] = {
         'name': clean_text(project_map.get('project_name') or project_state.get('project_name') or project.name),
         'type': clean_text(project_map.get('project_type') or 'not available'),
-        'main_goal': clean_text(project_map.get('main_goal') or project_state.get('main_goal') or session.get('goal') or 'not available'),
-        'state': project_state_from(session, project_map, attention, readiness),
+        'main_goal': clean_text(project_map.get('main_goal') or project_state.get('main_goal') or session_state.get('goal') or session.get('goal') or 'not available'),
+        'state': project_state_from(combined_session, project_map, attention, readiness),
         'last_updated': clean_text(project_map.get('last_updated') or project_state.get('last_updated') or ''),
     }
     data['session'] = {
-        'active': session_status(session, attention) == 'active',
-        'goal': clean_text(session.get('goal') or ''),
-        'status': session_status(session, attention),
+        'active': clean_text(session_state.get('status') or session_status(session, attention)) == 'active',
+        'goal': clean_text(session_state.get('goal') or session.get('goal') or ''),
+        'status': clean_text(session_state.get('status') or session_status(session, attention)),
         'current_action': clean_text(progress.get('title') or ''),
         'last_action': history[-1]['title'] if history else '',
         'next_action': actions[0]['title'] if actions else '',

@@ -772,10 +772,13 @@ def start_command(args) -> int:
     command = ['--workspace', str(project), '--mode', args.mode]
     if args.max_steps:
         command.extend(['--max-steps', str(args.max_steps)])
+    if getattr(args, 'steps', 0):
+        command.extend(['--steps', str(args.steps)])
     if args.backend:
         command.extend(['--backend', args.backend])
+    command.append('--start')
     command.append(goal)
-    result = delegate_capture('autopilot_session_engine.py', command)
+    result = delegate_capture('session_runtime_engine.py', command)
     if getattr(args, 'debug', False):
         print(str(result.get('stdout') or '').strip())
     else:
@@ -785,7 +788,7 @@ def start_command(args) -> int:
 
 def stop_command(args) -> int:
     project = project_root(args.workspace)
-    result = delegate_capture('autopilot_session_engine.py', ['--workspace', str(project), '--stop'])
+    result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--stop'])
     if getattr(args, 'debug', False):
         print(str(result.get('stdout') or '').strip())
     else:
@@ -796,17 +799,31 @@ def stop_command(args) -> int:
 def continue_command(args) -> int:
     project = project_root(args.workspace)
     command = ['--workspace', str(project), '--continue-session', '--mode', args.mode]
+    steps = getattr(args, 'steps', 0) or args.max_steps
+    if steps:
+        command.extend(['--steps', str(steps)])
     if args.max_steps:
         command.extend(['--max-steps', str(args.max_steps)])
     if args.backend:
         command.extend(['--backend', args.backend])
-    result = delegate_capture('autopilot_session_engine.py', command)
+    result = delegate_capture('session_runtime_engine.py', command)
     print(str(result.get('stdout') or '').strip())
     return int(result.get('returncode') or 0)
 
 
 def status(args) -> int:
     project = project_root(args.workspace)
+    session_result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--status'])
+    session_payload = parse_json_output(session_result)
+    if session_payload and not getattr(args, 'debug', False):
+        print_json(
+            {
+                'task': session_payload.get('task') or 'session',
+                'mode': 'status',
+                'result': session_payload.get('result') or 'Session: status: unknown; digest: .zoo-agent/session/session_digest.md; cockpit: .zoo-agent/cockpit/index.html',
+            }
+        )
+        return int(session_result.get('returncode') or 0)
     session = load_json(project / '.zoo-agent' / 'autopilot' / 'session.json')
     progress_payload = load_json(project / '.zoo-agent' / 'autopilot' / 'progress.json')
     cockpit_path = project / '.zoo-agent' / 'cockpit' / 'index.html'
@@ -1459,6 +1476,12 @@ def undo_command(args) -> int:
         print_json(user_task_result(task='undo', mode='blocked', result='choose either --preview or --apply, not both'))
         return 2
     project = project_root(args.workspace)
+    session_result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--undo', '--json'])
+    session_payload = parse_json_output(session_result)
+    checkpoint = session_payload.get('checkpoint') if isinstance(session_payload.get('checkpoint'), dict) else {}
+    if checkpoint:
+        print_json(user_task_result(task='undo', mode=mode, result=f'checkpoint available: {checkpoint.get("checkpoint_id")}'))
+        return 0
     latest = latest_run_id(project)
     if not latest:
         print_json(user_task_result(task='undo', mode=mode, result='nothing to undo'))
@@ -1657,6 +1680,7 @@ def main(argv: list[str] | None = None) -> int:
     start_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     start_parser.add_argument('--mode', choices=['preview', 'standard', 'autopilot'], default='standard')
     start_parser.add_argument('--max-steps', type=int, default=0)
+    start_parser.add_argument('--steps', type=int, default=0, help=argparse.SUPPRESS)
     start_parser.add_argument('--backend', default='')
     start_parser.add_argument('--debug', action='store_true')
     start_parser.set_defaults(handler=start_command)
@@ -1665,6 +1689,7 @@ def main(argv: list[str] | None = None) -> int:
     continue_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     continue_parser.add_argument('--mode', choices=['preview', 'standard', 'autopilot'], default='standard')
     continue_parser.add_argument('--max-steps', type=int, default=0)
+    continue_parser.add_argument('--steps', type=int, default=0, help=argparse.SUPPRESS)
     continue_parser.add_argument('--backend', default='')
     continue_parser.set_defaults(handler=continue_command)
 

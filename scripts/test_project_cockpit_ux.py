@@ -56,7 +56,7 @@ def main() -> int:
     status_before = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo)
     assert_clean_output(status_before.stdout)
     before = payload(status_before)
-    assert 'Run `agent cockpit`' in before['result']
+    assert '.zoo-agent/cockpit/index.html' in before['result']
 
     cockpit = run([sys.executable, str(AGENT), 'cockpit', '--workspace', str(repo)], repo)
     assert_clean_output(cockpit.stdout)
@@ -71,7 +71,7 @@ def main() -> int:
     status_after = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo)
     assert_clean_output(status_after.stdout)
     after = payload(status_after)
-    assert 'Project Cockpit: .zoo-agent/cockpit/index.html' in after['result']
+    assert '.zoo-agent/cockpit/index.html' in after['result']
 
     print('project cockpit UX tests passed')
     return 0
