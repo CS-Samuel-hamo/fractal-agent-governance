@@ -2,7 +2,7 @@
 
 CLI-first AI runtime with pluggable execution backend.
 
-Status: `0.8.5-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
+Status: `0.9.0-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
 
 ## Three Commands
 
@@ -35,7 +35,6 @@ Add `bin` to your user `PATH`, then use `agent` from any project workspace.
 ## Quickstart
 
 ```powershell
-agent bootstrap --workspace .
 agent backend list
 agent backend switch mock
 agent run "add a short README note" --workspace . --dry-run
@@ -67,8 +66,7 @@ The runtime core talks to backends through one execution interface. A backend fa
 - No automatic push.
 - No deployment or production migration.
 - No secret, API key, token, or `.env` content reading.
-- Rollback defaults to dry-run.
-- Runtime artifacts are written under `.zoo-agent/`.
+- Local runtime metadata is ignored by Git by default.
 
 ## Documentation
 
@@ -78,4 +76,5 @@ The runtime core talks to backends through one execution interface. A backend fa
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [CLI_REFERENCE.md](CLI_REFERENCE.md)
 - [BACKEND_PLUGINS.md](BACKEND_PLUGINS.md)
+- [docs/README.md](docs/README.md)
 - [docs/product-mind-model.md](docs/product-mind-model.md)

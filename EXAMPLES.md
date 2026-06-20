@@ -18,7 +18,6 @@ agent run "add one unit test for the local utility module" --dry-run --allowed-f
 
 ```powershell
 agent backend list
-agent backend health
 agent backend switch dry_run
 ```
 
@@ -27,11 +26,3 @@ agent backend switch dry_run
 ```powershell
 agent status --no-write
 ```
-
-## Safe Rollback Planning
-
-```powershell
-agent rollback --run-id <run-id> --task-id <task-id> --dry-run
-```
-
-Rollback defaults to a plan. It does not run `git reset --hard`.

@@ -12,7 +12,6 @@
 ```powershell
 git clone <repo-url>
 cd agent-runtime
-python scripts\validate_starter_pack.py
 .\bin\agent.cmd --version
 ```
 
@@ -37,7 +36,8 @@ Restart PowerShell or VS Code after updating `PATH`.
 agent --version
 agent --help
 agent backend list
-python scripts\test_product_alpha.py
+agent backend switch mock
+agent run "add a short README note" --dry-run
 ```
 
 ## Upgrade
@@ -45,6 +45,6 @@ python scripts\test_product_alpha.py
 Pull or copy the repository update, then rerun:
 
 ```powershell
-python scripts\validate_starter_pack.py
-python scripts\test_product_alpha.py
+agent --version
+agent backend list
 ```

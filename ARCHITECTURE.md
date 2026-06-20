@@ -6,38 +6,18 @@ Agent Runtime is a CLI-first runtime engine with replaceable execution backends.
 User -> CLI -> Runtime -> Backend -> Result
 ```
 
-## Runtime Core
+## Product Surface
 
-The runtime core owns the product API:
+Users work through a small command set:
 
-- `run_task`
-- `run_pipeline`
-- `run_goal`
-- `get_status`
-- `switch_backend`
+- `agent goal "<goal>"`
+- `agent run "<task>"`
+- `agent pipeline "<task>"`
+- `agent status`
+- `agent backend list`
+- `agent backend switch <backend>`
 
-## Execution Interface
-
-Execution backends implement a single contract:
-
-```python
-ExecutionBackend.execute(task, context) -> ExecutionResult
-```
-
-The runtime does not depend on a specific backend implementation.
-
-## Result Contract
-
-Runtime-facing execution results use backend-neutral fields:
-
-- `backend_type`
-- `backend_status`
-- `backend_returncode`
-- `execution_status`
-- `diff`
-- `confidence`
-- `execution_time`
-- `notes`
+The runtime hides implementation details and returns concise results by default.
 
 ## Safety Model
 

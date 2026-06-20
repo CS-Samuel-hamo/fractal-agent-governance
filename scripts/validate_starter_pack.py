@@ -14,7 +14,7 @@ required = [
  'scripts/run_governance_landing.py',
  'agent.cmd','agent','wrappers/agent.ps1','wrappers/agent.sh',
  'wrappers/run_codex_worker.ps1','wrappers/run_codex_worker.sh','wrappers/run_optimistic_worker.ps1','wrappers/run_optimistic_worker.sh','wrappers/run_ai_native_task.ps1','wrappers/run_ai_native_task.sh',
- 'docs/CLI_FIRST_AGENT_RUNTIME.md','docs/AI_NATIVE_EXECUTION_LOOP.md','docs/USAGE.md','docs/ZOO_COMMAND_ENTRYPOINTS.md','docs/ARCHITECTURE_FEEDBACK_HARDENING.md','docs/MACRO_RESEARCH_FIELD_FEEDBACK.md','docs/UNIFIED_KIT_OPERATING_MODEL.md','docs/FIELD_FEEDBACK_INTEGRATION_MATRIX.md','docs/VIBE_CODING_CROSS_VALIDATION.md','docs/CODEX_PARALLEL_WORKERS.md','docs/GOVERNANCE_CLOSURE.md','docs/delivery-outcome-model.md','docs/fast-path-gate-policy.md','docs/no-delivery-policy.md','docs/fast-task-specificity-policy.md','docs/project-readiness-blockers.md','docs/codex-worker-stability-windows.md','docs/codex-backend-risk-model.md','docs/codex-backend-capability-profile.md','docs/codex-failure-taxonomy.md','docs/codex-safe-execution-policy.md','docs/goal-runtime.md','docs/loop-runtime.md','docs/three-stage-pipeline-runtime.md','docs/runtime-engine-productization.md','docs/product-mind-model.md','docs/codex-config-safe-baseline.md','templates/codex/config.safe.toml.example','templates/codex/rules.safe.example'
+ 'docs/README.md','docs/product-mind-model.md','templates/codex/config.safe.toml.example','templates/codex/rules.safe.example'
 ]
 missing = [p for p in required if not (root/p).exists()]
 if missing:

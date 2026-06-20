@@ -87,7 +87,7 @@ def init_repo(env: dict[str, str]) -> Path:
 
 
 def assert_docs_clean() -> None:
-    for rel in ['README.md', 'QUICKSTART.md', 'EXAMPLES.md']:
+    for rel in ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'CLI_REFERENCE.md', 'BACKEND_PLUGINS.md', 'ARCHITECTURE.md', 'docs/product-mind-model.md']:
         text = (ROOT / rel).read_text(encoding='utf-8')
         assert '.py' not in text, f'{rel} exposes script file paths'
         assert not ABSOLUTE_PATH_RE.search(text), f'{rel} exposes a local absolute path'

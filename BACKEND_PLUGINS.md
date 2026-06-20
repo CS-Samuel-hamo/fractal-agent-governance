@@ -7,7 +7,6 @@ Agent Runtime uses pluggable execution backends.
 ```powershell
 agent backend list
 agent backend switch <name>
-agent backend health
 ```
 
 ## Included Backends
@@ -16,22 +15,9 @@ agent backend health
 - `dry_run`: no-op backend for safe analysis.
 - `codex`: optional local execution backend plugin.
 
-## Plugin Contract
-
-Backends implement:
-
-```python
-ExecutionBackend.execute(task, context) -> ExecutionResult
-```
-
-Backends return the same schema, so the runtime can switch implementations without changing task flow.
-
 ## Adding a Backend
 
-1. Implement the `ExecutionBackend` interface.
-2. Return backend-neutral `ExecutionResult` fields.
-3. Register the backend in `backend_registry.py`.
-4. Add tests that compare schema compatibility with `mock`.
+Backends are replaceable providers. A new backend should return the same result shape as the included backends, avoid false success, and keep failures structured so users can recover.
 
 ## Safety
 

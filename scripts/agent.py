@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.8.5-external-user-release-simulation-alpha'
+VERSION = '0.9.0-github-alpha-release-freeze'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -1245,13 +1245,11 @@ def product_help() -> str:
 CLI-first AI runtime: goal -> run -> result.
 
 commands:
-  bootstrap          Prepare a workspace for Agent Runtime.
   run                Run a task and return a concise result.
-  pipeline           Run a task through the product pipeline.
+  pipeline           Run a task through the product flow.
   goal               Set or inspect the current goal.
-  status             Show workspace runtime status.
-  backend            List, switch, and check execution backends.
-  rollback           Create a safe rollback dry-run plan.
+  status             Show concise workspace status.
+  backend            List and switch execution backends.
 
 examples:
   agent goal "make README onboarding clear"
@@ -1263,12 +1261,32 @@ version: {VERSION}
 """
 
 
+def product_subcommand_help(argv: list[str]) -> str:
+    if len(argv) == 2 and argv[1] in {'-h', '--help'}:
+        command = argv[0]
+        if command == 'run':
+            return 'usage: agent run "<task>" [--workspace .] [--dry-run]\n\nRun a task and print goal, progress, and result.\n'
+        if command == 'pipeline':
+            return 'usage: agent pipeline "<task>" [--workspace .] [--dry-run]\n\nRun a task through the product flow and print a concise result.\n'
+        if command == 'goal':
+            return 'usage: agent goal "<goal>"\n       agent goal show\n       agent goal list\n\nSet or inspect goals without exposing internal state.\n'
+        if command == 'status':
+            return 'usage: agent status [--workspace .] [--no-write]\n\nShow goal, progress, and result.\n'
+        if command == 'backend':
+            return 'usage: agent backend list\n       agent backend switch <backend>\n\nList or select an execution backend.\n'
+    return ''
+
+
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if not raw_argv:
         return interactive_shell('.')
     if raw_argv in (['-h'], ['--help']):
         print(product_help())
+        return 0
+    subcommand_help = product_subcommand_help(raw_argv)
+    if subcommand_help:
+        print(subcommand_help)
         return 0
     suggestion = COMMAND_TYPO_SUGGESTIONS.get(raw_argv[0].lower()) if raw_argv else ''
     if suggestion:
@@ -1405,7 +1423,7 @@ def main(argv: list[str] | None = None) -> int:
     status_parser.add_argument('--debug', action='store_true')
     status_parser.set_defaults(handler=status)
 
-    rollback_parser = sub.add_parser('rollback', help='Discard managed worktrees for a task and release task locks.')
+    rollback_parser = sub.add_parser('rollback', help=argparse.SUPPRESS)
     rollback_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     rollback_parser.add_argument('--run-id', required=True)
     rollback_parser.add_argument('--task-id', required=True)

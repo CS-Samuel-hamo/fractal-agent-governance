@@ -70,13 +70,16 @@ def main() -> int:
         assert (ROOT / required).exists(), f'missing product document: {required}'
 
     version = run([sys.executable, str(AGENT), '--version'], ROOT, env=env).stdout
-    assert '0.8.5' in version
+    assert '0.9.0' in version
 
     help_text = run([sys.executable, str(AGENT), '--help'], ROOT, env=env).stdout
     for visible in ['run', 'pipeline', 'goal', 'status', 'backend']:
         assert visible in help_text
-    for hidden in ['planner', 'executor', 'verifier', 'codex-health']:
+    for hidden in ['planner', 'executor', 'verifier', 'codex-health', 'rollback']:
         assert hidden not in help_text
+    backend_help = run([sys.executable, str(AGENT), 'backend', '--help'], ROOT, env=env).stdout
+    assert 'backend health' not in backend_help
+    assert 'health' not in backend_help
 
     repo = init_repo(env)
     run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo)], repo, env=env)

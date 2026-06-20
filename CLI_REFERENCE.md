@@ -6,14 +6,6 @@
 agent --version
 ```
 
-## Bootstrap
-
-```powershell
-agent bootstrap --workspace .
-```
-
-Prepares runtime metadata for a workspace.
-
 ## Run
 
 ```powershell
@@ -43,7 +35,6 @@ agent goal list
 ```powershell
 agent backend list
 agent backend switch mock
-agent backend health
 ```
 
 ## Status
@@ -51,13 +42,3 @@ agent backend health
 ```powershell
 agent status --workspace . --no-write
 ```
-
-## Rollback Plan
-
-```powershell
-agent rollback --workspace . --run-id <run-id> --task-id <task-id> --dry-run
-```
-
-## Compatibility Commands
-
-Older analysis commands remain available for debugging and regression tests. They are not required for normal product use.
