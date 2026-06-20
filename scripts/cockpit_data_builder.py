@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+
+from cockpit_schema import cockpit_dir, default_cockpit_data  # noqa: E402
+from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+
+
+RESTRICTED_RE = re.compile(r'(\.env\b|\.env\.|secret|api\s*key|apikey|token|credential)', re.IGNORECASE)
+
+
+def clean_text(value: Any) -> str:
+    text = str(value or '').replace('\\', '/').strip()
+    if not text:
+        return ''
+    return RESTRICTED_RE.sub('[restricted]', text)
+
+
+def clean_list(values: Any, *, limit: int = 12) -> list[str]:
+    rows: list[str] = []
+    if not isinstance(values, list):
+        return rows
+    for item in values:
+        cleaned = clean_text(item)
+        if cleaned and cleaned not in rows:
+            rows.append(cleaned)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def evidence_count(row: dict[str, Any]) -> int:
+    return len([item for item in row.get('evidence') or [] if isinstance(item, dict)])
+
+
+def project_state_from(session: dict[str, Any], project_map: dict[str, Any], attention: dict[str, Any], readiness: dict[str, Any]) -> str:
+    if attention:
+        return 'needs_attention'
+    status = str(session.get('status') or '').lower()
+    if status in {'doing', 'active'}:
+        return 'active'
+    if status in {'needs_attention'}:
+        return 'needs_attention'
+    if status in {'stopped', 'paused'}:
+        return 'paused'
+    if readiness.get('for_094') == 'READY_FOR_094_COCKPIT' or readiness.get('final_recommendation') == 'READY_FOR_094_COCKPIT':
+        return 'ready'
+    if project_map:
+        return 'mapped'
+    return 'unknown'
+
+
+def session_status(session: dict[str, Any], attention: dict[str, Any]) -> str:
+    if attention:
+        return 'needs_attention'
+    raw = str(session.get('status') or '').lower()
+    if raw in {'doing', 'active'}:
+        return 'active'
+    if raw in {'done', 'completed', 'complete'}:
+        return 'completed'
+    if raw in {'stopped'}:
+        return 'stopped'
+    if raw in {'paused'}:
+        return 'paused'
+    return 'not_started'
+
+
+def build_module_rows(project_map: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in project_map.get('modules') or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                'name': clean_text(item.get('name') or item.get('module_id') or 'module'),
+                'status': clean_text(item.get('status') or 'unknown'),
+                'confidence': item.get('confidence', 0),
+                'key_files': clean_list(item.get('key_files') or []),
+                'evidence_count': evidence_count(item),
+            }
+        )
+    return rows
+
+
+def build_capability_rows(project_map: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in project_map.get('capabilities') or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                'name': clean_text(item.get('name') or item.get('capability_id') or 'capability'),
+                'status': clean_text(item.get('status') or 'unknown'),
+                'related_modules': clean_list(item.get('related_modules') or []),
+                'evidence_count': evidence_count(item),
+            }
+        )
+    return rows
+
+
+def build_risk_rows(project_map: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in project_map.get('risks') or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                'description': clean_text(item.get('description') or item.get('risk_id') or 'risk'),
+                'severity': clean_text(item.get('severity') or 'unknown'),
+                'affected_files': clean_list(item.get('affected_files') or []),
+                'reason': clean_text((item.get('evidence') or [{}])[0].get('summary') if item.get('evidence') else ''),
+            }
+        )
+    return rows
+
+
+def mode_for_action(action: dict[str, Any]) -> str:
+    explicit = clean_text(action.get('execution_mode'))
+    if explicit:
+        return explicit
+    if str(action.get('risk_level') or '').lower() == 'low' and action.get('autopilot_eligible', True):
+        return 'auto'
+    if not action.get('autopilot_eligible', True):
+        return 'needs_attention'
+    return 'preview'
+
+
+def build_action_rows(project_map: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in project_map.get('next_actions') or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                'action_id': clean_text(item.get('action_id') or ''),
+                'title': clean_text(item.get('title') or 'Next action'),
+                'why_now': clean_text(item.get('why_now') or 'Not available'),
+                'expected_impact': clean_text(item.get('expected_impact') or 'Not available'),
+                'risk_level': clean_text(item.get('risk_level') or 'unknown'),
+                'target_files': clean_list(item.get('target_files') or []),
+                'execution_mode': mode_for_action(item),
+                'evidence_count': evidence_count(item),
+            }
+        )
+    return rows
+
+
+def history_rows(action_history: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in action_history.get('actions') or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                'title': clean_text(item.get('title') or item.get('action_id') or 'Action'),
+                'status': clean_text(item.get('status') or item.get('result') or 'unknown'),
+                'result': clean_text(item.get('result') or ''),
+                'changed_files': clean_list(item.get('changed_files') or []),
+                'at': clean_text(item.get('at') or ''),
+            }
+        )
+    return rows
+
+
+def build_attention(attention: dict[str, Any]) -> dict[str, Any]:
+    if not attention:
+        return {'requires_attention': False, 'items': []}
+    action = attention.get('action') if isinstance(attention.get('action'), dict) else {}
+    return {
+        'requires_attention': True,
+        'items': [
+            {
+                'reason': clean_text(attention.get('reason') or 'Review required'),
+                'suggested_next_step': clean_text(attention.get('suggested_next_step') or 'Review and continue when ready.'),
+                'action': clean_text(action.get('title') or action.get('selected_action_id') or ''),
+            }
+        ],
+    }
+
+
+def build_safety(checkpoints_payload: dict[str, Any]) -> dict[str, Any]:
+    checkpoints = [item for item in checkpoints_payload.get('checkpoints') or [] if isinstance(item, dict)]
+    latest = checkpoints[-1] if checkpoints else {}
+    return {
+        'checkpoints_available': bool(checkpoints),
+        'undo_available': any(bool(item.get('undo_available')) for item in checkpoints),
+        'last_checkpoint': clean_text(latest.get('created_at') or latest.get('checkpoint_id') or ''),
+    }
+
+
+def build_readiness(project: Path) -> dict[str, Any]:
+    readiness = load_json(project / '.zoo-agent' / 'dogfood' / 'readiness_for_094.json')
+    quality = load_json(project / '.zoo-agent' / 'dogfood' / 'map_quality_report.json')
+    return {
+        'for_094': clean_text(readiness.get('final_recommendation') or 'not available'),
+        'map_quality_score': quality.get('map_quality_score') if quality else None,
+        'evidence_coverage': quality.get('evidence_coverage') if quality else None,
+    }
+
+
+def build_cockpit_data(project: Path) -> dict[str, Any]:
+    data = default_cockpit_data(project)
+    project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
+    project_state = load_json(project / '.zoo-agent' / 'map' / 'project_state.json')
+    session = load_json(project / '.zoo-agent' / 'autopilot' / 'session.json')
+    progress = load_json(project / '.zoo-agent' / 'autopilot' / 'progress.json')
+    action_history = load_json(project / '.zoo-agent' / 'autopilot' / 'action_history.json')
+    attention = load_json(project / '.zoo-agent' / 'autopilot' / 'attention_required.json')
+    checkpoints = load_json(project / '.zoo-agent' / 'autopilot' / 'checkpoints.json')
+    readiness = build_readiness(project)
+    history = history_rows(action_history)
+    actions = build_action_rows(project_map)
+
+    data['generated_at'] = utc_now()
+    data['project'] = {
+        'name': clean_text(project_map.get('project_name') or project_state.get('project_name') or project.name),
+        'type': clean_text(project_map.get('project_type') or 'not available'),
+        'main_goal': clean_text(project_map.get('main_goal') or project_state.get('main_goal') or session.get('goal') or 'not available'),
+        'state': project_state_from(session, project_map, attention, readiness),
+        'last_updated': clean_text(project_map.get('last_updated') or project_state.get('last_updated') or ''),
+    }
+    data['session'] = {
+        'active': session_status(session, attention) == 'active',
+        'goal': clean_text(session.get('goal') or ''),
+        'status': session_status(session, attention),
+        'current_action': clean_text(progress.get('title') or ''),
+        'last_action': history[-1]['title'] if history else '',
+        'next_action': actions[0]['title'] if actions else '',
+    }
+    data['map'] = {
+        'modules': build_module_rows(project_map),
+        'capabilities': build_capability_rows(project_map),
+        'risks': build_risk_rows(project_map),
+        'next_actions': actions,
+    }
+    data['progress'] = {
+        'completed_actions': [item for item in history if item.get('status') in {'done', 'completed', 'preview_ready'}],
+        'in_progress_actions': [item for item in history if item.get('status') in {'doing', 'active'}],
+        'blocked_actions': [item for item in history if item.get('status') in {'needs_attention', 'blocked', 'failed'}],
+        'recent_changes': clean_list([path for item in history[-5:] for path in item.get('changed_files') or []], limit=20),
+    }
+    data['attention'] = build_attention(attention)
+    data['safety'] = build_safety(checkpoints)
+    data['readiness'] = readiness
+    return data
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description='Build product-level Project Cockpit data.')
+    parser.add_argument('--workspace', default='.')
+    parser.add_argument('--output', default='')
+    args = parser.parse_args()
+    project = project_root(args.workspace)
+    data = build_cockpit_data(project)
+    output = Path(args.output).resolve() if args.output else cockpit_dir(project) / 'cockpit_data.json'
+    write_json(output, data)
+    print(json.dumps({'status': 'ok', 'cockpit_data': str(output)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

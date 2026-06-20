@@ -19,6 +19,7 @@ KNOWN_COMMANDS = {
     'ask',
     'backend',
     'config',
+    'cockpit',
     'debug',
     'continue',
     'pipeline',
@@ -808,9 +809,12 @@ def status(args) -> int:
     project = project_root(args.workspace)
     session = load_json(project / '.zoo-agent' / 'autopilot' / 'session.json')
     progress_payload = load_json(project / '.zoo-agent' / 'autopilot' / 'progress.json')
+    cockpit_path = project / '.zoo-agent' / 'cockpit' / 'index.html'
+    cockpit_hint = ' Project Cockpit: .zoo-agent/cockpit/index.html' if cockpit_path.exists() else ' Run `agent cockpit` to generate a local Project Cockpit.'
     if session and not getattr(args, 'debug', False):
         task = str(session.get('goal') or 'project')
         result_text = str(session.get('status') or progress_payload.get('status') or 'doing')
+        result_text = f'{result_text};{cockpit_hint}'
         print_json({'task': task, 'mode': 'status', 'result': result_text})
         return 0
     command = ['--workspace', workspace_arg(args.workspace)]
@@ -830,8 +834,22 @@ def status(args) -> int:
     summary = payload.get('status') or 'unknown'
     if active:
         summary = f'{summary}; progress {progress}'
+    summary = f'{summary};{cockpit_hint}'
     print_json({'task': task_text, 'mode': 'status', 'result': summary})
     return int(result.get('returncode') or 0)
+
+
+def cockpit_command(args) -> int:
+    project = project_root(args.workspace)
+    result = delegate_capture('cockpit_renderer.py', ['--workspace', str(project)])
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+        return int(result.get('returncode') or 0)
+    if result.get('returncode') != 0:
+        print_json({'task': 'project cockpit', 'mode': 'blocked', 'result': 'could not generate Project Cockpit'})
+        return int(result.get('returncode') or 1)
+    print_json({'task': 'project cockpit', 'mode': 'ready', 'result': '.zoo-agent/cockpit/index.html'})
+    return 0
 
 
 def rollback(args) -> int:
@@ -1306,6 +1324,7 @@ def product_help() -> str:
        agent continue
        agent stop
        agent undo
+       agent cockpit
 
 AI Project Operator.
 task flow: ask -> preview -> apply.
@@ -1321,6 +1340,7 @@ examples:
   agent status
   agent continue
   agent undo
+  agent cockpit
 
 version: {VERSION}
 """
@@ -1351,6 +1371,8 @@ def product_subcommand_help(argv: list[str]) -> str:
             return 'usage: agent "<task>" [--preview|--apply]\n\nGoals are handled automatically in normal use.\n'
         if command == 'status':
             return 'usage: agent status [--workspace .] [--no-write]\n\nShow current task status.\n'
+        if command == 'cockpit':
+            return 'usage: agent cockpit [--workspace .]\n\nGenerate a local Project Cockpit you can open in your browser.\n'
         if command == 'backend':
             return 'usage: agent config backend <mock|dry_run|codex>\n\nAdvanced configuration only.\n'
     return ''
@@ -1642,6 +1664,11 @@ def main(argv: list[str] | None = None) -> int:
     status_parser.add_argument('--no-write', action='store_true')
     status_parser.add_argument('--debug', action='store_true')
     status_parser.set_defaults(handler=status)
+
+    cockpit_parser = sub.add_parser('cockpit', help='Generate a local Project Cockpit.')
+    cockpit_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    cockpit_parser.add_argument('--debug', action='store_true')
+    cockpit_parser.set_defaults(handler=cockpit_command)
 
     undo_parser = sub.add_parser('undo', help=argparse.SUPPRESS)
     undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import html
+from typing import Any
+
+
+def esc(value: Any) -> str:
+    return html.escape(str(value if value is not None else ''), quote=True)
+
+
+def badge(value: Any) -> str:
+    text = esc(value or 'unknown')
+    tone = text.lower().replace('_', '-')
+    if any(item in tone for item in ['ready', 'verified', 'complete', 'done', 'low', 'auto']):
+        cls = 'good'
+    elif any(item in tone for item in ['attention', 'blocked', 'high', 'missing', 'failed']):
+        cls = 'bad'
+    elif any(item in tone for item in ['partial', 'paused', 'preview', 'medium']):
+        cls = 'warn'
+    else:
+        cls = 'neutral'
+    return f'<span class="badge {cls}">{text}</span>'
+
+
+def list_items(values: list[Any], *, empty: str = 'not available') -> str:
+    rows = [f'<li>{esc(item)}</li>' for item in values if str(item or '').strip()]
+    if not rows:
+        rows = [f'<li class="muted">{esc(empty)}</li>']
+    return '<ul>' + ''.join(rows) + '</ul>'
+
+
+def module_cards(modules: list[dict[str, Any]]) -> str:
+    if not modules:
+        return '<div class="empty">No project map yet.</div>'
+    rows = []
+    for item in modules:
+        files = ', '.join(esc(path) for path in item.get('key_files') or []) or 'not available'
+        rows.append(
+            f'''<article class="item">
+  <div class="item-head"><strong>{esc(item.get('name'))}</strong>{badge(item.get('status'))}</div>
+  <div class="meta">confidence {esc(item.get('confidence'))} · evidence {esc(item.get('evidence_count'))}</div>
+  <div class="files">{files}</div>
+</article>'''
+        )
+    return ''.join(rows)
+
+
+def capability_rows(capabilities: list[dict[str, Any]]) -> str:
+    if not capabilities:
+        return '<div class="empty">No capabilities mapped yet.</div>'
+    rows = []
+    for item in capabilities:
+        related = ', '.join(esc(path) for path in item.get('related_modules') or []) or 'not available'
+        rows.append(
+            f'''<tr>
+  <td>{esc(item.get('name'))}</td>
+  <td>{badge(item.get('status'))}</td>
+  <td>{related}</td>
+  <td>{esc(item.get('evidence_count'))}</td>
+</tr>'''
+        )
+    return '<table><thead><tr><th>Capability</th><th>Status</th><th>Related</th><th>Evidence</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+
+
+def risk_rows(risks: list[dict[str, Any]]) -> str:
+    if not risks:
+        return '<div class="empty">No project risks mapped yet.</div>'
+    rows = []
+    for item in risks:
+        files = ', '.join(esc(path) for path in item.get('affected_files') or []) or 'not available'
+        reason = esc(item.get('reason') or 'Mapped from project evidence.')
+        rows.append(
+            f'''<article class="item">
+  <div class="item-head"><strong>{esc(item.get('description'))}</strong>{badge(item.get('severity'))}</div>
+  <div class="meta">{files}</div>
+  <p>{reason}</p>
+</article>'''
+        )
+    return ''.join(rows)
+
+
+def action_cards(actions: list[dict[str, Any]]) -> str:
+    if not actions:
+        return '<div class="empty">No next actions available.</div>'
+    rows = []
+    for item in actions[:8]:
+        files = ', '.join(esc(path) for path in item.get('target_files') or []) or 'not available'
+        rows.append(
+            f'''<article class="item action">
+  <div class="item-head"><strong>{esc(item.get('title'))}</strong>{badge(item.get('risk_level'))}</div>
+  <p><b>Why now:</b> {esc(item.get('why_now'))}</p>
+  <p><b>Impact:</b> {esc(item.get('expected_impact'))}</p>
+  <div class="meta">mode {esc(item.get('execution_mode'))} · evidence {esc(item.get('evidence_count'))} · {files}</div>
+</article>'''
+        )
+    return ''.join(rows)
+
+
+def timeline(progress: dict[str, Any]) -> str:
+    completed = progress.get('completed_actions') or []
+    blocked = progress.get('blocked_actions') or []
+    rows = []
+    for item in completed[-6:]:
+        rows.append(f'<li><span class="dot good-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>')
+    for item in blocked[-4:]:
+        rows.append(f'<li><span class="dot bad-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>')
+    if not rows:
+        rows.append('<li><span class="dot"></span><b>No actions recorded yet.</b><small>Start a session to build progress.</small></li>')
+    return '<ol class="timeline">' + ''.join(rows) + '</ol>'
+
+
+def attention_panel(attention: dict[str, Any]) -> str:
+    items = attention.get('items') or []
+    if not attention.get('requires_attention') or not items:
+        return '<div class="empty">No attention needed right now.</div>'
+    rows = []
+    for item in items:
+        rows.append(
+            f'''<article class="item">
+  <div class="item-head"><strong>{esc(item.get('reason'))}</strong>{badge('needs_attention')}</div>
+  <p>{esc(item.get('suggested_next_step'))}</p>
+  <div class="meta">{esc(item.get('action'))}</div>
+</article>'''
+        )
+    return ''.join(rows)
+
+
+def render_cockpit_html(data: dict[str, Any]) -> str:
+    project = data.get('project') or {}
+    session = data.get('session') or {}
+    project_map = data.get('map') or {}
+    progress = data.get('progress') or {}
+    attention = data.get('attention') or {}
+    safety = data.get('safety') or {}
+    readiness = data.get('readiness') or {}
+    commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
+    recent_changes = progress.get('recent_changes') or []
+    return f'''<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(project.get('name') or 'Project')} Cockpit</title>
+<style>
+:root {{
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #16181d;
+  --muted: #687083;
+  --line: #e7e9ee;
+  --good: #0a7f45;
+  --good-bg: #eaf8f0;
+  --warn: #a15c00;
+  --warn-bg: #fff4de;
+  --bad: #b42318;
+  --bad-bg: #fff0ee;
+  --neutral: #465166;
+  --neutral-bg: #eef1f6;
+}}
+* {{ box-sizing: border-box; }}
+body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }}
+.shell {{ max-width: 1180px; margin: 0 auto; padding: 32px 24px 48px; }}
+header {{ display: grid; gap: 14px; margin-bottom: 24px; }}
+.eyebrow {{ color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }}
+h1 {{ margin: 0; font-size: 38px; line-height: 1.05; letter-spacing: 0; }}
+h2 {{ margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }}
+h3 {{ margin: 0; font-size: 15px; }}
+p {{ color: var(--muted); line-height: 1.5; margin: 8px 0 0; }}
+.goal {{ font-size: 17px; color: var(--muted); max-width: 860px; }}
+.grid {{ display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }}
+.card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }}
+.span-4 {{ grid-column: span 4; }}
+.span-6 {{ grid-column: span 6; }}
+.span-8 {{ grid-column: span 8; }}
+.span-12 {{ grid-column: span 12; }}
+.stats {{ display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }}
+.stat {{ border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fbfcfe; }}
+.stat b {{ display: block; font-size: 22px; margin-top: 6px; }}
+.badge {{ display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 700; white-space: nowrap; }}
+.badge.good {{ color: var(--good); background: var(--good-bg); }}
+.badge.warn {{ color: var(--warn); background: var(--warn-bg); }}
+.badge.bad {{ color: var(--bad); background: var(--bad-bg); }}
+.badge.neutral {{ color: var(--neutral); background: var(--neutral-bg); }}
+.item {{ border-top: 1px solid var(--line); padding: 14px 0; }}
+.item:first-child {{ border-top: 0; padding-top: 0; }}
+.item:last-child {{ padding-bottom: 0; }}
+.item-head {{ display: flex; justify-content: space-between; align-items: center; gap: 10px; }}
+.meta, .files, small {{ color: var(--muted); font-size: 13px; line-height: 1.45; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+th, td {{ border-top: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }}
+th {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
+ul {{ margin: 8px 0 0; padding-left: 18px; color: var(--muted); }}
+.command-list {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }}
+code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; padding: 5px 8px; color: #20242c; }}
+.timeline {{ list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }}
+.timeline li {{ display: grid; grid-template-columns: 16px 1fr; column-gap: 10px; align-items: start; }}
+.timeline small {{ display: block; margin-top: 3px; }}
+.dot {{ width: 10px; height: 10px; border-radius: 50%; background: #c8ceda; margin-top: 4px; }}
+.good-dot {{ background: var(--good); }}
+.bad-dot {{ background: var(--bad); }}
+.empty {{ color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 16px; background: #fbfcfe; }}
+.muted {{ color: var(--muted); }}
+@media (max-width: 900px) {{ .span-4, .span-6, .span-8, .span-12 {{ grid-column: span 12; }} .stats {{ grid-template-columns: 1fr 1fr; }} }}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <div class="eyebrow">AI Project Operator</div>
+    <h1>{esc(project.get('name') or 'Project Cockpit')}</h1>
+    <div>{badge(project.get('state'))}</div>
+    <p class="goal">{esc(project.get('main_goal') or 'No project goal available yet.')}</p>
+    <p>Type: {esc(project.get('type') or 'not available')} · Last updated: {esc(project.get('last_updated') or data.get('generated_at') or 'not available')}</p>
+  </header>
+
+  <section class="grid">
+    <div class="card span-12">
+      <div class="stats">
+        <div class="stat"><span class="muted">Modules</span><b>{len(project_map.get('modules') or [])}</b></div>
+        <div class="stat"><span class="muted">Capabilities</span><b>{len(project_map.get('capabilities') or [])}</b></div>
+        <div class="stat"><span class="muted">Next actions</span><b>{len(project_map.get('next_actions') or [])}</b></div>
+        <div class="stat"><span class="muted">Readiness</span><b>{esc(readiness.get('for_094') or 'n/a')}</b></div>
+      </div>
+    </div>
+
+    <section class="card span-6">
+      <h2>Autopilot Session</h2>
+      <p>Status {badge(session.get('status'))}</p>
+      <p><b>Goal:</b> {esc(session.get('goal') or 'No session yet.')}</p>
+      <p><b>Current action:</b> {esc(session.get('current_action') or 'not available')}</p>
+      <p><b>Next action:</b> {esc(session.get('next_action') or 'not available')}</p>
+      <div class="command-list">{''.join(f'<code>{esc(command)}</code>' for command in commands)}</div>
+    </section>
+
+    <section class="card span-6">
+      <h2>Safety / Recovery</h2>
+      <p>{badge('undo available' if safety.get('undo_available') else 'undo not available')}</p>
+      <p><b>Checkpoints:</b> {esc('available' if safety.get('checkpoints_available') else 'not available')}</p>
+      <p><b>Last checkpoint:</b> {esc(safety.get('last_checkpoint') or 'not available')}</p>
+      <p><b>Recent changes:</b></p>
+      {list_items(recent_changes, empty='No file changes recorded yet.')}
+    </section>
+
+    <section class="card span-8">
+      <h2>Project Map</h2>
+      {module_cards(project_map.get('modules') or [])}
+    </section>
+
+    <section class="card span-4">
+      <h2>Attention Required</h2>
+      {attention_panel(attention)}
+    </section>
+
+    <section class="card span-12">
+      <h2>Capabilities</h2>
+      {capability_rows(project_map.get('capabilities') or [])}
+    </section>
+
+    <section class="card span-6">
+      <h2>Risks</h2>
+      {risk_rows(project_map.get('risks') or [])}
+    </section>
+
+    <section class="card span-6">
+      <h2>Progress Timeline</h2>
+      {timeline(progress)}
+    </section>
+
+    <section class="card span-12">
+      <h2>Next Actions</h2>
+      {action_cards(project_map.get('next_actions') or [])}
+    </section>
+  </section>
+</main>
+</body>
+</html>
+'''

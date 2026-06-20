@@ -43,6 +43,7 @@ agent start "improve project readiness"
 agent continue
 agent stop
 agent status
+agent cockpit
 agent undo
 ```
 
@@ -55,6 +56,16 @@ The default output is concise:
   "result": "PREVIEW_READY"
 }
 ```
+
+## Project Cockpit
+
+Generate a local, offline project cockpit:
+
+```powershell
+agent cockpit
+```
+
+Open `.zoo-agent/cockpit/index.html` in your browser to see project status, recent progress, next actions, attention items, and undo availability.
 
 ## Safety
 

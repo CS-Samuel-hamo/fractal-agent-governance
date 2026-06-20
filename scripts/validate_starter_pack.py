@@ -16,6 +16,10 @@ required = [
  'wrappers/run_codex_worker.ps1','wrappers/run_codex_worker.sh','wrappers/run_optimistic_worker.ps1','wrappers/run_optimistic_worker.sh','wrappers/run_ai_native_task.ps1','wrappers/run_ai_native_task.sh',
  'docs/README.md','docs/product-mind-model.md','templates/codex/config.safe.toml.example','templates/codex/rules.safe.example'
 ]
+required.extend([
+ 'scripts/cockpit_schema.py','scripts/cockpit_data_builder.py','scripts/cockpit_html_template.py','scripts/cockpit_renderer.py',
+ 'scripts/test_project_cockpit_data.py','scripts/test_project_cockpit_render.py','scripts/test_project_cockpit_ux.py',
+])
 missing = [p for p in required if not (root/p).exists()]
 if missing:
     print('Missing:')

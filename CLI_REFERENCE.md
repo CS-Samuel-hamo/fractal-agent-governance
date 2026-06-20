@@ -30,6 +30,14 @@ agent status
 
 Shows the current task summary.
 
+## Project Cockpit
+
+```powershell
+agent cockpit
+```
+
+Generates a local Project Cockpit at `.zoo-agent/cockpit/index.html`.
+
 ## Undo
 
 ```powershell

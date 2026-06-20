@@ -30,7 +30,15 @@ Use `--apply` only after the preview looks right.
 agent status
 ```
 
-## 4. Preview Undo
+## 4. Open the Project Cockpit
+
+```powershell
+agent cockpit
+```
+
+Open `.zoo-agent/cockpit/index.html` in your browser.
+
+## 5. Preview Undo
 
 ```powershell
 agent undo
