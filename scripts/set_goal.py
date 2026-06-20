@@ -9,7 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, set_active_goal  # noqa: E402
+from goal_state_manager import set_goal_status, upsert_goal_record  # noqa: E402
+from runtime_common import project_root, safe_name, set_active_goal  # noqa: E402
 
 
 def main() -> int:
@@ -22,6 +23,10 @@ def main() -> int:
     parser.add_argument('--constraint', action='append', default=[])
     parser.add_argument('--non-goal', action='append', default=[])
     parser.add_argument('--risk-tolerance', choices=['low', 'medium', 'high'], default='low')
+    parser.add_argument('--priority', type=int, default=50)
+    parser.add_argument('--resource', action='append', default=[])
+    parser.add_argument('--depends-on', action='append', default=[])
+    parser.add_argument('--scheduler-status', choices=['active', 'paused', 'completed', 'blocked', 'backlog'], default='')
     parser.add_argument('--clear', action='store_true')
     parser.add_argument('--no-activate', action='store_true')
     parser.add_argument('--json-output', default='')
@@ -41,6 +46,12 @@ def main() -> int:
             payload.pop('goal_id', None)
             payload.pop('active_goal_id', None)
             current_run.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+        state_path = project / '.zoo-agent' / 'goal' / 'goal_state.json'
+        if state_path.exists():
+            state = json.loads(state_path.read_text(encoding='utf-8-sig'))
+            active_goal_id = str((state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or '')
+            if active_goal_id:
+                set_goal_status(project, safe_name(active_goal_id), 'paused')
         report = {'status': 'cleared', 'workspace': str(project), 'goal_path': str(current)}
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0
@@ -58,6 +69,15 @@ def main() -> int:
         risk_tolerance=args.risk_tolerance,
         activate=not args.no_activate,
         source='set_goal.py',
+    )
+    scheduler_status = args.scheduler_status or ('active' if not args.no_activate else 'paused')
+    upsert_goal_record(
+        project,
+        goal=goal,
+        status=scheduler_status,
+        priority=args.priority,
+        resources=args.resource,
+        depends_on=args.depends_on,
     )
     report = {
         'status': 'ok',

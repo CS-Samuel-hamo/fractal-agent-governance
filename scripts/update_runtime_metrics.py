@@ -33,6 +33,21 @@ METRIC_KEYS = [
     'loop_stopped_count',
     'local_optimization_deferred_count',
     'manual_intervention_count',
+    'leaf_refinement_count',
+    'leaf_resolution_rate',
+    'leaf_collapse_rate',
+    'leaf_defer_rate',
+    'leaf_merge_rate',
+    'convergence_failure_rate',
+    'codex_execution_from_leaf_rate',
+    'goal_completion_rate',
+    'loop_convergence_rate',
+    'leaf_to_goal_contribution_ratio',
+    'stuck_loop_rate',
+    'over_decomposition_rate',
+    'no_delivery_goal_impact',
+    'codex_execution_success_rate',
+    'goal_drift_frequency',
 ]
 
 
@@ -57,6 +72,22 @@ def update_metrics(
     loop_stopped: bool = False,
     local_optimization_deferred: bool = False,
     manual_intervention: bool = False,
+    leaf_refinement_count: int = 0,
+    leaf_resolved: bool = False,
+    leaf_collapsed: bool = False,
+    leaf_deferred: bool = False,
+    leaf_merged: bool = False,
+    leaf_convergence_failure: bool = False,
+    codex_execution_from_leaf: bool = False,
+    goal_completed: bool = False,
+    loop_converged_event: bool = False,
+    stuck_loop: bool = False,
+    over_decomposition: bool = False,
+    no_delivery_goal_impact: int = 0,
+    codex_execution_success: bool = False,
+    goal_drift: bool = False,
+    leaf_goal_contribution_count: int = 0,
+    leaf_goal_total_count: int = 0,
     status: str = '',
 ) -> dict[str, Any]:
     metrics_path = project / '.zoo-agent' / 'metrics' / 'agent-runtime-v4.json'
@@ -99,6 +130,28 @@ def update_metrics(
         1 if local_optimization_deferred else 0
     )
     manual_intervention_count = int(counters.get('manual_intervention_count') or 0) + (1 if manual_intervention else 0)
+    leaf_total_count = int(counters.get('leaf_total_count') or 0) + (
+        1 if any([leaf_resolved, leaf_collapsed, leaf_deferred, leaf_merged, leaf_convergence_failure, codex_execution_from_leaf]) else 0
+    )
+    leaf_refinement_total = int(counters.get('leaf_refinement_count') or 0) + max(int(leaf_refinement_count or 0), 0)
+    leaf_resolved_count = int(counters.get('leaf_resolved_count') or 0) + (1 if leaf_resolved else 0)
+    leaf_collapse_count = int(counters.get('leaf_collapse_count') or 0) + (1 if leaf_collapsed else 0)
+    leaf_defer_count = int(counters.get('leaf_defer_count') or 0) + (1 if leaf_deferred else 0)
+    leaf_merge_count = int(counters.get('leaf_merge_count') or 0) + (1 if leaf_merged else 0)
+    leaf_convergence_failure_count = int(counters.get('leaf_convergence_failure_count') or 0) + (1 if leaf_convergence_failure else 0)
+    codex_execution_from_leaf_count = int(counters.get('codex_execution_from_leaf_count') or 0) + (1 if codex_execution_from_leaf else 0)
+    goal_loop_total_count = int(counters.get('goal_loop_total_count') or 0) + (
+        1 if any([goal_completed, loop_converged_event, stuck_loop, over_decomposition, goal_drift, leaf_goal_total_count, no_delivery_goal_impact]) else 0
+    )
+    goal_completed_count = int(counters.get('goal_completed_count') or 0) + (1 if goal_completed else 0)
+    loop_convergence_event_count = int(counters.get('loop_convergence_event_count') or 0) + (1 if loop_converged_event else 0)
+    stuck_loop_count = int(counters.get('stuck_loop_count') or 0) + (1 if stuck_loop else 0)
+    over_decomposition_count = int(counters.get('over_decomposition_count') or 0) + (1 if over_decomposition else 0)
+    no_delivery_goal_impact_count = int(counters.get('no_delivery_goal_impact_count') or 0) + max(int(no_delivery_goal_impact or 0), 0)
+    codex_execution_success_count = int(counters.get('codex_execution_success_count') or 0) + (1 if codex_execution_success else 0)
+    goal_drift_count = int(counters.get('goal_drift_count') or 0) + (1 if goal_drift else 0)
+    leaf_goal_contribution_total = int(counters.get('leaf_goal_contribution_count') or 0) + max(int(leaf_goal_contribution_count or 0), 0)
+    leaf_goal_total = int(counters.get('leaf_goal_total_count') or 0) + max(int(leaf_goal_total_count or 0), 0)
     failure_types = counters.get('backend_failure_types') if isinstance(counters.get('backend_failure_types'), dict) else {}
     if backend_failure and backend_failure_type:
         failure_types[backend_failure_type] = int(failure_types.get(backend_failure_type) or 0) + 1
@@ -127,6 +180,24 @@ def update_metrics(
             'loop_stopped_count': loop_stopped_count,
             'local_optimization_deferred_count': local_optimization_deferred_count,
             'manual_intervention_count': manual_intervention_count,
+            'leaf_total_count': leaf_total_count,
+            'leaf_refinement_count': leaf_refinement_total,
+            'leaf_resolved_count': leaf_resolved_count,
+            'leaf_collapse_count': leaf_collapse_count,
+            'leaf_defer_count': leaf_defer_count,
+            'leaf_merge_count': leaf_merge_count,
+            'leaf_convergence_failure_count': leaf_convergence_failure_count,
+            'codex_execution_from_leaf_count': codex_execution_from_leaf_count,
+            'goal_loop_total_count': goal_loop_total_count,
+            'goal_completed_count': goal_completed_count,
+            'loop_convergence_event_count': loop_convergence_event_count,
+            'stuck_loop_count': stuck_loop_count,
+            'over_decomposition_count': over_decomposition_count,
+            'no_delivery_goal_impact_count': no_delivery_goal_impact_count,
+            'codex_execution_success_count': codex_execution_success_count,
+            'goal_drift_count': goal_drift_count,
+            'leaf_goal_contribution_count': leaf_goal_contribution_total,
+            'leaf_goal_total_count': leaf_goal_total,
         }
     )
     metrics = {
@@ -150,6 +221,21 @@ def update_metrics(
         'loop_stopped_count': loop_stopped_count,
         'local_optimization_deferred_count': local_optimization_deferred_count,
         'manual_intervention_count': manual_intervention_count,
+        'leaf_refinement_count': leaf_refinement_total,
+        'leaf_resolution_rate': round(leaf_resolved_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'leaf_collapse_rate': round(leaf_collapse_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'leaf_defer_rate': round(leaf_defer_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'leaf_merge_rate': round(leaf_merge_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'convergence_failure_rate': round(leaf_convergence_failure_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'codex_execution_from_leaf_rate': round(codex_execution_from_leaf_count / leaf_total_count, 4) if leaf_total_count else 0.0,
+        'goal_completion_rate': round(goal_completed_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
+        'loop_convergence_rate': round(loop_convergence_event_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
+        'leaf_to_goal_contribution_ratio': round(leaf_goal_contribution_total / leaf_goal_total, 4) if leaf_goal_total else 0.0,
+        'stuck_loop_rate': round(stuck_loop_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
+        'over_decomposition_rate': round(over_decomposition_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
+        'no_delivery_goal_impact': no_delivery_goal_impact_count,
+        'codex_execution_success_rate': round(codex_execution_success_count / max(codex_execution_count, 1), 4) if codex_execution_count else 0.0,
+        'goal_drift_frequency': round(goal_drift_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
     }
     payload = {
         'schema_version': '1.0',
@@ -176,6 +262,22 @@ def update_metrics(
             'loop_stopped': loop_stopped,
             'local_optimization_deferred': local_optimization_deferred,
             'manual_intervention': manual_intervention,
+            'leaf_refinement_count': leaf_refinement_count,
+            'leaf_resolved': leaf_resolved,
+            'leaf_collapsed': leaf_collapsed,
+            'leaf_deferred': leaf_deferred,
+            'leaf_merged': leaf_merged,
+            'leaf_convergence_failure': leaf_convergence_failure,
+            'codex_execution_from_leaf': codex_execution_from_leaf,
+            'goal_completed': goal_completed,
+            'loop_converged_event': loop_converged_event,
+            'stuck_loop': stuck_loop,
+            'over_decomposition': over_decomposition,
+            'no_delivery_goal_impact': no_delivery_goal_impact,
+            'codex_execution_success': codex_execution_success,
+            'goal_drift': goal_drift,
+            'leaf_goal_contribution_count': leaf_goal_contribution_count,
+            'leaf_goal_total_count': leaf_goal_total_count,
         },
         'counters': counters,
         'metrics': metrics,
@@ -199,6 +301,21 @@ def update_metrics(
             'loop_stopped_count': 'tracks_loss_control_stops',
             'local_optimization_deferred_count': 'tracks_noncritical_followups_deferred_by_loop_convergence',
             'manual_intervention_count': 'tracks_required_human_intervention',
+            'leaf_refinement_count': 'tracks bounded one-pass leaf refinement',
+            'leaf_resolution_rate': 'target 100 percent final execute/merge/defer/collapse resolution',
+            'leaf_collapse_rate': 'tracks leaves collapsed to bounded micro-tasks',
+            'leaf_defer_rate': 'tracks leaves deferred to backlog instead of blocking the run',
+            'leaf_merge_rate': 'tracks leaves merged back to parent aggregation',
+            'convergence_failure_rate': 'target 0 unresolved leaf convergence failures',
+            'codex_execution_from_leaf_rate': 'tracks Codex execution entered through resolved leaf contracts',
+            'goal_completion_rate': 'tracks goals completed by parent aggregation evidence',
+            'loop_convergence_rate': 'tracks loops that stop because the goal is complete',
+            'leaf_to_goal_contribution_ratio': 'tracks delivered leaf contribution to goal progress',
+            'stuck_loop_rate': 'decrease; detects loops that cannot progress',
+            'over_decomposition_rate': 'decrease; detects excessive leaf decomposition',
+            'no_delivery_goal_impact': 'decrease; no_delivery leafs should not count as goal progress',
+            'codex_execution_success_rate': 'increase for actual leaf execution',
+            'goal_drift_frequency': 'decrease; drift should trigger warning or stop',
         },
     }
     write_json(metrics_path, payload)
@@ -227,6 +344,13 @@ def main() -> int:
     parser.add_argument('--loop-stopped', action='store_true')
     parser.add_argument('--local-optimization-deferred', action='store_true')
     parser.add_argument('--manual-intervention', action='store_true')
+    parser.add_argument('--leaf-refinement-count', type=int, default=0)
+    parser.add_argument('--leaf-resolved', action='store_true')
+    parser.add_argument('--leaf-collapsed', action='store_true')
+    parser.add_argument('--leaf-deferred', action='store_true')
+    parser.add_argument('--leaf-merged', action='store_true')
+    parser.add_argument('--leaf-convergence-failure', action='store_true')
+    parser.add_argument('--codex-execution-from-leaf', action='store_true')
     args = parser.parse_args()
 
     project = project_root(args.workspace)
@@ -251,6 +375,13 @@ def main() -> int:
         loop_stopped=args.loop_stopped,
         local_optimization_deferred=args.local_optimization_deferred,
         manual_intervention=args.manual_intervention,
+        leaf_refinement_count=args.leaf_refinement_count,
+        leaf_resolved=args.leaf_resolved,
+        leaf_collapsed=args.leaf_collapsed,
+        leaf_deferred=args.leaf_deferred,
+        leaf_merged=args.leaf_merged,
+        leaf_convergence_failure=args.leaf_convergence_failure,
+        codex_execution_from_leaf=args.codex_execution_from_leaf,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0

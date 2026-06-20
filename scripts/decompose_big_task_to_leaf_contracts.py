@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from big_task_common import build_leaf_contracts, decomposition_gate, generate_resource_map, load_backend_profile, load_big_task_contract, project_root, write_leaf_contracts, write_resource_map  # noqa: E402
+from leaf_convergence_controller import run_leaf_convergence  # noqa: E402
 from runtime_common import write_json  # noqa: E402
 
 
@@ -57,9 +58,17 @@ def main() -> int:
     index = write_leaf_contracts(project, args.run_id, leaves)
     readiness_path = project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-task-readiness.json'
     write_json(readiness_path, {'run_id': args.run_id, 'readiness': readiness})
-    report = {'status': 'ok', 'leaf_index': index, 'resource_map': resource_paths, 'readiness_path': str(readiness_path)}
+    convergence = run_leaf_convergence(project, args.run_id)
+    report = {
+        'status': 'ok' if convergence.get('status') == 'resolved' else 'convergence_failure',
+        'leaf_index': index,
+        'resource_map': resource_paths,
+        'readiness_path': str(readiness_path),
+        'leaf_convergence_path': str(project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-convergence-report.json'),
+        'leaf_convergence_status': convergence.get('status'),
+    }
     print(json.dumps(report, ensure_ascii=True, indent=2))
-    return 0
+    return 0 if convergence.get('status') == 'resolved' else 10
 
 
 if __name__ == '__main__':

@@ -101,6 +101,32 @@ def fast_review_verdict(quality_payload: dict[str, Any]) -> str:
     return 'FAST_BLOCKED' if quality_payload.get('gate_status') == 'blocked' else 'FAST_DELIVERED'
 
 
+def leaf_convergence_findings(run_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    blockers: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    report = load_json(run_dir / 'leaf-convergence-report.json')
+    if not report:
+        return blockers, warnings
+    if report.get('status') == 'convergence_failure':
+        blockers.append(
+            {
+                'id': 'leaf_convergence_failure',
+                'message': 'One or more leaf tasks have no final execute/merge/defer/collapse resolution.',
+                'unresolved_leaf_ids': report.get('unresolved_leaf_ids') or [],
+            }
+        )
+    counts = report.get('counts') if isinstance(report.get('counts'), dict) else {}
+    if counts.get('defer') or counts.get('merge') or counts.get('collapse'):
+        warnings.append(
+            {
+                'id': 'leaf_non_execution_resolutions',
+                'message': 'Some leaf tasks converged to defer/merge/collapse instead of execution.',
+                'counts': counts,
+            }
+        )
+    return blockers, warnings
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Run CLI-first runtime review closure checks for a run.')
     parser.add_argument('--workspace', default='.')
@@ -152,6 +178,9 @@ def main() -> int:
     quality_gate = run_command(quality_cmd, ROOT)
 
     blockers, warnings = merge_queue_findings(run_dir)
+    leaf_blockers, leaf_warnings = leaf_convergence_findings(run_dir)
+    blockers.extend(leaf_blockers)
+    warnings.extend(leaf_warnings)
     quality_payload = load_json(run_dir / 'quality-gate.json')
     task_board_payload = load_json(run_dir / 'task-board-consistency.json')
     if is_fast_run:

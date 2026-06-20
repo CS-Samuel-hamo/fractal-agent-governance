@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from big_task_common import leaf_readiness, load_backend_profile, load_leaf_contracts, project_root  # noqa: E402
+from leaf_convergence_controller import run_leaf_convergence  # noqa: E402
 from runtime_common import write_json  # noqa: E402
 
 
@@ -24,11 +25,22 @@ def main() -> int:
     leaves = load_leaf_contracts(project, args.run_id)
     readiness = [leaf_readiness(leaf, backend) for leaf in leaves]
     blocked = [item for item in readiness if str(item.get('verdict')).startswith('BLOCKED')]
-    report = {'run_id': args.run_id, 'leaf_count': len(leaves), 'readiness': readiness, 'blocked_count': len(blocked), 'status': 'blocked' if blocked else 'ready_for_dry_run_or_review'}
+    convergence = run_leaf_convergence(project, args.run_id)
+    unresolved = [item for item in convergence.get('resolutions') or [] if item.get('status') == 'stuck']
+    report = {
+        'run_id': args.run_id,
+        'leaf_count': len(leaves),
+        'readiness': readiness,
+        'blocked_count': len(blocked),
+        'leaf_convergence_status': convergence.get('status'),
+        'leaf_resolutions': convergence.get('resolutions') or [],
+        'unresolved_leaf_count': len(unresolved),
+        'status': 'convergence_failure' if unresolved else ('resolved_with_non_execution' if blocked else 'ready_for_dry_run_or_review'),
+    }
     path = project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-contract-check.json'
     write_json(path, report)
     print(json.dumps({'status': report['status'], 'path': str(path), 'report': report}, ensure_ascii=True, indent=2))
-    return 0 if not blocked else 10
+    return 0 if not unresolved else 10
 
 
 if __name__ == '__main__':

@@ -160,6 +160,8 @@ def main():
     ap.add_argument('--timeout-seconds', type=int, default=0, help='Optional timeout for codex exec; 0 means no timeout')
     ap.add_argument('--no-output-timeout-seconds', type=int, default=600)
     ap.add_argument('--skip-git-repo-check', action='store_true')
+    ap.add_argument('--leaf-resolution', default='', help='Optional leaf resolution JSON that must allow execution.')
+    ap.add_argument('--require-leaf-resolution', action='store_true', help='Block actual Codex execution unless the leaf resolved to execute.')
     args = ap.parse_args()
 
     task_dir = Path(args.task_dir).resolve()
@@ -171,6 +173,18 @@ def main():
     if not workspace.exists():
         print(f'Missing workspace: {workspace}', file=sys.stderr)
         return 2
+    if args.require_leaf_resolution:
+        resolution_path = Path(args.leaf_resolution).resolve() if args.leaf_resolution else task_dir / 'leaf-resolution.json'
+        resolution = load_json(resolution_path)
+        if resolution.get('final_resolution') != 'execute' or resolution.get('status') == 'stuck':
+            report = {
+                'status': 'blocked_missing_leaf_execute_resolution',
+                'leaf_resolution_path': str(resolution_path),
+                'message': 'Codex leaf execution requires final_resolution=execute from leaf convergence.',
+            }
+            (task_dir / 'codex-run.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(json.dumps(report, ensure_ascii=True, indent=2))
+            return 20
     task_runtime_dir, task_dir_mirrored = prepare_task_runtime_dir(task_dir, workspace)
 
     if args.codex_home:

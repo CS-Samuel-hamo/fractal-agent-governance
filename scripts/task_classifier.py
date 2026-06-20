@@ -349,8 +349,21 @@ def classify(
         'big_task_reasons': big_task_reasons,
         'big_task_policy': {
             'root_codex_actual_allowed': False,
-            'required_entrypoints': ['agent plan-big', 'agent decompose', 'agent aggregate', 'agent integration-check'] if big_task else [],
+            'required_entrypoints': [
+                'agent plan-big',
+                'agent decompose',
+                'python scripts/check_leaf_convergence.py',
+                'agent aggregate',
+                'python scripts/goal_completion_detector.py',
+                'agent goal-loop',
+                'agent global-loop',
+                'agent integration-check',
+            ] if big_task else [],
             'default_execution_mode': 'decomposition_only' if big_task else 'route_default',
+            'leaf_resolution_policy': 'execute|refine_once|merge|defer|collapse',
+            'goal_driven_loop': '/goal-set -> global loop -> scheduler -> active goal -> decomposition -> leaf execution -> aggregation -> goal update',
+            'multi_goal_policy': 'one_active_goal_by_default_with_conflict_detection_and_starvation_prevention',
+            'codex_role': 'leaf_execution_backend_only',
         },
         'independent': independent,
         'scores': {

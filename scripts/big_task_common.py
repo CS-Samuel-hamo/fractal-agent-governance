@@ -639,6 +639,10 @@ def load_leaf_outcomes(project: Path, run_id: str) -> dict[str, dict[str, Any]]:
     return outcomes
 
 
+def load_leaf_convergence(project: Path, run_id: str) -> dict[str, Any]:
+    return load_json(project / '.zoo-agent' / 'runs' / run_id / 'leaf-convergence-report.json')
+
+
 def goal_coverage(contract: dict[str, Any], leaves: list[dict[str, Any]], outcomes: dict[str, dict[str, Any]]) -> dict[str, Any]:
     criteria = contract.get('success_criteria') or []
     delivered_leaf_ids = {leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'delivered'}
@@ -657,12 +661,25 @@ def parent_aggregation(project: Path, run_id: str) -> dict[str, Any]:
     contract = load_big_task_contract(project, run_id)
     leaves = load_leaf_contracts(project, run_id)
     outcomes = load_leaf_outcomes(project, run_id)
+    convergence = load_leaf_convergence(project, run_id)
+    resolutions = convergence.get('resolutions') if isinstance(convergence.get('resolutions'), list) else []
+    resolved_by_leaf = {str(item.get('leaf_id')): item for item in resolutions if isinstance(item, dict)}
     coverage = goal_coverage(contract, leaves, outcomes)
     no_delivery = [leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'no_delivery']
     backend_failures = [leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'blocked' and payload.get('failure_type')]
-    blocked = [leaf.get('leaf_id') for leaf in leaves if leaf.get('blocking_reasons')]
+    blocked = [
+        leaf.get('leaf_id')
+        for leaf in leaves
+        if leaf.get('blocking_reasons') and (resolved_by_leaf.get(str(leaf.get('leaf_id'))) or {}).get('status') == 'stuck'
+    ]
+    deferred = [leaf_id for leaf_id, item in resolved_by_leaf.items() if item.get('final_resolution') == 'defer']
+    merged = [leaf_id for leaf_id, item in resolved_by_leaf.items() if item.get('final_resolution') == 'merge']
+    collapsed = [leaf_id for leaf_id, item in resolved_by_leaf.items() if item.get('final_resolution') == 'collapse']
     high_risk = [leaf.get('leaf_id') for leaf in leaves if leaf.get('risk_level') in {'high', 'critical'}]
-    if high_risk:
+    unresolved_convergence = [item.get('leaf_id') for item in resolutions if item.get('status') == 'stuck']
+    if unresolved_convergence:
+        verdict = 'BLOCKED'
+    elif high_risk and not all(str(item) in deferred for item in high_risk):
         verdict = 'HUMAN_DECISION_REQUIRED'
     elif backend_failures:
         verdict = 'BLOCKED'
@@ -683,6 +700,12 @@ def parent_aggregation(project: Path, run_id: str) -> dict[str, Any]:
         'leaf_delivery_outcomes': outcomes,
         'open_obligations': coverage.get('missing') or [],
         'unresolved_blockers': blocked,
+        'leaf_convergence_status': convergence.get('status', 'missing'),
+        'leaf_resolutions': resolutions,
+        'deferred_leaf_count': len(deferred),
+        'merged_leaf_count': len(merged),
+        'collapsed_leaf_count': len(collapsed),
+        'convergence_failure_leaf_count': len(unresolved_convergence),
         'resource_conflicts': [],
         'dependency_satisfaction': 'unknown' if not leaves else 'checked',
         'tests_coverage': 'partial',
@@ -708,6 +731,10 @@ def render_parent_aggregation_md(report: dict[str, Any]) -> str:
         f"- verdict: {report.get('verdict')}",
         f"- no_delivery_leaf_count: {report.get('no_delivery_leaf_count')}",
         f"- backend_failure_leaf_count: {report.get('backend_failure_leaf_count')}",
+        f"- deferred_leaf_count: {report.get('deferred_leaf_count', 0)}",
+        f"- merged_leaf_count: {report.get('merged_leaf_count', 0)}",
+        f"- collapsed_leaf_count: {report.get('collapsed_leaf_count', 0)}",
+        f"- convergence_failure_leaf_count: {report.get('convergence_failure_leaf_count', 0)}",
         '',
         '## Missing Coverage',
         '',

@@ -608,6 +608,8 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
                 'contract_run': contract_run,
                 'decompose_run': decompose_run,
                 'schedule_run': schedule_run,
+                'leaf_convergence_report': str(run_dir / 'leaf-convergence-report.json'),
+                'leaf_resolution_policy': 'execute|refine_once|merge|defer|collapse',
                 'decision_layer': 'GPT/human gate required before high-risk leaf actual',
             }
             write_json(run_dir / 'implementation-queue.json', implementation_queue)

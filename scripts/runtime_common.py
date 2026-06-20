@@ -158,17 +158,6 @@ def set_active_goal(
             current['run_id'] = run_id
         write_json(current_path, current)
 
-        goal_state = {
-            'schema_version': '1.0',
-            'generated_by': source,
-            'updated_at': now,
-            'active_goal_id': goal_id,
-            'source_of_truth': str(current_goal_path),
-            'legacy_goal_path': str(path),
-            'rule': 'goal_is_the_runtime_source_of_truth',
-        }
-        write_json(project / '.zoo-agent' / 'goal_state.json', goal_state)
-
     payload['_path'] = str(current_goal_path)
     return payload
 

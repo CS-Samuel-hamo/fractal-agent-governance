@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.5.0-big-task-readiness-and-aggregation'
+VERSION = '0.7.0-multi-goal-execution-runtime'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -30,6 +30,8 @@ KNOWN_COMMANDS = {
     'decompose',
     'aggregate',
     'integration-check',
+    'goal-loop',
+    'global-loop',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -559,7 +561,37 @@ def decompose_big(args) -> int:
 
 
 def aggregate_big(args) -> int:
-    return delegate('run_parent_aggregation_gate.py', ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id])
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--max-iterations', str(args.max_iterations)]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    return delegate('run_parent_aggregation_gate.py', command)
+
+
+def goal_loop(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--max-iterations', str(args.max_iterations)]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.no_advance:
+        command.append('--no-advance')
+    if args.no_next_goal_suggestions:
+        command.append('--no-next-goal-suggestions')
+    return delegate('goal_loop_engine.py', command)
+
+
+def global_loop(args) -> int:
+    command = [
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--max-iterations',
+        str(args.max_iterations),
+        '--max-continuous-goal-iterations',
+        str(args.max_continuous_goal_iterations),
+    ]
+    if args.backend_health:
+        command.extend(['--backend-health', args.backend_health])
+    if args.no_advance:
+        command.append('--no-advance')
+    return delegate('global_loop_engine.py', command)
 
 
 def integration_check(args) -> int:
@@ -677,6 +709,11 @@ def goal_command(args) -> int:
         command = ['--workspace', workspace_arg(args.workspace), '--goal', args.goal]
         if args.goal_id:
             command.extend(['--goal-id', args.goal_id])
+        command.extend(['--priority', str(args.priority)])
+        for item in args.resource:
+            command.extend(['--resource', item])
+        for item in args.depends_on:
+            command.extend(['--depends-on', item])
         for item in args.success_criteria:
             command.extend(['--success-criteria', item])
         for item in args.constraint:
@@ -684,9 +721,35 @@ def goal_command(args) -> int:
         for item in args.non_goal:
             command.extend(['--non-goal', item])
         command.extend(['--risk-tolerance', args.risk_tolerance])
+        if args.no_activate:
+            command.append('--no-activate')
         return delegate('set_goal.py', command)
     if args.goal_action == 'clear':
         return delegate('set_goal.py', ['--workspace', workspace_arg(args.workspace), '--clear'])
+    if args.goal_action == 'list':
+        return delegate('goal_state_manager.py', ['list', '--workspace', workspace_arg(args.workspace)])
+    if args.goal_action in {'pause', 'resume', 'complete', 'backlog', 'block'}:
+        if not args.goal_id:
+            print(f'goal {args.goal_action} requires --goal-id.', file=sys.stderr)
+            return 2
+        return delegate('goal_state_manager.py', [args.goal_action, '--workspace', workspace_arg(args.workspace), '--goal-id', args.goal_id])
+    if args.goal_action == 'schedule':
+        command = [
+            '--workspace',
+            workspace_arg(args.workspace),
+            '--max-continuous-iterations',
+            str(args.max_continuous_iterations),
+        ]
+        if args.backend_health:
+            command.extend(['--backend-health', args.backend_health])
+        if args.multi_goal_mode:
+            command.append('--multi-goal-mode')
+        return delegate('goal_scheduler.py', command)
+    if args.goal_action == 'conflicts':
+        command = ['--workspace', workspace_arg(args.workspace)]
+        if args.apply:
+            command.append('--apply')
+        return delegate('goal_conflict_detector.py', command)
     command = ['--workspace', workspace_arg(args.workspace)]
     if args.goal_id:
         command.extend(['--goal-id', args.goal_id])
@@ -790,6 +853,7 @@ def interactive_help() -> str:
             '  /reroute <run-id> <task-id> <fast|parallel|governed>',
             '  /rollback <run-id> <task-id> [--yes]',
             '  /goal <goal>           Set the active goal',
+            '  agent goal schedule    Rebalance multi-goal scheduling',
             '  /loop status|reset|stop Show or control convergence loop',
             '  /exit                  Leave interactive mode',
             '  /help                  Show this help',
@@ -882,6 +946,10 @@ def interactive_shell(workspace: str = '.') -> int:
                             constraint=[],
                             non_goal=[],
                             risk_tolerance='low',
+                            priority=50,
+                            resource=[],
+                            depends_on=[],
+                            no_activate=False,
                         )
                     )
             elif command == '/loop':
@@ -912,7 +980,7 @@ def main(argv: list[str] | None = None) -> int:
         return interactive_shell('.')
     raw_argv = normalize_argv(raw_argv)
 
-    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v0.5.')
+    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v0.7.')
     parser.add_argument('--version', action='version', version=f'agent {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
 
@@ -983,7 +1051,26 @@ def main(argv: list[str] | None = None) -> int:
     aggregate_parser = sub.add_parser('aggregate', help='Run parent aggregation gate for a big task run.')
     aggregate_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     aggregate_parser.add_argument('--run-id', required=True)
+    aggregate_parser.add_argument('--goal-id', default='')
+    aggregate_parser.add_argument('--max-iterations', type=int, default=10)
     aggregate_parser.set_defaults(handler=aggregate_big)
+
+    goal_loop_parser = sub.add_parser('goal-loop', help='Advance the goal-driven execution loop after aggregation.')
+    goal_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_loop_parser.add_argument('--run-id', required=True)
+    goal_loop_parser.add_argument('--goal-id', default='')
+    goal_loop_parser.add_argument('--max-iterations', type=int, default=10)
+    goal_loop_parser.add_argument('--no-advance', action='store_true')
+    goal_loop_parser.add_argument('--no-next-goal-suggestions', action='store_true')
+    goal_loop_parser.set_defaults(handler=goal_loop)
+
+    global_loop_parser = sub.add_parser('global-loop', help='Schedule the multi-goal runtime and advance global loop state.')
+    global_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    global_loop_parser.add_argument('--max-iterations', type=int, default=100)
+    global_loop_parser.add_argument('--max-continuous-goal-iterations', type=int, default=3)
+    global_loop_parser.add_argument('--backend-health', default='')
+    global_loop_parser.add_argument('--no-advance', action='store_true')
+    global_loop_parser.set_defaults(handler=global_loop)
 
     integration_parser = sub.add_parser('integration-check', help='Render or create an integration worktree candidate report.')
     integration_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
@@ -1064,12 +1151,31 @@ def main(argv: list[str] | None = None) -> int:
     goal_set.add_argument('--constraint', action='append', default=[])
     goal_set.add_argument('--non-goal', action='append', default=[])
     goal_set.add_argument('--risk-tolerance', choices=['low', 'medium', 'high'], default='low')
+    goal_set.add_argument('--priority', type=int, default=50)
+    goal_set.add_argument('--resource', action='append', default=[])
+    goal_set.add_argument('--depends-on', action='append', default=[])
+    goal_set.add_argument('--no-activate', action='store_true')
     goal_set.set_defaults(handler=goal_command)
-    for action in ['show', 'status', 'clear']:
+    for action in ['show', 'status', 'clear', 'list']:
         item = goal_sub.add_parser(action)
         item.add_argument('--workspace', '--project', dest='workspace', default='.')
         item.add_argument('--goal-id', default='')
         item.set_defaults(handler=goal_command)
+    for action in ['pause', 'resume', 'complete', 'backlog', 'block']:
+        item = goal_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--goal-id', required=True)
+        item.set_defaults(handler=goal_command)
+    goal_schedule = goal_sub.add_parser('schedule')
+    goal_schedule.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_schedule.add_argument('--max-continuous-iterations', type=int, default=3)
+    goal_schedule.add_argument('--backend-health', default='')
+    goal_schedule.add_argument('--multi-goal-mode', action='store_true')
+    goal_schedule.set_defaults(handler=goal_command)
+    goal_conflicts = goal_sub.add_parser('conflicts')
+    goal_conflicts.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_conflicts.add_argument('--apply', action='store_true')
+    goal_conflicts.set_defaults(handler=goal_command)
 
     loop_parser = sub.add_parser('loop', help='Manage lightweight convergence and loss-control loop state.')
     loop_sub = loop_parser.add_subparsers(dest='loop_action', required=True)
