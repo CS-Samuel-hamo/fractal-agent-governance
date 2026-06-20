@@ -12,6 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
+from invisible_eval_engine import run_invisible_eval  # noqa: E402
 from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
 
 
@@ -255,6 +256,23 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
         ]
         stage_results['verifier'] = run_stage(verifier_cmd)
         final_result = load_json(final_path)
+        invisible_eval_result: dict[str, Any] = {}
+        try:
+            invisible_eval_result = run_invisible_eval(
+                project=project,
+                run_id=run_id,
+                plan_path=plan_path,
+                execution_path=execution_path,
+                final_path=final_path,
+                stage_results=stage_results,
+            )
+        except Exception as exc:
+            invisible_eval_result = {
+                'status': 'error',
+                'run_id': run_id,
+                'error': str(exc),
+            }
+            write_json(project / '.zoo-agent' / 'eval' / 'invisible_eval_error.json', invisible_eval_result)
         write_cli_runtime_compat_report(
             project=project,
             run_id=run_id,
@@ -266,7 +284,17 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
             stage_results=stage_results,
             dry_run=args.dry_run,
         )
-        iterations.append({'iteration': iteration, 'stages': stage_results, 'final_verdict': final_result.get('final_verdict')})
+        iterations.append(
+            {
+                'iteration': iteration,
+                'stages': stage_results,
+                'final_verdict': final_result.get('final_verdict'),
+                'invisible_eval': {
+                    'status': invisible_eval_result.get('status', ''),
+                    'governance_action': invisible_eval_result.get('governance_action', ''),
+                },
+            }
+        )
         converged = bool(final_result.get('goal_converged')) or final_result.get('final_verdict') == 'DRY_RUN_COMPLETE'
         if converged or args.dry_run:
             break
