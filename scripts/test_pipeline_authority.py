@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.Complete
 
 
 def temp_repo() -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix='pipeline-authority-', dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Pipeline Authority\n', encoding='utf-8')
     run(['git', 'init'], repo)
@@ -72,13 +72,12 @@ def main() -> int:
             repo,
         ).stdout
     )
-    assert run_report['status'] == 'ok'
-    assert run_report['run']['run_id'] == 'run-default'
-    assert run_report['result']['verdict'] == 'DRY_RUN_COMPLETE'
+    assert run_report == {'goal': 'add a small README note', 'progress': 'complete', 'result': 'DRY_RUN_COMPLETE'}
     assert 'stages' not in run_report
     assert 'planner' not in run_report
     assert 'executor' not in run_report
     assert 'verifier' not in run_report
+    assert (repo / '.zoo-agent' / 'runs' / 'run-default' / 'pipeline' / 'final_result.json').exists()
 
     route_report = parse_json(
         run(

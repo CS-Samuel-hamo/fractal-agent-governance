@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -83,14 +84,14 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def temp_root() -> Path:
-    candidate = Path('D:/AI_DEV/temp')
+    candidate = Path(os.environ.get('AGENT_RUNTIME_TEST_ROOT') or tempfile.gettempdir())
     if candidate.exists():
         return candidate
     return Path(os.environ.get('TEMP') or os.environ.get('TMP') or '.').resolve()
 
 
 def disk_probe() -> dict[str, Any]:
-    target = Path('D:/') if Path('D:/').exists() else temp_root().anchor
+    target = Path(temp_root()).anchor
     try:
         usage = shutil.disk_usage(str(target))
         return {

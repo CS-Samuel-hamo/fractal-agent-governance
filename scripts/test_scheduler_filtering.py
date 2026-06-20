@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -26,7 +26,7 @@ def load(path: Path) -> dict:
 
 
 def repo() -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     path = Path(tempfile.mkdtemp(prefix='scheduler-filtering-', dir=str(base))).resolve()
     (path / 'README.md').write_text('# Scheduler Filtering\n', encoding='utf-8')
     run(['git', 'init'], path)
@@ -89,7 +89,7 @@ def test_only_production_goals_affect_convergence() -> None:
 
 
 def main() -> int:
-    os.environ.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    os.environ.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_bootstrap_runtime_goal_does_not_block_production_goal()
     test_only_production_goals_affect_convergence()
     print('scheduler filtering tests passed')

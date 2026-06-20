@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -34,7 +34,7 @@ def load(path: Path) -> dict:
 
 
 def temp_repo() -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix='pipeline-runtime-', dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Pipeline Runtime\n\nInitial text.\n', encoding='utf-8')
     (repo / 'docs').mkdir()
@@ -184,9 +184,7 @@ def test_simple_pipeline_loop() -> None:
         repo,
     )
     report = json.loads(proc.stdout)
-    assert report['status'] == 'ok'
-    assert report['run']['run_id'] == run_id
-    assert report['result']['verdict'] == 'DRY_RUN_COMPLETE'
+    assert report == {'goal': 'fix README wording only', 'progress': 'complete', 'result': 'DRY_RUN_COMPLETE'}
     assert 'stages' not in report
     internal = load(pipeline_dir(repo, run_id) / 'pipeline-loop.json')
     assert internal['stages'] == ['planner', 'executor', 'verifier']

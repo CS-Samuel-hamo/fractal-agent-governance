@@ -11,7 +11,7 @@ agent run "add a README troubleshooting note" --dry-run --allowed-file README.md
 
 ```powershell
 agent goal "improve local utility reliability"
-agent run "add one unit test for src/utils.py" --dry-run --allowed-file tests/test_utils.py
+agent run "add one unit test for the local utility module" --dry-run --allowed-file <TEST_FILE>
 ```
 
 ## Backend Selection

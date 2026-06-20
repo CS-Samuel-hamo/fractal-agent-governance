@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.8.3-cli-product-alpha'
+VERSION = '0.8.4-product-surface-hardening-alpha'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -72,6 +72,29 @@ def delegate(script_name: str, args_list: list[str]) -> int:
 
 def delegate_capture(script_name: str, args_list: list[str]) -> dict:
     return run_command_capture([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
+
+
+def parse_json_output(result: dict) -> dict:
+    raw = str(result.get('stdout') or '{}').strip()
+    if not raw.startswith('{'):
+        return {}
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+
+
+def print_json(payload: dict) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def clean_progress(value: object) -> str:
+    if isinstance(value, (int, float)):
+        return f'{max(0, min(int(value), 100))}%'
+    text = str(value or '').strip()
+    if not text:
+        return 'unknown'
+    return text if text.endswith('%') else text
 
 
 def workspace_arg(workspace: str) -> str:
@@ -239,6 +262,26 @@ def write_bootstrap_report(project: Path, profile: dict, readiness: dict, action
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
+def print_bootstrap_output(report: dict, *, debug: bool = False) -> None:
+    if debug:
+        print_json(report)
+        return
+    status = str(report.get('status') or 'unknown')
+    if report.get('already_bootstrapped'):
+        progress = 'already bootstrapped'
+        result = 'ready'
+    elif status == 'dry_run':
+        progress = 'dry_run'
+        result = 'bootstrap dry-run'
+    elif status.startswith('blocked') or status.endswith('failed'):
+        progress = 'blocked'
+        result = status
+    else:
+        progress = 'ready' if status == 'ready' else 'ready_with_warnings'
+        result = status
+    print_json({'goal': 'workspace setup', 'progress': progress, 'result': result})
+
+
 def prepare_bootstrap_workspace(project: Path, args) -> tuple[int, dict]:
     entries = list(project.iterdir())
     git_repo = is_git_repo(project)
@@ -295,28 +338,25 @@ def bootstrap(args) -> int:
     lock_path = bootstrap_lock_path(project)
     prepare_code, prepare_report = prepare_bootstrap_workspace(project, args)
     if prepare_code != 0:
-        print(json.dumps({'status': prepare_report.get('status'), 'workspace': str(project), **prepare_report}, ensure_ascii=False, indent=2))
+        print_bootstrap_output({'status': prepare_report.get('status'), 'workspace': str(project), **prepare_report}, debug=getattr(args, 'debug', False))
         return prepare_code
     if args.dry_run:
-        print(
-            json.dumps(
-                {
-                    'status': 'dry_run',
-                    'workspace': str(project),
-                    'version': VERSION,
-                    'workspace_preparation': prepare_report,
-                    'would_create_or_update': [
-                        str(marker_path),
-                        str(lock_path),
-                        str(project / '.zoo-agent' / 'project-profile.json'),
-                        str(project / '.zoo-agent' / 'project-readiness.json'),
-                        str(project / '.zoo-agent' / 'bootstrap-report.md'),
-                        str(project / 'AGENTS.md'),
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
+        print_bootstrap_output(
+            {
+                'status': 'dry_run',
+                'workspace': str(project),
+                'version': VERSION,
+                'workspace_preparation': prepare_report,
+                'would_create_or_update': [
+                    str(marker_path),
+                    str(lock_path),
+                    str(project / '.zoo-agent' / 'project-profile.json'),
+                    str(project / '.zoo-agent' / 'project-readiness.json'),
+                    str(project / '.zoo-agent' / 'bootstrap-report.md'),
+                    str(project / 'AGENTS.md'),
+                ],
+            },
+            debug=getattr(args, 'debug', False),
         )
         return 0
     initial_readiness = analyze_project_readiness(project)
@@ -343,7 +383,7 @@ def bootstrap(args) -> int:
             'missing_artifacts': missing_artifacts,
             'message': 'already bootstrapped; bootstrap.lock exists and no project files were overwritten.',
         }
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        print_bootstrap_output(report, debug=getattr(args, 'debug', False))
         return 0
 
     already_bootstrapped = marker_path.exists() and not args.force
@@ -402,12 +442,14 @@ def bootstrap(args) -> int:
         instruction_args.append('--refresh')
     if args.dry_run:
         instruction_args.append('--dry-run')
-    instruction_result = delegate('init_project_instructions.py', instruction_args)
+    instruction_capture = delegate_capture('init_project_instructions.py', instruction_args)
+    instruction_result = int(instruction_capture.get('returncode') or 0)
 
     map_args = ['--workspace', str(project), '--refresh', '--promote-if-missing']
     if args.dry_run:
         map_args.append('--dry-run')
-    map_result = delegate('check_project_map_alignment.py', map_args)
+    map_capture = delegate_capture('check_project_map_alignment.py', map_args)
+    map_result = int(map_capture.get('returncode') or 0)
     onboarding = write_onboarding_artifacts(
         project,
         args,
@@ -437,6 +479,11 @@ def bootstrap(args) -> int:
         'next_actions': onboarding.get('project_readiness', {}).get('next_actions', []),
         'onboarding_actions': onboarding.get('actions', []),
     }
+    if getattr(args, 'debug', False):
+        report['instruction_init_stdout'] = instruction_capture.get('stdout', '')
+        report['instruction_init_stderr'] = instruction_capture.get('stderr', '')
+        report['project_map_stdout'] = map_capture.get('stdout', '')
+        report['project_map_stderr'] = map_capture.get('stderr', '')
     if not args.dry_run and report['status'] == 'ready':
         write_json(
             lock_path,
@@ -449,7 +496,7 @@ def bootstrap(args) -> int:
                 'goal_id': goal.get('goal_id'),
             },
         )
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print_bootstrap_output(report, debug=getattr(args, 'debug', False))
     return 0 if report['status'] == 'ready' else 10
 
 
@@ -563,6 +610,7 @@ def run(args) -> int:
             backend=args.backend,
             timeout_seconds=args.timeout_seconds,
             max_retries=args.max_retries,
+            debug=getattr(args, 'debug', False),
             input=args.input,
         )
     )
@@ -615,29 +663,21 @@ def pipeline(args) -> int:
             payload = json.loads(stdout)
         except json.JSONDecodeError:
             payload = {}
+    if getattr(args, 'debug', False):
+        if stdout:
+            print(stdout)
+        else:
+            print_json({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')})
+        return int(proc.get('returncode') or 0)
     if proc.get('returncode') != 0:
-        print(json.dumps({'status': 'failed', 'result': 'error', 'message': (proc.get('stderr') or proc.get('stdout') or '').strip()[-1200:]}, ensure_ascii=False, indent=2))
+        print_json({'goal': ' '.join(args.input).strip(), 'progress': 'blocked', 'result': 'error'})
         return int(proc.get('returncode') or 1)
     product = {
-        'status': 'ok',
-        'goal': {
-            'goal_id': payload.get('goal_id') or args.goal_id or '',
-            'task': ' '.join(args.input).strip(),
-        },
-        'run': {
-            'run_id': payload.get('run_id', ''),
-            'mode': 'dry_run' if args.dry_run else 'actual',
-        },
-        'result': {
-            'verdict': payload.get('final_verdict') or 'unknown',
-            'complete': bool(payload.get('converged')),
-            'next_action': payload.get('next_action') or '',
-        },
-        'artifacts': {
-            'result': payload.get('final_result_ref') or '',
-        },
+        'goal': ' '.join(args.input).strip(),
+        'progress': 'complete' if payload.get('converged') else 'in_progress',
+        'result': payload.get('final_verdict') or 'unknown',
     }
-    print(json.dumps(product, ensure_ascii=False, indent=2))
+    print_json(product)
     return 0
 
 
@@ -722,7 +762,17 @@ def status(args) -> int:
         command.extend(['--run-id', args.run_id])
     if args.no_write:
         command.append('--no-write')
-    return delegate('runtime_status.py', command)
+    result = delegate_capture('runtime_status.py', command)
+    payload = parse_json_output(result)
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+        return int(result.get('returncode') or 0)
+    goals = ((payload.get('goal_state') or {}).get('goals') or []) if isinstance(payload.get('goal_state'), dict) else []
+    active = next((item for item in goals if item.get('status') == 'active'), {}) if isinstance(goals, list) else {}
+    goal_text = str(active.get('goal') or active.get('goal_id') or 'no active goal')
+    progress = clean_progress(active.get('progress', 0) if active else 0)
+    print_json({'goal': goal_text, 'progress': progress, 'result': payload.get('status') or 'unknown'})
+    return int(result.get('returncode') or 0)
 
 
 def rollback(args) -> int:
@@ -733,7 +783,15 @@ def rollback(args) -> int:
         command.append('--yes')
     if args.confirm_current_branch:
         command.append('--confirm-current-branch')
-    return delegate('rollback_task.py', command)
+    result = delegate_capture('rollback_task.py', command)
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+        return int(result.get('returncode') or 0)
+    payload = parse_json_output(result)
+    status = str(payload.get('status') or ('ok' if result.get('returncode') == 0 else 'error'))
+    progress = 'dry_run' if status == 'dry_run' else status
+    print_json({'goal': 'rollback plan', 'progress': progress, 'result': 'rollback ready' if result.get('returncode') == 0 else 'rollback error'})
+    return int(result.get('returncode') or 0)
 
 
 def reroute(args) -> int:
@@ -836,16 +894,47 @@ def goal_command(args) -> int:
         command.extend(['--risk-tolerance', args.risk_tolerance])
         if args.no_activate:
             command.append('--no-activate')
-        return delegate('set_goal.py', command)
+        result = delegate_capture('set_goal.py', command)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        goal_payload = payload.get('goal') if isinstance(payload.get('goal'), dict) else {}
+        print_json(
+            {
+                'goal': goal_payload.get('goal') or args.goal,
+                'progress': 'active' if payload.get('active') is not False else 'paused',
+                'result': 'goal set' if result.get('returncode') == 0 else 'error',
+            }
+        )
+        return int(result.get('returncode') or 0)
     if args.goal_action == 'clear':
-        return delegate('set_goal.py', ['--workspace', workspace_arg(args.workspace), '--clear'])
+        result = delegate_capture('set_goal.py', ['--workspace', workspace_arg(args.workspace), '--clear'])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+        else:
+            print_json({'goal': 'none', 'progress': 'cleared', 'result': 'goal cleared'})
+        return int(result.get('returncode') or 0)
     if args.goal_action == 'list':
-        return delegate('goal_state_manager.py', ['list', '--workspace', workspace_arg(args.workspace)])
+        result = delegate_capture('goal_state_manager.py', ['list', '--workspace', workspace_arg(args.workspace)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        goals = payload.get('goals') if isinstance(payload.get('goals'), list) else []
+        active = next((item for item in goals if item.get('status') == 'active'), {}) if goals else {}
+        print_json({'goal': active.get('goal') or f'{len(goals)} goals', 'progress': clean_progress(active.get('progress', 0) if active else 0), 'result': f'{len(goals)} goals'})
+        return int(result.get('returncode') or 0)
     if args.goal_action in {'pause', 'resume', 'complete', 'backlog', 'block'}:
         if not args.goal_id:
             print(f'goal {args.goal_action} requires --goal-id.', file=sys.stderr)
             return 2
-        return delegate('goal_state_manager.py', [args.goal_action, '--workspace', workspace_arg(args.workspace), '--goal-id', args.goal_id])
+        result = delegate_capture('goal_state_manager.py', [args.goal_action, '--workspace', workspace_arg(args.workspace), '--goal-id', args.goal_id])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+        else:
+            print_json({'goal': args.goal_id, 'progress': args.goal_action, 'result': f'goal {args.goal_action}'})
+        return int(result.get('returncode') or 0)
     if args.goal_action == 'schedule':
         command = [
             '--workspace',
@@ -867,7 +956,14 @@ def goal_command(args) -> int:
     if args.goal_id:
         command.extend(['--goal-id', args.goal_id])
     if args.goal_action in {'status', 'show'}:
-        return delegate('get_goal.py', command)
+        result = delegate_capture('get_goal.py', command)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        goal_payload = payload.get('goal') if isinstance(payload.get('goal'), dict) else {}
+        print_json({'goal': goal_payload.get('goal') or 'no active goal', 'progress': 'active' if payload.get('active') else 'inactive', 'result': payload.get('status') or 'unknown'})
+        return int(result.get('returncode') or 0)
     print(f'Unsupported goal action: {args.goal_action}', file=sys.stderr)
     return 2
 
@@ -996,13 +1092,9 @@ def interactive_help() -> str:
         [
             'Commands:',
             '  natural language       Run as: agent run <input>',
-            '  /status [--no-write]   Show runtime status',
-            '  /review <run-id>       Run governance review',
-            '  /reroute <run-id> <task-id> <fast|parallel|governed>',
-            '  /rollback <run-id> <task-id> [--yes]',
             '  /goal <goal>           Set the active goal',
-            '  agent goal schedule    Rebalance multi-goal scheduling',
-            '  /loop status|reset|stop Show or control convergence loop',
+            '  /status [--no-write]   Show runtime status',
+            '  /rollback <run-id> <task-id> [--yes]',
             '  /exit                  Leave interactive mode',
             '  /help                  Show this help',
         ]
@@ -1189,6 +1281,7 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap_parser.add_argument('--dry-run', action='store_true')
     bootstrap_parser.add_argument('--force', action='store_true')
     bootstrap_parser.add_argument('--refresh-instructions', action='store_true')
+    bootstrap_parser.add_argument('--debug', action='store_true')
     bootstrap_parser.set_defaults(handler=bootstrap)
 
     run_parser = sub.add_parser('run', help='Run a task and return a concise result.')
@@ -1222,6 +1315,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--allow-ambiguous-fast', action='store_true')
     run_parser.add_argument('--no-execute-governed-workers', action='store_true')
     run_parser.add_argument('--legacy-runtime', action='store_true', help='Compatibility/debug only: use the pre-pipeline route_task runtime.')
+    run_parser.add_argument('--debug', action='store_true', help='Show full internal runtime output.')
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
 
@@ -1242,6 +1336,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--backend', default='')
     pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
     pipeline_parser.add_argument('--max-retries', type=int, default=2)
+    pipeline_parser.add_argument('--debug', action='store_true', help='Show full internal runtime output.')
     pipeline_parser.set_defaults(handler=pipeline)
 
     plan_big_parser = sub.add_parser('plan-big', help=argparse.SUPPRESS)
@@ -1293,6 +1388,7 @@ def main(argv: list[str] | None = None) -> int:
     status_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     status_parser.add_argument('--run-id', default='')
     status_parser.add_argument('--no-write', action='store_true')
+    status_parser.add_argument('--debug', action='store_true')
     status_parser.set_defaults(handler=status)
 
     rollback_parser = sub.add_parser('rollback', help='Discard managed worktrees for a task and release task locks.')
@@ -1302,6 +1398,7 @@ def main(argv: list[str] | None = None) -> int:
     rollback_parser.add_argument('--dry-run', action='store_true')
     rollback_parser.add_argument('--yes', action='store_true')
     rollback_parser.add_argument('--confirm-current-branch', action='store_true')
+    rollback_parser.add_argument('--debug', action='store_true')
     rollback_parser.set_defaults(handler=rollback)
 
     reroute_parser = sub.add_parser('reroute', help=argparse.SUPPRESS)
@@ -1379,16 +1476,19 @@ def main(argv: list[str] | None = None) -> int:
     goal_set.add_argument('--resource', action='append', default=[])
     goal_set.add_argument('--depends-on', action='append', default=[])
     goal_set.add_argument('--no-activate', action='store_true')
+    goal_set.add_argument('--debug', action='store_true')
     goal_set.set_defaults(handler=goal_command)
     for action in ['show', 'status', 'clear', 'list']:
         item = goal_sub.add_parser(action)
         item.add_argument('--workspace', '--project', dest='workspace', default='.')
         item.add_argument('--goal-id', default='')
+        item.add_argument('--debug', action='store_true')
         item.set_defaults(handler=goal_command)
     for action in ['pause', 'resume', 'complete', 'backlog', 'block']:
         item = goal_sub.add_parser(action)
         item.add_argument('--workspace', '--project', dest='workspace', default='.')
         item.add_argument('--goal-id', required=True)
+        item.add_argument('--debug', action='store_true')
         item.set_defaults(handler=goal_command)
     goal_schedule = goal_sub.add_parser('schedule')
     goal_schedule.add_argument('--workspace', '--project', dest='workspace', default='.')

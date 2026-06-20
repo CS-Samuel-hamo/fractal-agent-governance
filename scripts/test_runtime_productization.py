@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -24,7 +24,7 @@ def run(cmd: list[str], cwd: Path) -> str:
 
 
 def temp_repo(prefix: str) -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix=prefix, dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Runtime Productization\n', encoding='utf-8')
     run(['git', 'init'], repo)
@@ -138,8 +138,10 @@ def test_switch_backend_and_status() -> None:
     switched = core.switch_backend('mock')
     assert switched['status'] == 'ok'
     status = core.get_status()
-    assert status['backend'] == 'mock'
-    assert status['backend_selection'] == 'mock'
+    assert sorted(status) == ['goal', 'progress', 'result']
+    debug_status = core.get_status(debug=True)
+    assert debug_status['backend'] == 'mock'
+    assert debug_status['backend_selection'] == 'mock'
     paused = core.pause()
     resumed = core.resume()
     assert paused['status'] == 'paused'

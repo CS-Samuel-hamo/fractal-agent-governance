@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -25,7 +25,7 @@ def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.Complete
 
 
 def repo() -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     path = Path(tempfile.mkdtemp(prefix='backend-health-gate-', dir=str(base))).resolve()
     (path / 'README.md').write_text('# Backend Health Gate\n', encoding='utf-8')
     run(['git', 'init'], path)
@@ -113,7 +113,7 @@ def test_health_script_outputs_gate_policy() -> None:
 
 
 def main() -> int:
-    os.environ.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    os.environ.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_healthy_allows_fast_and_parallel()
     test_warnings_allow_single_fast_but_block_parallel()
     test_unhealthy_blocks_all_actual_and_diagnostic_blocks_actual()

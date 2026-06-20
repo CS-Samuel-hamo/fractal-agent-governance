@@ -93,6 +93,7 @@ def main() -> int:
                 'runtime-engine-productization',
                 'semantic-decoupling-runtime-engine',
                 'cli-product-alpha',
+                'product-surface-hardening-alpha',
             ]
         )
 
@@ -101,13 +102,14 @@ def main() -> int:
         test_hash = sha(existing / 'tests' / 'test_app.py')
         first_bootstrap = run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(existing)], existing, env=env)
         assert_artifacts(existing)
-        assert 'safe_for_level_0_1_trial' in first_bootstrap.stdout
+        assert sorted(json.loads(first_bootstrap.stdout)) == ['goal', 'progress', 'result']
+        assert 'safe_for_level_0_1_trial' in load(existing / '.zoo-agent' / 'project-readiness.json')
         assert sha(existing / 'src' / 'app.py') == src_hash
         assert sha(existing / 'tests' / 'test_app.py') == test_hash
 
         agents_hash = sha(existing / 'AGENTS.md')
         second_bootstrap = run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(existing)], existing, env=env)
-        assert 'already_bootstrapped' in second_bootstrap.stdout
+        assert json.loads(second_bootstrap.stdout)['progress'] == 'already bootstrapped'
         assert sha(existing / 'AGENTS.md') == agents_hash
         assert sha(existing / 'src' / 'app.py') == src_hash
         assert sha(existing / 'tests' / 'test_app.py') == test_hash

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -73,7 +73,7 @@ def is_fresh(payload: dict[str, Any], ttl_minutes: int) -> bool:
 
 
 def disk_probe() -> dict[str, Any]:
-    target = Path('D:/') if Path('D:/').exists() else Path.cwd().anchor
+    target = Path.cwd().anchor
     try:
         usage = shutil.disk_usage(str(target))
         return {

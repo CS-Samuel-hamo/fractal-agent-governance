@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -32,7 +32,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def temp_base() -> Path:
-    base = Path('D:/AI_DEV/temp')
+    base = Path(tempfile.gettempdir())
     if not base.exists():
         base = Path(tempfile.gettempdir())
     return Path(tempfile.mkdtemp(prefix='multi-goal-state-integrity-', dir=str(base))).resolve()
@@ -219,7 +219,7 @@ def test_legal_patch_transitions() -> None:
 
 
 def main() -> int:
-    os.environ.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    os.environ.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_071_pollution_regression()
     test_patch_revision_and_illegal_transitions()
     test_legal_patch_transitions()

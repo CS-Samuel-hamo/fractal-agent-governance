@@ -27,10 +27,9 @@ The CLI prints a concise result:
 
 ```json
 {
-  "status": "ok",
-  "goal": {"task": "add a short README note"},
-  "run": {"mode": "dry_run"},
-  "result": {"verdict": "DRY_RUN_COMPLETE"}
+  "goal": "add a short README note",
+  "progress": "complete",
+  "result": "DRY_RUN_COMPLETE"
 }
 ```
 

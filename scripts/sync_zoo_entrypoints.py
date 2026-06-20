@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -113,7 +113,7 @@ Runtime resolution:
 
 - Prefer `agent run <input>`.
 - If invoking scripts directly and `<workspace>/scripts/route_task.py` exists, use it.
-- Otherwise use `C:\\Users\\sheng\\.roo\\agent-governance-kit\\scripts\\route_task.py`.
+- Otherwise use `<USER_HOME>\\.roo\\agent-governance-kit\\scripts\\route_task.py`.
 - If neither exists, stop and report the missing CLI router.
 
 Routing:
@@ -176,7 +176,7 @@ PROGRESS_BLOCK = """## AI-Native Run Summary
 For AI-native dispatcher runs, refresh progress with:
 
 ```powershell
-$summary = if (Test-Path ".\\scripts\\summarize_ai_native_run.py") { ".\\scripts\\summarize_ai_native_run.py" } else { "C:\\Users\\sheng\\.roo\\agent-governance-kit\\scripts\\summarize_ai_native_run.py" }
+$summary = if (Test-Path ".\\scripts\\summarize_ai_native_run.py") { ".\\scripts\\summarize_ai_native_run.py" } else { "<USER_HOME>\\.roo\\agent-governance-kit\\scripts\\summarize_ai_native_run.py" }
 python $summary `
   --run-id "<run-id>" `
   --workspace "<workspace>"
@@ -199,7 +199,7 @@ This project has local `.roo` files, so global Roo/Zoo rules may be shadowed.
 This shim preserves local project rules while restoring the CLI-first runtime bridge.
 
 - Use `agent run <input>` as the primary runtime entrypoint.
-- Resolve direct script routing from `<workspace>/scripts/route_task.py` first, then `C:\\Users\\sheng\\.roo\\agent-governance-kit\\scripts\\route_task.py`.
+- Resolve direct script routing from `<workspace>/scripts/route_task.py` first, then `<USER_HOME>\\.roo\\agent-governance-kit\\scripts\\route_task.py`.
 - Bind every task to a `goal_id` and inspect goal alignment evidence before review or integration claims.
 - Maintain `.zoo-agent/loop_state.json` and escalate to governed/GPT review when the loop diverges.
 - Route fast, parallel, and governed work through the CLI runtime; use Codex CLI only as the execution backend.

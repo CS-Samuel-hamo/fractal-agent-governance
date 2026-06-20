@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def temp_repo(name: str) -> Path:
-    base = Path('D:/AI_DEV/temp')
+    base = Path(tempfile.gettempdir())
     if not base.exists():
         base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix=f'leaf-convergence-{name}-', dir=str(base))).resolve()

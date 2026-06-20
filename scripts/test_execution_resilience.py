@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -24,7 +24,7 @@ def run(cmd: list[str], cwd: Path) -> None:
 
 
 def temp_repo() -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix='execution-resilience-', dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Demo\n\nInitial.\n', encoding='utf-8')
     (repo / 'src').mkdir()

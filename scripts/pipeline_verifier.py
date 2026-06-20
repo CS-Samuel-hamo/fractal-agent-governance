@@ -87,11 +87,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Verifier stage for the 3-stage Agent Runtime pipeline.')
     parser.add_argument('--execution-result', required=True)
     parser.add_argument('--output', default='')
+    parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
     result = verify_execution(args)
     output = Path(args.output).resolve() if args.output else Path(args.execution_result).resolve().parent / 'final_result.json'
     write_json(output, result)
-    print(json.dumps({'status': 'ok', 'final_result_json': str(output), 'run_id': result.get('run_id'), 'stage': 'verifier', 'final_verdict': result['final_verdict']}, ensure_ascii=False, indent=2))
+    if args.debug:
+        payload = {'status': 'ok', 'final_result_json': str(output), 'run_id': result.get('run_id'), 'stage': 'verifier', 'final_verdict': result['final_verdict']}
+    else:
+        payload = {
+            'goal': result.get('run_id') or 'current run',
+            'progress': 'complete' if result.get('final_verdict') in {'COMPLETED', 'DRY_RUN_COMPLETE'} else 'in_progress',
+            'result': result.get('final_verdict') or 'unknown',
+        }
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -758,7 +758,7 @@ def write_parent_aggregation(project: Path, run_id: str, report: dict[str, Any])
 def integration_candidate(project: Path, run_id: str, *, create: bool = False) -> dict[str, Any]:
     aggregation = load_json(project / '.zoo-agent' / 'runs' / run_id / 'parent-aggregation-report.json')
     repo_name = project.name
-    worktree_path = Path(os.environ.get('ZOO_INTEGRATION_WORKTREE_ROOT', 'D:/AI_DEV/worktrees')) / f'{repo_name}-integration-{safe_name(run_id)}'
+    worktree_path = Path(os.environ.get('ZOO_INTEGRATION_WORKTREE_ROOT', str(Path(tempfile.gettempdir()) / 'agent-runtime-worktrees'))) / f'{repo_name}-integration-{safe_name(run_id)}'
     verdict = 'NEEDS_PARENT_REAGGREGATION'
     created = False
     if aggregation.get('verdict') == 'READY_FOR_INTEGRATION_WORKTREE':

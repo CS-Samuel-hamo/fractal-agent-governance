@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -26,7 +26,7 @@ def load(path: Path) -> dict:
 
 
 def temp_repo(name: str) -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix=f'{name}-', dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Goal Domain Separation\n', encoding='utf-8')
     run(['git', 'init'], repo)
@@ -91,7 +91,7 @@ def test_goal_domain_classification_and_filtering() -> None:
 
 
 def main() -> int:
-    os.environ.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    os.environ.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_goal_domain_classification_and_filtering()
     print('goal domain separation tests passed')
     return 0

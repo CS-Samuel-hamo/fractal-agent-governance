@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -32,7 +32,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def temp_base() -> Path:
-    base = Path('D:/AI_DEV/temp')
+    base = Path(tempfile.gettempdir())
     if not base.exists():
         base = Path(tempfile.gettempdir())
     return Path(tempfile.mkdtemp(prefix='goal-loop-orchestrator-', dir=str(base))).resolve()
@@ -72,8 +72,8 @@ def set_docs_goal(repo: Path, *, two_criteria: bool = True) -> str:
     ]
     if two_criteria:
         cmd.extend(['--success-criteria', 'docs/b.md is delivered and reviewable.'])
-    proc = run(cmd, repo)
-    return json.loads(proc.stdout)['goal_id']
+    run(cmd, repo)
+    return load(repo / '.zoo-agent' / 'goal' / 'current-goal.json')['goal_id']
 
 
 def decompose(repo: Path, run_id: str, goal_id: str, task: str) -> None:
@@ -170,7 +170,7 @@ def test_classifier_exposes_goal_loop_policy() -> None:
 
 
 def main() -> int:
-    os.environ.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    os.environ.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_completed_goal_loop()
     test_partial_goal_enters_next_decomposition_loop()
     test_max_iteration_forces_human_loop_decision()

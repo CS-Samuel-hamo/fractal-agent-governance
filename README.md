@@ -2,7 +2,7 @@
 
 CLI-first AI runtime with pluggable execution backend.
 
-Status: `0.8.3-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
+Status: `0.8.4-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
 
 ## Three Commands
 
@@ -27,11 +27,10 @@ User -> CLI -> Runtime -> Backend -> Result
 ```powershell
 git clone <repo-url>
 cd agent-runtime
-python scripts\validate_starter_pack.py
 .\bin\agent.cmd --version
 ```
 
-Add `bin` to your user `PATH`, or run `python scripts\agent.py ...` directly.
+Add `bin` to your user `PATH`, then use `agent` from any project workspace.
 
 ## Quickstart
 

@@ -9,7 +9,7 @@ Recommended baseline:
 - Default network: disabled.
 - Approval policy: avoid `never` for risky work.
 - High-risk tasks: use read-only or dry-run first.
-- Recommended `CODEX_HOME`: `D:\AI_DEV\codex_home`.
+- Recommended `CODEX_HOME`: `<CODEX_HOME>`.
 - Do not store API keys in config files.
 - Windows sandbox and output behavior should be checked with `agent codex-health`.
 - WSL and Windows paths should be kept explicit.

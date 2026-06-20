@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -26,7 +26,7 @@ def run(cmd: list[str], cwd: Path) -> str:
 
 
 def temp_repo(prefix: str) -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix=prefix, dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Semantic Decoupling\n', encoding='utf-8')
     run(['git', 'init'], repo)

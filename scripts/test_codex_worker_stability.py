@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import datetime
@@ -63,7 +63,7 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def temp_root() -> Path:
-    candidate = Path('D:/AI_DEV/temp')
+    candidate = Path(os.environ.get('AGENT_RUNTIME_TEST_ROOT') or tempfile.gettempdir())
     if candidate.exists():
         return candidate
     return Path(os.environ.get('TEMP') or os.environ.get('TMP') or '.').resolve()

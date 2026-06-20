@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -32,7 +32,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def temp_base() -> Path:
-    base = Path('D:/AI_DEV/temp')
+    base = Path(tempfile.gettempdir())
     if not base.exists():
         base = Path(tempfile.gettempdir())
     return Path(tempfile.mkdtemp(prefix='big-task-runtime-', dir=str(base))).resolve()
@@ -263,7 +263,7 @@ def test_unknown_resource_not_independent(env: dict[str, str]) -> None:
 
 def main() -> int:
     env = os.environ.copy()
-    env.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_api_db_big_task(env)
     test_big_docs_decomposition(env)
     test_cross_module_feature(env)

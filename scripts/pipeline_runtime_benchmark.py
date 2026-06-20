@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -69,7 +69,7 @@ def run(cmd: list[str], cwd: Path, *, timeout: int = 0) -> dict[str, Any]:
 
 
 def temp_repo(name: str) -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix=f'pipeline-benchmark-{name}-', dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Pipeline Benchmark\n\nStart.\n', encoding='utf-8')
     (repo / 'src').mkdir()

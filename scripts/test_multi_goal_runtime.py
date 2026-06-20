@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -32,7 +32,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def temp_base() -> Path:
-    base = Path('D:/AI_DEV/temp')
+    base = Path(tempfile.gettempdir())
     if not base.exists():
         base = Path(tempfile.gettempdir())
     return Path(tempfile.mkdtemp(prefix='multi-goal-runtime-', dir=str(base))).resolve()
@@ -187,7 +187,7 @@ def test_global_loop_converges_or_stops() -> None:
 
 
 def main() -> int:
-    os.environ.setdefault('CODEX_HOME', 'D:/AI_DEV/codex_home')
+    os.environ.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='agent-runtime-codex-home-')).resolve()))
     test_multiple_goals_scheduling()
     test_conflict_detection_pauses_lower_priority_api_goal()
     test_resource_collision_not_concurrent()

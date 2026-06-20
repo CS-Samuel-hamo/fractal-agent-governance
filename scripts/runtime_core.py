@@ -97,31 +97,43 @@ class RuntimeCore:
         pipeline = self.run_pipeline(goal, run_id=str(kwargs.pop('run_id', '') or f'run-{goal_id}'), **kwargs)
         return {'status': pipeline['status'], 'goal_result': goal_result, 'pipeline': pipeline}
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self, *, debug: bool = False) -> dict[str, Any]:
+        goal_payload = load_json(self.workspace / '.zoo-agent' / 'goal' / 'current-goal.json')
+        if not debug:
+            progress = goal_payload.get('progress', 0) if isinstance(goal_payload, dict) else 0
+            if isinstance(progress, (int, float)):
+                progress_text = f'{max(0, min(int(progress), 100))}%'
+            else:
+                progress_text = str(progress or 'unknown')
+            return {
+                'goal': goal_payload.get('goal') or 'no active goal',
+                'progress': progress_text,
+                'result': 'ready',
+            }
         return {
             'workspace': str(self.workspace),
             'backend': self.backend,
             'backend_selection': read_backend_selection(self.workspace),
-            'goal': load_json(self.workspace / '.zoo-agent' / 'goal' / 'current-goal.json'),
+            'goal': goal_payload,
             'runtime_api': ['run_goal', 'run_task', 'run_pipeline', 'get_status', 'switch_backend', 'pause', 'resume'],
         }
 
     def switch_backend(self, backend: str) -> dict[str, Any]:
-        path = write_backend_selection(self.workspace, backend)
+        write_backend_selection(self.workspace, backend)
         self.backend = backend
-        return {'status': 'ok', 'backend': backend, 'path': str(path)}
+        return {'status': 'ok', 'backend': backend, 'result': 'backend switched'}
 
     def pause(self) -> dict[str, Any]:
         path = self.workspace / '.zoo-agent' / 'runtime' / 'runtime-state.json'
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({'status': 'paused', 'updated_at': utc_now()}, indent=2), encoding='utf-8')
-        return {'status': 'paused', 'path': str(path)}
+        return {'status': 'paused', 'result': 'runtime paused'}
 
     def resume(self) -> dict[str, Any]:
         path = self.workspace / '.zoo-agent' / 'runtime' / 'runtime-state.json'
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({'status': 'active', 'updated_at': utc_now()}, indent=2), encoding='utf-8')
-        return {'status': 'active', 'path': str(path)}
+        return {'status': 'active', 'result': 'runtime active'}
 
 
 def main() -> int:
@@ -139,6 +151,7 @@ def main() -> int:
     p = sub.add_parser('status')
     p.add_argument('--workspace', default='.')
     p.add_argument('--backend', default='')
+    p.add_argument('--debug', action='store_true')
     p = sub.add_parser('switch-backend')
     p.add_argument('backend')
     p.add_argument('--workspace', default='.')
@@ -161,7 +174,7 @@ def main() -> int:
     elif args.command == 'resume':
         payload = core.resume()
     else:
-        payload = core.get_status()
+        payload = core.get_status(debug=getattr(args, 'debug', False))
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 

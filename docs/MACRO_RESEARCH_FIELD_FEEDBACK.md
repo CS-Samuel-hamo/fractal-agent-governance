@@ -1,6 +1,6 @@
 ﻿# Macro Research Field Feedback
 
-Source project: `D:\AI_projects\瀹忚鐮旂┒`
+Source project: `<PROJECT_ROOT>`
 
 Reviewed date: 2026-06-03
 

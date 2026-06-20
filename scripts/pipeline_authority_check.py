@@ -45,6 +45,7 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
         or 'runtime-engine-productization' in agent_py
         or 'semantic-decoupling-runtime-engine' in agent_py
         or 'cli-product-alpha' in agent_py
+        or 'product-surface-hardening-alpha' in agent_py
     )
     pipeline_command = "'pipeline'" in agent_py and 'pipeline_parser' in agent_py
     run_defaults_pipeline = 'def run(args)' in agent_py and 'return pipeline(' in agent_py and 'legacy_runtime' in agent_py

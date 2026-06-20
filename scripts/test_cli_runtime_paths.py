@@ -54,11 +54,13 @@ def cli_report(repo: Path, run_id: str, task_id: str) -> dict:
 
 
 def test_bootstrap_idempotency(repo: Path, env: dict[str, str]) -> None:
-    run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo), '--force'], repo, env=env)
+    first = run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo), '--force'], repo, env=env)
+    assert sorted(json.loads(first.stdout)) == ['goal', 'progress', 'result']
     lock = repo / '.zoo-agent' / 'bootstrap.lock'
     assert lock.exists(), 'bootstrap.lock was not created'
     second = run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo)], repo, env=env)
-    assert 'already_bootstrapped' in second.stdout, 'second bootstrap did not honor bootstrap.lock'
+    second_payload = json.loads(second.stdout)
+    assert second_payload['progress'] == 'already bootstrapped', 'second bootstrap did not honor bootstrap.lock'
 
 
 def test_interactive_natural_language(repo: Path, env: dict[str, str]) -> None:

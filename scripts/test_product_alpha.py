@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -35,7 +35,7 @@ def payload(proc: subprocess.CompletedProcess[str]) -> dict:
 
 
 def init_repo(env: dict[str, str]) -> Path:
-    base = Path('D:/AI_DEV/temp') if Path('D:/AI_DEV/temp').exists() else Path(tempfile.gettempdir())
+    base = Path(tempfile.gettempdir())
     repo = Path(tempfile.mkdtemp(prefix='product-alpha-', dir=str(base))).resolve()
     (repo / 'README.md').write_text('# Product Alpha\n', encoding='utf-8')
     run(['git', 'init'], repo, env=env)
@@ -47,7 +47,16 @@ def init_repo(env: dict[str, str]) -> Path:
 
 
 def assert_no_internal_leak(text: str) -> None:
-    forbidden = ['"planner"', '"executor"', '"verifier"', 'scheduler_control', 'goal_state_management']
+    forbidden = [
+        '"planner"',
+        '"executor"',
+        '"verifier"',
+        'scheduler_control',
+        'goal_state_management',
+        'goal_state_manager',
+        'runtime_status.py',
+        'execution_result',
+    ]
     for item in forbidden:
         assert item not in text, f'product output leaked internal term: {item}'
 
@@ -61,7 +70,7 @@ def main() -> int:
         assert (ROOT / required).exists(), f'missing product document: {required}'
 
     version = run([sys.executable, str(AGENT), '--version'], ROOT, env=env).stdout
-    assert '0.8.3' in version
+    assert '0.8.4' in version
 
     help_text = run([sys.executable, str(AGENT), '--help'], ROOT, env=env).stdout
     for visible in ['run', 'pipeline', 'goal', 'status', 'backend']:
@@ -80,8 +89,7 @@ def main() -> int:
     assert switched == {'status': 'ok', 'selected_backend': 'mock', 'result': 'backend switched'}
 
     goal = payload(run([sys.executable, str(AGENT), 'goal', 'make README onboarding clear', '--workspace', str(repo)], repo, env=env))
-    assert goal.get('status') == 'ok'
-    assert goal.get('goal_id')
+    assert goal == {'goal': 'make README onboarding clear', 'progress': 'active', 'result': 'goal set'}
 
     result1_proc = run(
         [
@@ -102,10 +110,7 @@ def main() -> int:
     )
     assert_no_internal_leak(result1_proc.stdout)
     result1 = payload(result1_proc)
-    assert result1['status'] == 'ok'
-    assert result1['run']['run_id'] == 'product-alpha-run'
-    assert result1['run']['mode'] == 'dry_run'
-    assert result1['result']['verdict'] == 'DRY_RUN_COMPLETE'
+    assert result1 == {'goal': 'add a short README note', 'progress': 'complete', 'result': 'DRY_RUN_COMPLETE'}
 
     execution = json.loads((repo / '.zoo-agent' / 'runs' / 'product-alpha-run' / 'pipeline' / 'execution_result.json').read_text(encoding='utf-8'))
     leaf = execution['leaf_results'][0]
@@ -131,11 +136,13 @@ def main() -> int:
     )
     assert_no_internal_leak(result2_proc.stdout)
     result2 = payload(result2_proc)
-    assert result2['status'] == 'ok'
-    assert result2['result']['verdict'] == 'DRY_RUN_COMPLETE'
+    assert result2 == {'goal': 'add a short README note', 'progress': 'complete', 'result': 'DRY_RUN_COMPLETE'}
 
     status = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo, env=env)
     assert status.returncode == 0
+    assert_no_internal_leak(status.stdout)
+    status_payload = payload(status)
+    assert sorted(status_payload) == ['goal', 'progress', 'result']
 
     print('product alpha tests passed')
     return 0
