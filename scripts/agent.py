@@ -467,13 +467,14 @@ def ensure_bootstrap_before_run(args) -> None:
     print('WARNING: running one-off without project bootstrap; runtime evidence may be incomplete.')
 
 
-def run(args) -> int:
+def legacy_run(args) -> int:
     ensure_bootstrap_before_run(args)
     command = [
         sys.executable,
         str(ROOT / 'scripts' / 'route_task.py'),
         '--workspace',
         workspace_arg(args.workspace),
+        '--legacy-runtime',
     ]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
@@ -529,6 +530,36 @@ def run(args) -> int:
     return run_command(command, ROOT)
 
 
+def run(args) -> int:
+    force_path = ''
+    if getattr(args, 'fast', False):
+        force_path = 'fast'
+    elif getattr(args, 'parallel', False):
+        force_path = 'parallel'
+    elif getattr(args, 'governed', False):
+        force_path = 'governed'
+    if getattr(args, 'legacy_runtime', False):
+        return legacy_run(args)
+    return pipeline(
+        argparse.Namespace(
+            workspace=args.workspace,
+            run_id=args.run_id,
+            task_id=args.task_id,
+            goal_id=args.goal_id,
+            allowed_file=args.allowed_file,
+            denied_file=args.denied_file,
+            force_path=force_path,
+            max_iterations=args.max_iteration,
+            dry_run=args.dry_run,
+            allow_actual=not args.dry_run and not args.worker_dry_run,
+            sandbox=args.sandbox,
+            codex_home=args.codex_home,
+            timeout_seconds=args.timeout_seconds,
+            input=args.input,
+        )
+    )
+
+
 def pipeline(args) -> int:
     ensure_bootstrap_before_run(args)
     command = [
@@ -545,6 +576,8 @@ def pipeline(args) -> int:
     ]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
+    if getattr(args, 'task_id', ''):
+        command.extend(['--task-id', args.task_id])
     if args.goal_id:
         command.extend(['--goal-id', args.goal_id])
     if args.force_path:
@@ -1065,6 +1098,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--skip-health-check', action='store_true')
     run_parser.add_argument('--allow-ambiguous-fast', action='store_true')
     run_parser.add_argument('--no-execute-governed-workers', action='store_true')
+    run_parser.add_argument('--legacy-runtime', action='store_true', help='Compatibility/debug only: use the pre-pipeline route_task runtime.')
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
 
@@ -1072,6 +1106,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('input', nargs='*')
     pipeline_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     pipeline_parser.add_argument('--run-id', default='')
+    pipeline_parser.add_argument('--task-id', default='')
     pipeline_parser.add_argument('--goal-id', default='')
     pipeline_parser.add_argument('--allowed-file', action='append', default=[])
     pipeline_parser.add_argument('--denied-file', action='append', default=[])
@@ -1084,14 +1119,14 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
     pipeline_parser.set_defaults(handler=pipeline)
 
-    plan_big_parser = sub.add_parser('plan-big', help='Create a big task readiness contract without Codex actual execution.')
+    plan_big_parser = sub.add_parser('plan-big', help='Compatibility/debug: create a big task readiness contract without Codex actual execution.')
     plan_big_parser.add_argument('input', nargs='*')
     plan_big_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     plan_big_parser.add_argument('--run-id', default='run-big-task')
     plan_big_parser.add_argument('--goal-id', default='')
     plan_big_parser.set_defaults(handler=plan_big)
 
-    decompose_parser = sub.add_parser('decompose', help='Decompose a big task into leaf task contracts.')
+    decompose_parser = sub.add_parser('decompose', help='Compatibility/debug: decompose a big task into leaf task contracts.')
     decompose_parser.add_argument('input', nargs='*')
     decompose_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     decompose_parser.add_argument('--run-id', default='run-big-task')
@@ -1099,14 +1134,14 @@ def main(argv: list[str] | None = None) -> int:
     decompose_parser.add_argument('--allow-leaf-actual', action='store_true')
     decompose_parser.set_defaults(handler=decompose_big)
 
-    aggregate_parser = sub.add_parser('aggregate', help='Run parent aggregation gate for a big task run.')
+    aggregate_parser = sub.add_parser('aggregate', help='Compatibility/debug: run parent aggregation gate for a big task run.')
     aggregate_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     aggregate_parser.add_argument('--run-id', required=True)
     aggregate_parser.add_argument('--goal-id', default='')
     aggregate_parser.add_argument('--max-iterations', type=int, default=10)
     aggregate_parser.set_defaults(handler=aggregate_big)
 
-    goal_loop_parser = sub.add_parser('goal-loop', help='Advance the goal-driven execution loop after aggregation.')
+    goal_loop_parser = sub.add_parser('goal-loop', help='Compatibility/debug: advance the goal-driven execution loop after aggregation.')
     goal_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     goal_loop_parser.add_argument('--run-id', required=True)
     goal_loop_parser.add_argument('--goal-id', default='')
@@ -1115,7 +1150,7 @@ def main(argv: list[str] | None = None) -> int:
     goal_loop_parser.add_argument('--no-next-goal-suggestions', action='store_true')
     goal_loop_parser.set_defaults(handler=goal_loop)
 
-    global_loop_parser = sub.add_parser('global-loop', help='Schedule the multi-goal runtime and advance global loop state.')
+    global_loop_parser = sub.add_parser('global-loop', help='Compatibility/debug: schedule the multi-goal runtime and advance global loop state.')
     global_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     global_loop_parser.add_argument('--max-iterations', type=int, default=100)
     global_loop_parser.add_argument('--max-continuous-goal-iterations', type=int, default=3)
@@ -1123,7 +1158,7 @@ def main(argv: list[str] | None = None) -> int:
     global_loop_parser.add_argument('--no-advance', action='store_true')
     global_loop_parser.set_defaults(handler=global_loop)
 
-    integration_parser = sub.add_parser('integration-check', help='Render or create an integration worktree candidate report.')
+    integration_parser = sub.add_parser('integration-check', help='Compatibility/debug: render or create an integration worktree candidate report.')
     integration_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     integration_parser.add_argument('--run-id', required=True)
     integration_parser.add_argument('--yes', action='store_true', help='Actually create the isolated integration worktree.')

@@ -84,6 +84,59 @@ def run_command(command: list[str], cwd: Path, *, timeout: int = 0) -> dict[str,
         }
 
 
+def delegate_to_pipeline(args: argparse.Namespace) -> int:
+    force_path = ''
+    if args.fast:
+        force_path = 'fast'
+    elif args.parallel:
+        force_path = 'parallel'
+    elif args.governed:
+        force_path = 'governed'
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'pipeline_loop.py'),
+        args.input_text,
+        '--workspace',
+        str(project_root(args.workspace)),
+        '--run-id',
+        args.run_id,
+        '--task-id',
+        args.task_id,
+        '--max-iterations',
+        str(args.max_iteration),
+        '--sandbox',
+        args.sandbox,
+        '--timeout-seconds',
+        str(args.timeout_seconds),
+    ]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if force_path:
+        command.extend(['--force-path', force_path])
+    if args.dry_run or args.worker_dry_run:
+        command.append('--dry-run')
+    elif not args.worker_dry_run:
+        command.append('--allow-actual')
+    if args.codex_home:
+        command.extend(['--codex-home', args.codex_home])
+    add_repeated_args(command, '--allowed-file', args.allowed_file)
+    add_repeated_args(command, '--denied-file', args.denied_file)
+    proc = subprocess.run(
+        command,
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if proc.stdout:
+        print(proc.stdout, end='')
+    if proc.stderr:
+        print(proc.stderr, file=sys.stderr, end='')
+    return proc.returncode
+
+
 def task_id_default(text: str) -> str:
     return f'task-{safe_name(text[:40]).lower()}'
 
@@ -898,6 +951,7 @@ def main() -> int:
     parser.add_argument('--skip-health-check', action='store_true')
     parser.add_argument('--allow-ambiguous-fast', action='store_true')
     parser.add_argument('--no-execute-governed-workers', dest='execute_governed_workers', action='store_false')
+    parser.add_argument('--legacy-runtime', action='store_true', help='Compatibility/debug only: run the pre-pipeline router implementation.')
     parser.add_argument('--dry-run', action='store_true')
     parser.set_defaults(execute_governed_workers=True)
     args = parser.parse_args()
@@ -912,6 +966,8 @@ def main() -> int:
         return 2
     if not args.run_id:
         args.run_id = 'run-' + time.strftime('%Y%m%d%H%M%S', time.gmtime())
+    if not args.legacy_runtime:
+        return delegate_to_pipeline(args)
     returncode, _ = route_and_execute(args)
     return returncode
 

@@ -52,7 +52,13 @@ def extract_resources(classification: dict[str, Any], allowed_files: list[str]) 
 
 
 def build_leaf_tasks(classification: dict[str, Any], objective: str, denied_files: list[str]) -> list[dict[str, Any]]:
-    source_tasks = classification.get('tasks') or []
+    # The pipeline planner is intentionally conservative: fast/small tasks stay as
+    # one bounded execution contract. Classifier task splits are only trusted for
+    # explicitly independent parallel work.
+    if classification.get('path') == 'parallel' and classification.get('independent') is True:
+        source_tasks = classification.get('tasks') or []
+    else:
+        source_tasks = []
     if not source_tasks:
         source_tasks = [{'task_id': 'task-001', 'objective': objective, 'allowed_files': classification.get('allowed_files') or []}]
     leaves: list[dict[str, Any]] = []

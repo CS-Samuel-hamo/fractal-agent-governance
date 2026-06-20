@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import subprocess
 import sys
@@ -24,6 +25,86 @@ FORBIDDEN_RESPONSIBILITIES = [
     'goal_completion',
     'loop_control',
 ]
+
+
+def git_name_only(workspace: Path) -> set[str]:
+    proc = subprocess.run(
+        ['git', 'status', '--short'],
+        cwd=workspace,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    files: set[str] = set()
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        path = line[3:].strip()
+        if ' -> ' in path:
+            path = path.split(' -> ', 1)[1].strip()
+        files.add(path.replace('\\', '/'))
+    return files
+
+
+def is_runtime_or_generated(path: str) -> bool:
+    normalized = path.replace('\\', '/')
+    return (
+        normalized.startswith('.zoo-agent/')
+        or normalized.startswith('.tmp/')
+        or normalized.startswith('__pycache__/')
+        or '/__pycache__/' in normalized
+        or normalized.startswith('.pytest_cache/')
+        or normalized.endswith('.pyc')
+    )
+
+
+def matches_any(path: str, patterns: list[str]) -> bool:
+    if not patterns:
+        return False
+    normalized = path.replace('\\', '/')
+    for pattern in patterns:
+        item = str(pattern).replace('\\', '/')
+        if item == normalized or fnmatch.fnmatch(normalized, item):
+            return True
+        if item.endswith('/**') and normalized.startswith(item[:-3].rstrip('/') + '/'):
+            return True
+        if item.endswith('*') and normalized.startswith(item[:-1]):
+            return True
+    return False
+
+
+def delivery_from_delta(before: set[str], after: set[str], leaf: dict[str, Any], returncode: int) -> dict[str, Any]:
+    changed_since_start = sorted(after - before)
+    runtime_files = [item for item in changed_since_start if is_runtime_or_generated(item)]
+    candidate_files = [item for item in changed_since_start if not is_runtime_or_generated(item)]
+    allowed_files = [str(item) for item in leaf.get('allowed_files') or []]
+    denied_files = [str(item) for item in leaf.get('denied_files') or []]
+    denied_touched = [item for item in candidate_files if matches_any(item, denied_files)]
+    out_of_scope = [item for item in candidate_files if allowed_files and not matches_any(item, allowed_files)]
+    scope_guard_status = 'pass'
+    delivery_outcome = 'delivered'
+    reason = 'business_diff_detected'
+    if returncode != 0:
+        delivery_outcome = 'blocked'
+        reason = 'codex_worker_failed'
+    elif denied_touched or out_of_scope:
+        scope_guard_status = 'fail'
+        delivery_outcome = 'unsafe'
+        reason = 'scope_guard_failed'
+    elif not candidate_files:
+        delivery_outcome = 'no_delivery'
+        reason = 'no_business_diff_since_executor_start'
+    return {
+        'delivery_outcome': delivery_outcome,
+        'reason': reason,
+        'scope_guard_status': scope_guard_status,
+        'business_changed_files': candidate_files,
+        'runtime_changed_files': runtime_files,
+        'denied_files_touched': denied_touched,
+        'out_of_scope_files': out_of_scope,
+    }
 
 
 def create_task_pack(task_dir: Path, workspace: Path, leaf: dict[str, Any], plan: dict[str, Any]) -> None:
@@ -144,6 +225,7 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                     'generated_at': utc_now(),
                 },
             )
+            before_status = git_name_only(workspace)
             codex_result = run_codex_leaf(
                 workspace=workspace,
                 task_dir=task_dir,
@@ -152,18 +234,20 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                 timeout_seconds=args.timeout_seconds,
                 dry_run=False,
             )
+            after_status = git_name_only(workspace)
             codex_invoked = True
+            returncode = int(codex_result.get('returncode') or 0)
+            delivery = delivery_from_delta(before_status, after_status, leaf, returncode)
             leaf_result.update(
                 {
                     'execution_mode': 'actual',
                     'codex_invoked': True,
                     'codex_result': codex_result,
-                    'delivery_outcome': 'executed_pending_verification',
+                    **delivery,
                     'result': 'codex_worker_returned',
                 }
             )
-            if int(codex_result.get('returncode') or 0) != 0:
-                leaf_result['delivery_outcome'] = 'blocked'
+            if returncode != 0:
                 leaf_result['result'] = 'codex_worker_failed'
         leaf_results.append(leaf_result)
 

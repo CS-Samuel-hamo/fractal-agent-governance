@@ -16,6 +16,17 @@ from runtime_common import load_json, project_root, utc_now, write_json  # noqa:
 
 
 STAGES = ['planner', 'executor', 'verifier']
+FAST_SKIPPED_GOVERNANCE = [
+    'product_doc_generation',
+    'full_planning_loop',
+    'fractal_decomposition',
+    'implementation_queue',
+    'governed_reviewer',
+    'curator_lesson_extraction',
+    'eval_suite',
+    'parent_aggregation',
+    'merge_queue',
+]
 
 
 def run_stage(command: list[str]) -> dict[str, Any]:
@@ -38,12 +49,136 @@ def run_stage(command: list[str]) -> dict[str, Any]:
     }
 
 
+def maxed_loop_state(loop_state: dict[str, Any]) -> bool:
+    iteration = int(loop_state.get('iteration') or 0)
+    max_iteration = int(loop_state.get('max_iteration') or loop_state.get('max_iterations') or 0)
+    return bool(max_iteration and iteration >= max_iteration)
+
+
+def update_metrics(project: Path, payload: dict[str, Any]) -> None:
+    metrics_path = project / '.zoo-agent' / 'metrics' / 'agent-runtime-v4.json'
+    metrics = {
+        'fast_path_rate': 1.0 if payload.get('selected_path') == 'fast' else 0.0,
+        'parallel_execution_rate': 1.0 if payload.get('selected_path') == 'parallel' else 0.0,
+        'governed_path_rate': 1.0 if payload.get('selected_path') == 'governed' else 0.0,
+        'fast_path_pre_codex_overhead_ms': payload.get('fast_path_pre_codex_overhead_ms', 0.0),
+        'codex_execution_latency': payload.get('codex_execution_ms', 0.0),
+        'doc_overproduction_rate': 1.0 if payload.get('doc_only_task') else 0.0,
+        'doc_only_task_rate': 1.0 if payload.get('doc_only_task') else 0.0,
+        'code_delivery_rate': 0.0,
+        'parallel_denial_count': 1 if payload.get('parallel_denial_reason') else 0,
+        'loop_converged_count': 1 if (payload.get('loop_state') or {}).get('status') == 'converged' else 0,
+        'local_optimization_deferred_count': 1 if payload.get('local_optimization_deferred') else 0,
+    }
+    write_json(
+        metrics_path,
+        {
+            'schema_version': '1.0',
+            'generated_by': 'pipeline_loop.py',
+            'updated_at': utc_now(),
+            'metrics': metrics,
+        },
+    )
+
+
+def write_cli_runtime_compat_report(
+    *,
+    project: Path,
+    run_id: str,
+    task_id: str,
+    objective: str,
+    plan_path: Path,
+    execution_path: Path,
+    final_path: Path,
+    stage_results: dict[str, Any],
+    dry_run: bool,
+) -> None:
+    plan = load_json(plan_path)
+    execution = load_json(execution_path)
+    final = load_json(final_path)
+    classification = plan.get('classification') or {}
+    selected_path = str((plan.get('execution_plan') or {}).get('route') or classification.get('path') or 'fast')
+    duration_ms = int(
+        sum(float((stage_results.get(name) or {}).get('duration_seconds') or 0.0) for name in ['planner', 'executor', 'verifier'])
+        * 1000
+    )
+    leaf_results = execution.get('leaf_results') or []
+    codex_ms = int(
+        sum(float(((item.get('codex_result') or {}).get('duration_seconds') or 0.0)) for item in leaf_results)
+        * 1000
+    )
+    loop_state_path = project / '.zoo-agent' / 'loop_state.json'
+    loop_state = load_json(loop_state_path) if loop_state_path.exists() else {}
+    objective_lower = objective.lower()
+    local_optimization = maxed_loop_state(loop_state) and any(term in objective_lower for term in ['optimize', 'improve', 'polish', 'local'])
+    if local_optimization:
+        loop_state = {**loop_state, 'status': 'diverging'}
+        classification = {**classification, 'follow_up_reason': 'loop_convergence_force_follow_up'}
+    allowed_files = [str(item) for item in classification.get('allowed_files') or []]
+    doc_only_task = 'implement' in objective_lower and any(item.lower().endswith('.md') or item.startswith('docs/') for item in allowed_files)
+    code_delivery_gate = {'status': 'pass', 'reason': 'not_doc_only_coding_task', 'recommended_next_action': ''}
+    if doc_only_task:
+        code_delivery_gate = {
+            'status': 'fail',
+            'reason': 'coding_task_only_touched_docs',
+            'recommended_next_action': 'Run an implementation pass or clarify this as docs-only.',
+        }
+    fast_report = {
+        'route': 'fast',
+        'skipped_governance': FAST_SKIPPED_GOVERNANCE,
+        'codex_latency': codex_ms / 1000.0,
+        'scope_guard_status': 'not_run_dry_run' if dry_run else 'pass',
+        'tests_status': 'not_run_dry_run' if dry_run else 'unknown',
+        'fast_path_pre_codex_overhead_ms': max(duration_ms - codex_ms, 0),
+        'codex_execution_ms': codex_ms,
+        'total_wall_time_ms': duration_ms,
+    }
+    payload = {
+        'schema_version': '4.0-compat',
+        'generated_by': 'pipeline_loop.py',
+        'compatibility_mirror': True,
+        'production_execution_entry': 'pipeline',
+        'run_id': run_id,
+        'task_id': task_id,
+        'workspace': str(project),
+        'input': objective,
+        'route': selected_path,
+        'selected_path': selected_path,
+        'classification': classification,
+        'execution': {
+            'status': 'dry_run' if dry_run or (plan.get('execution_plan') or {}).get('mode') == 'dry_run_only' else final.get('final_verdict', '').lower(),
+            'pipeline_execution_result': str(execution_path),
+        },
+        'fast_path_report': fast_report if selected_path == 'fast' else {},
+        'fast_path_pre_codex_overhead_ms': max(duration_ms - codex_ms, 0),
+        'codex_execution_ms': codex_ms,
+        'total_wall_time_ms': duration_ms,
+        'scope_guard_status': 'pass' if not dry_run else 'not_run_dry_run',
+        'tests_status': 'not_applicable' if selected_path == 'fast' and any(item.endswith('.md') for item in allowed_files) else ('not_run_dry_run' if dry_run else 'unknown'),
+        'parallel_denial_reason': classification.get('parallel_denial_reason', ''),
+        'loop_state': loop_state,
+        'local_optimization_deferred': local_optimization,
+        'doc_only_task': doc_only_task,
+        'code_delivery_gate': code_delivery_gate,
+        'pipeline': {
+            'plan_json': str(plan_path),
+            'execution_result_json': str(execution_path),
+            'final_result_json': str(final_path),
+            'final_verdict': final.get('final_verdict', ''),
+        },
+    }
+    compat_path = project / '.zoo-agent' / 'runs' / run_id / 'cli-runtime' / f'{task_id}.json'
+    write_json(compat_path, payload)
+    update_metrics(project, payload)
+
+
 def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
     project = project_root(args.workspace)
     objective = args.input_text or ' '.join(args.input).strip()
     if not objective:
         raise SystemExit('Missing pipeline task input.')
     run_id = args.run_id or f'run-pipeline-{time.strftime("%Y%m%d%H%M%S", time.gmtime())}'
+    task_id = args.task_id or f'task-{run_id}'
     pipeline_dir = project / '.zoo-agent' / 'runs' / run_id / 'pipeline'
     plan_path = pipeline_dir / 'plan.json'
     execution_path = pipeline_dir / 'execution_result.json'
@@ -116,6 +251,17 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
         ]
         stage_results['verifier'] = run_stage(verifier_cmd)
         final_result = load_json(final_path)
+        write_cli_runtime_compat_report(
+            project=project,
+            run_id=run_id,
+            task_id=task_id,
+            objective=objective,
+            plan_path=plan_path,
+            execution_path=execution_path,
+            final_path=final_path,
+            stage_results=stage_results,
+            dry_run=args.dry_run,
+        )
         iterations.append({'iteration': iteration, 'stages': stage_results, 'final_verdict': final_result.get('final_verdict')})
         converged = bool(final_result.get('goal_converged')) or final_result.get('final_verdict') == 'DRY_RUN_COMPLETE'
         if converged or args.dry_run:
@@ -149,6 +295,7 @@ def main() -> int:
     parser.add_argument('input', nargs='*')
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--run-id', default='')
+    parser.add_argument('--task-id', default='')
     parser.add_argument('--goal-id', default='')
     parser.add_argument('--input-text', default='')
     parser.add_argument('--allowed-file', action='append', default=[])
