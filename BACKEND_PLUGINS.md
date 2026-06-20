@@ -1,24 +1,21 @@
-# Backend Plugins
+# Advanced Execution Providers
 
-Agent Runtime uses pluggable execution backends.
+This file is for maintainers and advanced local setups.
 
-## User Commands
+Most users do not need this page. The normal product path is:
 
 ```powershell
-agent backend list
-agent backend switch <name>
+agent "fix README typo"
+agent "fix README typo" --apply
 ```
 
-## Included Backends
+## Advanced Configuration
 
-- `mock`: deterministic backend for product tests and demos.
-- `dry_run`: no-op backend for safe analysis.
-- `codex`: optional local execution backend plugin.
+Agent Runtime can use replaceable execution providers for tests, dry runs, and local execution.
 
-## Adding a Backend
+```powershell
+agent config backend mock
+agent debug backend list
+```
 
-Backends are replaceable providers. A new backend should return the same result shape as the included backends, avoid false success, and keep failures structured so users can recover.
-
-## Safety
-
-Backend failures must return structured failure results. They must not produce false success or mutate runtime state outside the execution contract.
+Provider failures must return structured failure results. They must not produce false success or mutate user state outside the requested task.

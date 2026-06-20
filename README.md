@@ -1,80 +1,65 @@
 # Agent Runtime
 
-CLI-first AI runtime with pluggable execution backend.
+Natural-language CLI for safe local AI tasks.
 
-Status: `0.9.0-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
-
-## Three Commands
-
-```powershell
-agent run "fix bug"
-agent pipeline "build feature"
-agent goal "complete project"
-```
-
-The product mental model is intentionally small:
+Status: `0.9.1-alpha`. The product surface is intentionally small:
 
 ```text
-User -> CLI -> Runtime -> Backend -> Result
+ask -> preview -> apply
 ```
 
-- `goal`: what you want done.
-- `run`: ask the runtime to work on it.
-- `result`: review the outcome and artifacts.
-
-## Install
+## Three-Minute Start
 
 ```powershell
 git clone <repo-url>
 cd agent-runtime
 .\bin\agent.cmd --version
+agent "fix README typo"
 ```
 
-Add `bin` to your user `PATH`, then use `agent` from any project workspace.
+By default, `agent "<task>"` runs in preview mode. It explains what would happen without applying changes.
 
-## Quickstart
+Apply is explicit:
 
 ```powershell
-agent backend list
-agent backend switch mock
-agent run "add a short README note" --workspace . --dry-run
-agent status --workspace . --no-write
+agent "fix README typo" --apply
 ```
 
-For a real backend, select one explicitly:
+## Everyday Commands
 
 ```powershell
-agent backend switch codex
-agent run "fix typo in README" --workspace . --dry-run
+agent "add a short README note"
+agent "add a short README note" --preview
+agent "fix README typo" --apply
+agent status
+agent undo
 ```
 
-Actual execution is opt-in through the runtime command flags and should start with low-risk, tightly scoped files.
+The default output is concise:
 
-## Backends
-
-Included backend plugins:
-
-- `mock`: deterministic local test backend.
-- `dry_run`: no-op backend for safe planning and demos.
-- `codex`: optional local execution plugin.
-
-The runtime core talks to backends through one execution interface. A backend failure should not corrupt runtime state or produce false success.
+```json
+{
+  "task": "fix README typo",
+  "mode": "preview",
+  "result": "PREVIEW_READY"
+}
+```
 
 ## Safety
 
+- Preview is the default.
+- File changes require `--apply`.
 - No automatic merge.
 - No automatic push.
 - No deployment or production migration.
 - No secret, API key, token, or `.env` content reading.
 - Local runtime metadata is ignored by Git by default.
 
-## Documentation
+## Learn More
 
 - [INSTALL.md](INSTALL.md)
 - [QUICKSTART.md](QUICKSTART.md)
 - [EXAMPLES.md](EXAMPLES.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
 - [CLI_REFERENCE.md](CLI_REFERENCE.md)
-- [BACKEND_PLUGINS.md](BACKEND_PLUGINS.md)
-- [docs/README.md](docs/README.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
 - [docs/product-mind-model.md](docs/product-mind-model.md)

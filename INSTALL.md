@@ -5,7 +5,6 @@
 - Windows PowerShell or a compatible shell.
 - Python 3.10+.
 - Git.
-- Optional: a real execution backend such as Codex CLI.
 
 ## Local Install
 
@@ -20,7 +19,7 @@ cd agent-runtime
 Add the repository `bin` directory to your user `PATH`:
 
 ```powershell
-$agentBin = "<repo>\\bin"
+$agentBin = "<REPO>\\bin"
 [Environment]::SetEnvironmentVariable(
   "Path",
   [Environment]::GetEnvironmentVariable("Path", "User") + ";" + $agentBin,
@@ -35,9 +34,8 @@ Restart PowerShell or VS Code after updating `PATH`.
 ```powershell
 agent --version
 agent --help
-agent backend list
-agent backend switch mock
-agent run "add a short README note" --dry-run
+agent "add a short README note"
+agent status
 ```
 
 ## Upgrade
@@ -46,5 +44,5 @@ Pull or copy the repository update, then rerun:
 
 ```powershell
 agent --version
-agent backend list
+agent "add a short README note"
 ```

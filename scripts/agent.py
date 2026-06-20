@@ -12,14 +12,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.9.0-github-alpha-release-freeze'
+VERSION = '0.9.1-ux-simplification-alpha'
 
 KNOWN_COMMANDS = {
     'bootstrap',
+    'ask',
     'backend',
+    'config',
+    'debug',
     'pipeline',
     'run',
     'status',
+    'undo',
     'rollback',
     'reroute',
     'map',
@@ -36,16 +40,16 @@ KNOWN_COMMANDS = {
     'global-loop',
 }
 COMMAND_TYPO_SUGGESTIONS = {
-    'rum': 'run',
-    'runn': 'run',
-    'rn': 'run',
+    'rum': '"your task" --preview',
+    'runn': '"your task" --preview',
+    'rn': '"your task" --preview',
     'stats': 'status',
     'statuz': 'status',
-    'pipline': 'pipeline',
-    'pipeine': 'pipeline',
-    'bakend': 'backend',
-    'backnd': 'backend',
-    'goals': 'goal',
+    'pipline': '"your task" --preview',
+    'pipeine': '"your task" --preview',
+    'bakend': 'config',
+    'backnd': 'config',
+    'goals': '"your task" --preview',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -768,9 +772,12 @@ def status(args) -> int:
         return int(result.get('returncode') or 0)
     goals = ((payload.get('goal_state') or {}).get('goals') or []) if isinstance(payload.get('goal_state'), dict) else []
     active = next((item for item in goals if item.get('status') == 'active'), {}) if isinstance(goals, list) else {}
-    goal_text = str(active.get('goal') or active.get('goal_id') or 'no active goal')
+    task_text = str(active.get('goal') or active.get('goal_id') or 'status')
     progress = clean_progress(active.get('progress', 0) if active else 0)
-    print_json({'goal': goal_text, 'progress': progress, 'result': payload.get('status') or 'unknown'})
+    summary = payload.get('status') or 'unknown'
+    if active:
+        summary = f'{summary}; progress {progress}'
+    print_json({'task': task_text, 'mode': 'status', 'result': summary})
     return int(result.get('returncode') or 0)
 
 
@@ -1094,19 +1101,19 @@ def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
         allow_ambiguous_fast=False,
         no_execute_governed_workers=False,
         dry_run=dry_run,
+        debug=False,
     )
 
 
 def interactive_help() -> str:
     return '\n'.join(
         [
-            'Commands:',
-            '  natural language       Run as: agent run <input>',
-            '  /goal <goal>           Set the active goal',
-            '  /status [--no-write]   Show runtime status',
-            '  /rollback <run-id> <task-id> [--yes]',
-            '  /exit                  Leave interactive mode',
-            '  /help                  Show this help',
+            'Try:',
+            '  fix README typo',
+            '  improve onboarding docs --preview',
+            '  agent status',
+            '  agent undo',
+            '  /exit',
         ]
     )
 
@@ -1142,7 +1149,7 @@ def interactive_shell(workspace: str = '.') -> int:
         command = parts[0]
         try:
             if command == '/status':
-                status(argparse.Namespace(workspace=str(project), run_id='', no_write='--no-write' in parts[1:]))
+                status(argparse.Namespace(workspace=str(project), run_id='', no_write='--no-write' in parts[1:], debug=False))
             elif command == '/review':
                 review(argparse.Namespace(workspace=str(project), run_id=parts[1] if len(parts) > 1 else ''))
             elif command == '/reroute':
@@ -1235,27 +1242,26 @@ def normalize_argv(argv: list[str]) -> list[str]:
     }:
         return ['goal', 'set', *argv[1:]]
     if first not in KNOWN_COMMANDS and not first.startswith('-'):
-        return ['run', *argv]
+        return ['ask', *argv]
     return argv
 
 
 def product_help() -> str:
-    return f"""usage: agent [-h] [--version] <command> ...
+    return f"""usage: agent "<task>" [--preview|--apply]
+       agent status
+       agent undo
 
-CLI-first AI runtime: goal -> run -> result.
+AI task runner: ask -> preview -> apply.
 
-commands:
-  run                Run a task and return a concise result.
-  pipeline           Run a task through the product flow.
-  goal               Set or inspect the current goal.
-  status             Show concise workspace status.
-  backend            List and switch execution backends.
+default:
+  preview only. Use --apply to allow changes.
 
 examples:
-  agent goal "make README onboarding clear"
-  agent backend list
-  agent backend switch mock
-  agent run "add a short README note" --dry-run
+  agent "fix README typo"
+  agent "add a short README note" --preview
+  agent "fix README typo" --apply
+  agent status
+  agent undo
 
 version: {VERSION}
 """
@@ -1264,17 +1270,136 @@ version: {VERSION}
 def product_subcommand_help(argv: list[str]) -> str:
     if len(argv) == 2 and argv[1] in {'-h', '--help'}:
         command = argv[0]
+        if command == 'ask':
+            return 'usage: agent "<task>" [--preview|--apply] [--workspace .]\n\nPreview by default. Use --apply only when you want changes.\n'
+        if command == 'undo':
+            return 'usage: agent undo [--preview|--apply] [--workspace .]\n\nPreview an undo plan by default.\n'
+        if command == 'config':
+            return 'usage: agent config backend <mock|dry_run|codex>\n\nAdvanced: choose an execution provider.\n'
+        if command == 'debug':
+            return 'usage: agent debug status|trace|backend ...\n\nAdvanced diagnostics only.\n'
         if command == 'run':
-            return 'usage: agent run "<task>" [--workspace .] [--dry-run]\n\nRun a task and print goal, progress, and result.\n'
+            return 'usage: agent "<task>" [--preview|--apply]\n\nThis compatibility command is hidden from normal use.\n'
         if command == 'pipeline':
-            return 'usage: agent pipeline "<task>" [--workspace .] [--dry-run]\n\nRun a task through the product flow and print a concise result.\n'
+            return 'usage: agent "<task>" [--preview|--apply]\n\nThis compatibility command is hidden from normal use.\n'
         if command == 'goal':
-            return 'usage: agent goal "<goal>"\n       agent goal show\n       agent goal list\n\nSet or inspect goals without exposing internal state.\n'
+            return 'usage: agent "<task>" [--preview|--apply]\n\nGoals are handled automatically in normal use.\n'
         if command == 'status':
-            return 'usage: agent status [--workspace .] [--no-write]\n\nShow goal, progress, and result.\n'
+            return 'usage: agent status [--workspace .] [--no-write]\n\nShow current task status.\n'
         if command == 'backend':
-            return 'usage: agent backend list\n       agent backend switch <backend>\n\nList or select an execution backend.\n'
+            return 'usage: agent config backend <mock|dry_run|codex>\n\nAdvanced configuration only.\n'
     return ''
+
+
+def user_task_result(*, task: str, mode: str, result: str) -> dict:
+    return {'task': task, 'mode': mode, 'result': result}
+
+
+def ask(args) -> int:
+    if args.preview and args.apply:
+        print_json(user_task_result(task=' '.join(args.input).strip(), mode='blocked', result='choose either --preview or --apply, not both'))
+        return 2
+    text = ' '.join(args.input).strip()
+    if not text:
+        print_json(user_task_result(task='', mode='blocked', result='please describe what you want done'))
+        return 2
+    mode = 'apply' if args.apply else 'preview'
+    ensure_bootstrap_before_run(args)
+    project = project_root(args.workspace)
+    selected_backend = str(read_backend_selection(project))
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'pipeline_loop.py'),
+        '--workspace',
+        str(project),
+        '--max-iterations',
+        '1',
+        '--sandbox',
+        'workspace-write',
+        '--timeout-seconds',
+        '360',
+        '--max-retries',
+        '2',
+        '--backend',
+        selected_backend,
+    ]
+    if mode == 'preview':
+        command.append('--dry-run')
+    else:
+        command.append('--allow-actual')
+    for item in args.allowed_file:
+        command.extend(['--allowed-file', item])
+    command.append(text)
+    proc = run_command_capture(command, ROOT)
+    stdout = str(proc.get('stdout') or '').strip()
+    payload: dict = {}
+    if stdout.startswith('{'):
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            payload = {}
+    if getattr(args, 'debug', False):
+        print(stdout if stdout else json.dumps({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')}, ensure_ascii=False, indent=2))
+        return int(proc.get('returncode') or 0)
+    if proc.get('returncode') != 0:
+        print_json(user_task_result(task=text, mode='blocked', result='could not complete; run with --preview or use agent debug status'))
+        return int(proc.get('returncode') or 1)
+    result = str(payload.get('final_verdict') or ('PREVIEW_READY' if mode == 'preview' else 'APPLIED'))
+    if mode == 'preview' and result == 'DRY_RUN_COMPLETE':
+        result = 'PREVIEW_READY'
+    print_json(user_task_result(task=text, mode=mode, result=result))
+    return 0
+
+
+def undo_command(args) -> int:
+    mode = 'apply' if getattr(args, 'apply', False) else 'preview'
+    if getattr(args, 'preview', False) and getattr(args, 'apply', False):
+        print_json(user_task_result(task='undo', mode='blocked', result='choose either --preview or --apply, not both'))
+        return 2
+    project = project_root(args.workspace)
+    latest = latest_run_id(project)
+    if not latest:
+        print_json(user_task_result(task='undo', mode=mode, result='nothing to undo'))
+        return 0
+    if mode == 'preview':
+        print_json(user_task_result(task='undo', mode='preview', result='undo preview ready'))
+        return 0
+    print_json(user_task_result(task='undo', mode='blocked', result='automatic undo apply is not available yet; preview only'))
+    return 2
+
+
+def config_command(args) -> int:
+    if args.config_action == 'backend':
+        result = backend_command(argparse.Namespace(backend_action='switch', name=args.name, workspace=args.workspace))
+        return result
+    print_json({'status': 'failed', 'result': 'unknown config command'})
+    return 2
+
+
+def debug_command(args) -> int:
+    if args.debug_action == 'status':
+        return status(argparse.Namespace(workspace=args.workspace, run_id='', no_write=True, debug=True))
+    if args.debug_action == 'trace':
+        project = project_root(args.workspace)
+        latest = latest_run_id(project)
+        if not latest:
+            print_json({'status': 'empty', 'result': 'no trace available'})
+            return 0
+        trace = project / '.zoo-agent' / 'runs' / latest / 'pipeline' / 'pipeline-loop.json'
+        if trace.exists():
+            print(trace.read_text(encoding='utf-8'))
+            return 0
+        print_json({'status': 'missing', 'result': 'trace not found'})
+        return 0
+    if args.debug_action == 'backend':
+        if args.backend_debug_action == 'list':
+            return backend_command(argparse.Namespace(backend_action='list', workspace=args.workspace))
+        if args.backend_debug_action == 'switch':
+            return backend_command(argparse.Namespace(backend_action='switch', name=args.name, workspace=args.workspace))
+        if args.backend_debug_action == 'health':
+            return backend_command(argparse.Namespace(backend_action='health', workspace=args.workspace))
+    print_json({'status': 'failed', 'result': 'unknown debug command'})
+    return 2
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1290,13 +1415,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     suggestion = COMMAND_TYPO_SUGGESTIONS.get(raw_argv[0].lower()) if raw_argv else ''
     if suggestion:
-        print_json({'goal': 'command help', 'progress': 'blocked', 'result': f'unknown command: {raw_argv[0]}; try: agent {suggestion}'})
+        print_json(user_task_result(task='command help', mode='blocked', result=f'unknown command: {raw_argv[0]}; try: agent {suggestion}'))
         return 2
     raw_argv = normalize_argv(raw_argv)
 
-    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI runtime: goal -> run -> result.')
+    parser = argparse.ArgumentParser(prog='agent', description='AI task runner: ask -> preview -> apply.')
     parser.add_argument('--version', action='version', version=f'agent {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
+
+    ask_parser = sub.add_parser('ask', help=argparse.SUPPRESS)
+    ask_parser.add_argument('input', nargs='*')
+    ask_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    ask_parser.add_argument('--allowed-file', action='append', default=[])
+    ask_parser.add_argument('--preview', action='store_true')
+    ask_parser.add_argument('--apply', action='store_true')
+    ask_parser.add_argument('--debug', action='store_true')
+    ask_parser.set_defaults(handler=ask)
 
     bootstrap_parser = sub.add_parser('bootstrap', help='Initialize CLI-first runtime state once.')
     bootstrap_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
@@ -1423,6 +1557,12 @@ def main(argv: list[str] | None = None) -> int:
     status_parser.add_argument('--debug', action='store_true')
     status_parser.set_defaults(handler=status)
 
+    undo_parser = sub.add_parser('undo', help=argparse.SUPPRESS)
+    undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    undo_parser.add_argument('--preview', action='store_true')
+    undo_parser.add_argument('--apply', action='store_true')
+    undo_parser.set_defaults(handler=undo_command)
+
     rollback_parser = sub.add_parser('rollback', help=argparse.SUPPRESS)
     rollback_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     rollback_parser.add_argument('--run-id', required=True)
@@ -1493,6 +1633,34 @@ def main(argv: list[str] | None = None) -> int:
     backend_health = backend_sub.add_parser('health', help='Show backend health summary.')
     backend_health.add_argument('--workspace', '--project', dest='workspace', default='.')
     backend_health.set_defaults(handler=backend_command)
+
+    config_parser = sub.add_parser('config', help=argparse.SUPPRESS)
+    config_sub = config_parser.add_subparsers(dest='config_action', required=True)
+    config_backend = config_sub.add_parser('backend')
+    config_backend.add_argument('name')
+    config_backend.add_argument('--workspace', '--project', dest='workspace', default='.')
+    config_backend.set_defaults(handler=config_command)
+
+    debug_parser = sub.add_parser('debug', help=argparse.SUPPRESS)
+    debug_sub = debug_parser.add_subparsers(dest='debug_action', required=True)
+    debug_status = debug_sub.add_parser('status')
+    debug_status.add_argument('--workspace', '--project', dest='workspace', default='.')
+    debug_status.set_defaults(handler=debug_command)
+    debug_trace = debug_sub.add_parser('trace')
+    debug_trace.add_argument('--workspace', '--project', dest='workspace', default='.')
+    debug_trace.set_defaults(handler=debug_command)
+    debug_backend = debug_sub.add_parser('backend')
+    debug_backend_sub = debug_backend.add_subparsers(dest='backend_debug_action', required=True)
+    debug_backend_list = debug_backend_sub.add_parser('list')
+    debug_backend_list.add_argument('--workspace', '--project', dest='workspace', default='.')
+    debug_backend_list.set_defaults(handler=debug_command)
+    debug_backend_switch = debug_backend_sub.add_parser('switch')
+    debug_backend_switch.add_argument('name')
+    debug_backend_switch.add_argument('--workspace', '--project', dest='workspace', default='.')
+    debug_backend_switch.set_defaults(handler=debug_command)
+    debug_backend_health = debug_backend_sub.add_parser('health')
+    debug_backend_health.add_argument('--workspace', '--project', dest='workspace', default='.')
+    debug_backend_health.set_defaults(handler=debug_command)
 
     goal_parser = sub.add_parser('goal', help='Set or inspect the current goal.')
     goal_sub = goal_parser.add_subparsers(dest='goal_action', required=True)

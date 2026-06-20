@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -35,8 +35,7 @@ def payload(proc: subprocess.CompletedProcess[str]) -> dict:
 
 
 def init_repo(env: dict[str, str]) -> Path:
-    base = Path(tempfile.gettempdir())
-    repo = Path(tempfile.mkdtemp(prefix='product-alpha-', dir=str(base))).resolve()
+    repo = Path(tempfile.mkdtemp(prefix='product-alpha-', dir=tempfile.gettempdir())).resolve()
     (repo / 'README.md').write_text('# Product Alpha\n', encoding='utf-8')
     run(['git', 'init'], repo, env=env)
     run(['git', 'config', 'user.email', 'product-alpha@example.local'], repo, env=env)
@@ -46,19 +45,14 @@ def init_repo(env: dict[str, str]) -> Path:
     return repo
 
 
-def assert_no_internal_leak(text: str) -> None:
-    forbidden = [
-        '"planner"',
-        '"executor"',
-        '"verifier"',
-        'scheduler_control',
-        'goal_state_management',
-        'goal_state_manager',
-        'runtime_status.py',
-        'execution_result',
-    ]
+def assert_public_payload(text: str) -> dict:
+    parsed = json.loads(text)
+    assert sorted(parsed) == ['mode', 'result', 'task'], parsed
+    forbidden = ['planner', 'executor', 'verifier', 'scheduler', 'goal_state', 'pipeline_loop.py']
+    lowered = text.lower()
     for item in forbidden:
-        assert item not in text, f'product output leaked internal term: {item}'
+        assert item not in lowered, f'public output leaked internal term: {item}'
+    return parsed
 
 
 def main() -> int:
@@ -66,86 +60,83 @@ def main() -> int:
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='product-alpha-codex-home-')).resolve()))
     Path(env['CODEX_HOME']).mkdir(parents=True, exist_ok=True)
 
-    for required in ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'ARCHITECTURE.md', 'CLI_REFERENCE.md', 'BACKEND_PLUGINS.md', 'docs/product-mind-model.md']:
+    for required in ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'ARCHITECTURE.md', 'CLI_REFERENCE.md', 'docs/product-mind-model.md']:
         assert (ROOT / required).exists(), f'missing product document: {required}'
 
     version = run([sys.executable, str(AGENT), '--version'], ROOT, env=env).stdout
-    assert '0.9.0' in version
+    assert '0.9.1' in version
 
-    help_text = run([sys.executable, str(AGENT), '--help'], ROOT, env=env).stdout
-    for visible in ['run', 'pipeline', 'goal', 'status', 'backend']:
+    help_text = run([sys.executable, str(AGENT), '--help'], ROOT, env=env).stdout.lower()
+    for visible in ['agent "<task>"', 'status', 'undo', 'preview', 'apply']:
         assert visible in help_text
-    for hidden in ['planner', 'executor', 'verifier', 'codex-health', 'rollback']:
+    for hidden in ['planner', 'executor', 'verifier', 'scheduler', 'backend list', 'pipeline "']:
         assert hidden not in help_text
-    backend_help = run([sys.executable, str(AGENT), 'backend', '--help'], ROOT, env=env).stdout
-    assert 'backend health' not in backend_help
-    assert 'health' not in backend_help
 
     repo = init_repo(env)
-    run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo)], repo, env=env)
+    run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=env)
 
-    backend_list = payload(run([sys.executable, str(AGENT), 'backend', 'list', '--workspace', str(repo)], repo, env=env))
-    assert backend_list['status'] == 'ok'
-    assert {'mock', 'dry_run', 'codex'}.issubset(set(backend_list['available_backends']))
-
-    switched = payload(run([sys.executable, str(AGENT), 'backend', 'switch', 'mock', '--workspace', str(repo)], repo, env=env))
-    assert switched == {'status': 'ok', 'selected_backend': 'mock', 'result': 'backend switched'}
-
-    goal = payload(run([sys.executable, str(AGENT), 'goal', 'make README onboarding clear', '--workspace', str(repo)], repo, env=env))
-    assert goal == {'goal': 'make README onboarding clear', 'progress': 'active', 'result': 'goal set'}
-
-    result1_proc = run(
-        [
-            sys.executable,
-            str(AGENT),
-            'run',
-            'add a short README note',
-            '--workspace',
-            str(repo),
-            '--run-id',
-            'product-alpha-run',
-            '--allowed-file',
-            'README.md',
-            '--dry-run',
-        ],
-        repo,
-        env=env,
+    preview = assert_public_payload(
+        run(
+            [
+                sys.executable,
+                str(AGENT),
+                'add a short README note',
+                '--workspace',
+                str(repo),
+                '--allowed-file',
+                'README.md',
+                '--preview',
+            ],
+            repo,
+            env=env,
+        ).stdout
     )
-    assert_no_internal_leak(result1_proc.stdout)
-    result1 = payload(result1_proc)
-    assert result1 == {'goal': 'add a short README note', 'progress': 'complete', 'result': 'DRY_RUN_COMPLETE'}
+    assert preview['mode'] == 'preview'
+    assert preview['result'] == 'PREVIEW_READY'
 
-    execution = json.loads((repo / '.zoo-agent' / 'runs' / 'product-alpha-run' / 'pipeline' / 'execution_result.json').read_text(encoding='utf-8'))
-    leaf = execution['leaf_results'][0]
-    assert leaf['backend_type'] == 'mock'
-    assert not any(key.startswith('codex_') for key in leaf)
-
-    result2_proc = run(
-        [
-            sys.executable,
-            str(AGENT),
-            'pipeline',
-            'add a short README note',
-            '--workspace',
-            str(repo),
-            '--run-id',
-            'product-alpha-pipeline',
-            '--allowed-file',
-            'README.md',
-            '--dry-run',
-        ],
-        repo,
-        env=env,
+    default_preview = assert_public_payload(
+        run(
+            [
+                sys.executable,
+                str(AGENT),
+                'fix README typo',
+                '--workspace',
+                str(repo),
+                '--allowed-file',
+                'README.md',
+            ],
+            repo,
+            env=env,
+        ).stdout
     )
-    assert_no_internal_leak(result2_proc.stdout)
-    result2 = payload(result2_proc)
-    assert result2 == {'goal': 'add a short README note', 'progress': 'complete', 'result': 'DRY_RUN_COMPLETE'}
+    assert default_preview['mode'] == 'preview'
 
-    status = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo, env=env)
-    assert status.returncode == 0
-    assert_no_internal_leak(status.stdout)
-    status_payload = payload(status)
-    assert sorted(status_payload) == ['goal', 'progress', 'result']
+    applied = assert_public_payload(
+        run(
+            [
+                sys.executable,
+                str(AGENT),
+                'add a controlled README line',
+                '--workspace',
+                str(repo),
+                '--allowed-file',
+                'README.md',
+                '--apply',
+            ],
+            repo,
+            env=env,
+        ).stdout
+    )
+    assert applied['mode'] == 'apply'
+
+    status = assert_public_payload(run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo, env=env).stdout)
+    assert status['mode'] == 'status'
+
+    undo = assert_public_payload(run([sys.executable, str(AGENT), 'undo', '--workspace', str(repo)], repo, env=env).stdout)
+    assert undo['mode'] == 'preview'
+
+    debug = run([sys.executable, str(AGENT), 'debug', 'status', '--workspace', str(repo)], repo, env=env)
+    assert any(term in debug.stdout for term in ['goal_state', 'loop_state', 'runtime_status'])
 
     print('product alpha tests passed')
     return 0

@@ -1,31 +1,33 @@
 # Architecture
 
-Agent Runtime is a CLI-first runtime engine with replaceable execution backends.
+Agent Runtime presents one simple product flow:
 
 ```text
-User -> CLI -> Runtime -> Backend -> Result
+User -> Agent CLI -> Result
+```
+
+The default experience is:
+
+```text
+ask -> preview -> apply
 ```
 
 ## Product Surface
 
-Users work through a small command set:
+Users normally need only:
 
-- `agent goal "<goal>"`
-- `agent run "<task>"`
-- `agent pipeline "<task>"`
+- `agent "<task>"`
+- `agent "<task>" --apply`
 - `agent status`
-- `agent backend list`
-- `agent backend switch <backend>`
-
-The runtime hides implementation details and returns concise results by default.
+- `agent undo`
 
 ## Safety Model
 
-The runtime is conservative by default:
+- Preview is the default.
+- Applying changes requires an explicit flag.
+- Work is scoped to the current workspace.
+- No automatic merge.
+- No automatic push.
+- No secret content reads.
 
-- dry-run is supported everywhere
-- actual execution should be scoped
-- no automatic merge
-- no automatic push
-- no secret content reads
-- rollback defaults to dry-run
+Advanced diagnostics exist for maintainers, but they are hidden from the normal product path.

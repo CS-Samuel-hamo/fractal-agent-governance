@@ -1,39 +1,37 @@
 # Quickstart
 
-## 1. Choose a Backend
+## 1. Preview a Task
 
 ```powershell
-agent backend list
-agent backend switch mock
+agent "add a short README note"
 ```
 
-Use `mock` or `dry_run` for first trials. Switch to a real backend only after dry-runs look correct.
-
-## 2. Run a Task
-
-```powershell
-agent run "add a short README note" --workspace . --dry-run
-```
-
-The CLI prints a concise result:
+This is safe by default. The command previews the work and prints a concise result:
 
 ```json
 {
-  "goal": "add a short README note",
-  "progress": "complete",
-  "result": "DRY_RUN_COMPLETE"
+  "task": "add a short README note",
+  "mode": "preview",
+  "result": "PREVIEW_READY"
 }
 ```
 
-## 3. Set a Goal
+## 2. Apply Only When Ready
 
 ```powershell
-agent goal "make README onboarding clear"
-agent run "improve README onboarding wording" --dry-run
+agent "add a short README note" --apply
 ```
 
-## 4. Inspect Status
+Use `--apply` only after the preview looks right.
+
+## 3. Check Status
 
 ```powershell
-agent status --workspace . --no-write
+agent status
+```
+
+## 4. Preview Undo
+
+```powershell
+agent undo
 ```

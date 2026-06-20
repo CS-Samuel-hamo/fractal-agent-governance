@@ -1,28 +1,31 @@
 # Examples
 
-## Documentation Dry-run
+## Documentation Preview
 
 ```powershell
-agent backend switch mock
-agent run "add a README troubleshooting note" --dry-run --allowed-file README.md
+agent "add a README troubleshooting note"
 ```
 
-## Small Code Task
+## Documentation Apply
 
 ```powershell
-agent goal "improve local utility reliability"
-agent run "add one unit test for the local utility module" --dry-run --allowed-file <TEST_FILE>
+agent "fix README typo" --apply
 ```
 
-## Backend Selection
+## Small Code Preview
 
 ```powershell
-agent backend list
-agent backend switch dry_run
+agent "add one unit test for the local utility module"
 ```
 
-## Status
+## Check Status
 
 ```powershell
-agent status --no-write
+agent status
+```
+
+## Preview Undo
+
+```powershell
+agent undo
 ```

@@ -1,47 +1,45 @@
 # Product Mind Model
 
-Agent Runtime exposes a small user model:
+Agent Runtime should feel like a small assistant you can ask to work safely.
 
 ```text
-goal -> run -> result
+ask -> preview -> apply
 ```
 
-## Goal
+## Ask
 
-A goal is what the user wants to accomplish.
-
-Example:
+Say what you want:
 
 ```powershell
-agent goal "make README onboarding clear"
+agent "fix README typo"
 ```
 
-## Run
+## Preview
 
-A run asks the runtime to work on a task.
+Preview is the default. The tool reports what it can do without applying changes.
 
-Example:
+```json
+{
+  "task": "fix README typo",
+  "mode": "preview",
+  "result": "PREVIEW_READY"
+}
+```
+
+## Apply
+
+Apply is explicit:
 
 ```powershell
-agent run "add a README troubleshooting note" --dry-run
+agent "fix README typo" --apply
 ```
 
 ## Result
 
-A result is the outcome the user reviews.
+The normal output uses three fields:
 
-Example result fields:
+- `task`: what you asked for
+- `mode`: preview, apply, status, or blocked
+- `result`: the concise outcome
 
-- `status`
-- `goal`
-- `run`
-- `result`
-- `artifacts`
-
-## What Users Do Not Need To Learn
-
-Normal users do not need to understand internal control modules, legacy compatibility tools, or execution internals. The CLI should keep the day-to-day model focused on goal, run, and result.
-
-## Backends
-
-Backends are selectable execution providers. Users only need to know which backends are available, which backend is selected, and whether the selected backend is healthy.
+Normal users do not need to learn internal implementation terms. Debug details are available only through explicit debug commands.

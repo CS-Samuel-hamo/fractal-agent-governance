@@ -25,7 +25,7 @@ DEFAULT_FORBIDDEN = [
     'verifier',
     'aggregation',
     'execution_result',
-    'backend internal',
+    'pipeline_loop.py',
 ]
 DOC_FORBIDDEN = [
     'goal_state_manager',
@@ -37,6 +37,11 @@ DOC_FORBIDDEN = [
     'executor',
     'verifier',
     'aggregation',
+    'backend list',
+    'backend switch',
+    'agent run ',
+    'agent pipeline',
+    'agent goal',
 ]
 
 
@@ -71,7 +76,7 @@ def assert_product_payload(text: str) -> dict:
     for term in DEFAULT_FORBIDDEN:
         assert term not in lowered, f'internal runtime term leaked in product output: {term}'
     parsed = payload(type('Completed', (), {'stdout': text})())
-    assert sorted(parsed) == ['goal', 'progress', 'result'], parsed
+    assert sorted(parsed) == ['mode', 'result', 'task'], parsed
     return parsed
 
 
@@ -87,13 +92,14 @@ def init_repo(env: dict[str, str]) -> Path:
 
 
 def assert_docs_clean() -> None:
-    for rel in ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'CLI_REFERENCE.md', 'BACKEND_PLUGINS.md', 'ARCHITECTURE.md', 'docs/product-mind-model.md']:
+    public_docs = ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'CLI_REFERENCE.md', 'ARCHITECTURE.md', 'docs/README.md', 'docs/product-mind-model.md']
+    for rel in public_docs:
         text = (ROOT / rel).read_text(encoding='utf-8')
         assert '.py' not in text, f'{rel} exposes script file paths'
         assert not ABSOLUTE_PATH_RE.search(text), f'{rel} exposes a local absolute path'
         lowered = text.lower()
         for term in DOC_FORBIDDEN:
-            assert term not in lowered, f'{rel} exposes internal term: {term}'
+            assert term not in lowered, f'{rel} exposes internal or old product term: {term}'
 
 
 def main() -> int:
@@ -103,130 +109,41 @@ def main() -> int:
 
     assert_docs_clean()
     repo = init_repo(env)
+    run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=env)
 
-    no_bootstrap_run = run(
+    no_bootstrap_preview = run(
         [
             sys.executable,
             str(AGENT),
-            'run',
             'fix README typo',
             '--workspace',
             str(repo),
-            '--run-id',
-            'surface-no-bootstrap',
             '--allowed-file',
             'README.md',
-            '--dry-run',
         ],
         repo,
         env=env,
     )
-    assert_product_payload(no_bootstrap_run.stdout)
-
-    bootstrap = run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo)], repo, env=env)
-    assert_product_payload(bootstrap.stdout)
-
-    run([sys.executable, str(AGENT), 'backend', 'switch', 'mock', '--workspace', str(repo)], repo, env=env)
-    goal = run([sys.executable, str(AGENT), 'goal', 'make README onboarding clear', '--workspace', str(repo)], repo, env=env)
-    assert_product_payload(goal.stdout)
+    first = assert_product_payload(no_bootstrap_preview.stdout)
+    assert first['mode'] == 'preview'
 
     status = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo, env=env)
     assert_product_payload(status.stdout)
 
-    run_result = run(
-        [
-            sys.executable,
-            str(AGENT),
-            'run',
-            'add a short README note',
-            '--workspace',
-            str(repo),
-            '--run-id',
-            'surface-run',
-            '--allowed-file',
-            'README.md',
-            '--dry-run',
-        ],
-        repo,
-        env=env,
-    )
-    assert_product_payload(run_result.stdout)
-
-    pipeline_result = run(
-        [
-            sys.executable,
-            str(AGENT),
-            'pipeline',
-            'add a short README note',
-            '--workspace',
-            str(repo),
-            '--run-id',
-            'surface-pipeline',
-            '--allowed-file',
-            'README.md',
-            '--dry-run',
-        ],
-        repo,
-        env=env,
-    )
-    assert_product_payload(pipeline_result.stdout)
-
-    rollback_result = run(
-        [
-            sys.executable,
-            str(AGENT),
-            'rollback',
-            '--workspace',
-            str(repo),
-            '--run-id',
-            'surface-missing-run',
-            '--task-id',
-            'surface-missing-task',
-            '--dry-run',
-        ],
-        repo,
-        env=env,
-    )
-    assert_product_payload(rollback_result.stdout)
+    undo = run([sys.executable, str(AGENT), 'undo', '--workspace', str(repo)], repo, env=env)
+    assert_product_payload(undo.stdout)
 
     for typo in ['rum', 'runn']:
         typo_result = run([sys.executable, str(AGENT), typo], repo, env=env, check=False)
         assert typo_result.returncode != 0
-        assert_product_payload(typo_result.stdout)
-        assert 'try: agent run' in typo_result.stdout
+        typo_payload = assert_product_payload(typo_result.stdout)
+        assert 'try: agent "' in typo_payload['result']
 
-    empty_goal = run([sys.executable, str(AGENT), 'goal', ''], repo, env=env, check=False)
-    assert empty_goal.returncode != 0
-    assert_product_payload(empty_goal.stdout)
-    assert 'missing goal' in empty_goal.stdout
+    debug_status = run([sys.executable, str(AGENT), 'debug', 'status', '--workspace', str(repo)], repo, env=env)
+    assert any(term in debug_status.stdout for term in ['runtime_status', 'goal_state', 'loop_state'])
 
-    wrong_backend = run([sys.executable, str(AGENT), 'backend', 'switch', 'not-real', '--workspace', str(repo)], repo, env=env, check=False)
-    assert wrong_backend.returncode != 0
-    assert not ABSOLUTE_PATH_RE.search(wrong_backend.stdout)
-    assert 'unknown backend' in wrong_backend.stdout
-
-    debug_status = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write', '--debug'], repo, env=env)
-    assert any(term in debug_status.stdout for term in ['runtime_status.py', 'goal_state', 'loop_state'])
-
-    debug_run = run(
-        [
-            sys.executable,
-            str(AGENT),
-            'run',
-            'add a short README note',
-            '--workspace',
-            str(repo),
-            '--run-id',
-            'surface-debug-run',
-            '--allowed-file',
-            'README.md',
-            '--dry-run',
-            '--debug',
-        ],
-        repo,
-        env=env,
-    )
-    assert any(term in debug_run.stdout for term in ['stages', 'pipeline_loop.py'])
+    debug_trace = run([sys.executable, str(AGENT), 'debug', 'trace', '--workspace', str(repo)], repo, env=env)
+    assert debug_trace.returncode == 0
 
     print('product surface hardening tests passed')
     return 0

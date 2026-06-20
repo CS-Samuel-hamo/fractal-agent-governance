@@ -3,7 +3,7 @@
 Agent Runtime keeps the public model small:
 
 ```text
-goal -> run -> result
+ask -> preview -> apply
 ```
 
 Start here:
@@ -12,4 +12,4 @@ Start here:
 - [Install](../INSTALL.md)
 - [Quickstart](../QUICKSTART.md)
 - [CLI Reference](../CLI_REFERENCE.md)
-- [Backend Plugins](../BACKEND_PLUGINS.md)
+- [Examples](../EXAMPLES.md)
