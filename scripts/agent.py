@@ -12,10 +12,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.7.0-multi-goal-execution-runtime'
+VERSION = '0.7.5-three-stage-pipeline-runtime'
 
 KNOWN_COMMANDS = {
     'bootstrap',
+    'pipeline',
     'run',
     'status',
     'rollback',
@@ -528,6 +529,40 @@ def run(args) -> int:
     return run_command(command, ROOT)
 
 
+def pipeline(args) -> int:
+    ensure_bootstrap_before_run(args)
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'pipeline_loop.py'),
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--max-iterations',
+        str(args.max_iterations),
+        '--sandbox',
+        args.sandbox,
+        '--timeout-seconds',
+        str(args.timeout_seconds),
+    ]
+    if args.run_id:
+        command.extend(['--run-id', args.run_id])
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.force_path:
+        command.extend(['--force-path', args.force_path])
+    if args.dry_run:
+        command.append('--dry-run')
+    if args.allow_actual:
+        command.append('--allow-actual')
+    if args.codex_home:
+        command.extend(['--codex-home', args.codex_home])
+    for item in args.allowed_file:
+        command.extend(['--allowed-file', item])
+    for item in args.denied_file:
+        command.extend(['--denied-file', item])
+    command.extend(args.input)
+    return run_command(command, ROOT)
+
+
 def plan_big(args) -> int:
     run_id = args.run_id or 'run-big-task'
     text = ' '.join(args.input).strip()
@@ -1033,6 +1068,22 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
 
+    pipeline_parser = sub.add_parser('pipeline', help='Run the simplified goal -> planner -> executor -> verifier pipeline.')
+    pipeline_parser.add_argument('input', nargs='*')
+    pipeline_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    pipeline_parser.add_argument('--run-id', default='')
+    pipeline_parser.add_argument('--goal-id', default='')
+    pipeline_parser.add_argument('--allowed-file', action='append', default=[])
+    pipeline_parser.add_argument('--denied-file', action='append', default=[])
+    pipeline_parser.add_argument('--force-path', choices=['', 'fast', 'parallel', 'governed'], default='')
+    pipeline_parser.add_argument('--max-iterations', type=int, default=1)
+    pipeline_parser.add_argument('--dry-run', action='store_true')
+    pipeline_parser.add_argument('--allow-actual', action='store_true')
+    pipeline_parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
+    pipeline_parser.add_argument('--codex-home', default='')
+    pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
+    pipeline_parser.set_defaults(handler=pipeline)
+
     plan_big_parser = sub.add_parser('plan-big', help='Create a big task readiness contract without Codex actual execution.')
     plan_big_parser.add_argument('input', nargs='*')
     plan_big_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
@@ -1201,7 +1252,7 @@ def main(argv: list[str] | None = None) -> int:
     health_parser.set_defaults(handler=codex_health)
 
     args = parser.parse_args(raw_argv)
-    if args.command == 'run' and not ' '.join(args.input).strip():
+    if args.command in {'run', 'pipeline'} and not ' '.join(args.input).strip():
         print('Missing task input.', file=sys.stderr)
         return 2
     return args.handler(args)
