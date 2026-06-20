@@ -222,6 +222,39 @@ def parse_backend_options(items: list[str] | None) -> dict[str, Any]:
     return options
 
 
+def normalize_risk_level(value: Any) -> str:
+    risk = str(value or 'unknown').strip().lower()
+    if risk in {'low', 'medium', 'high'}:
+        return risk
+    if risk == 'critical':
+        return 'high'
+    return 'unknown'
+
+
+def decision_control_payload(*, risk_level: str, allow_actual: bool, action: str = 'advisory_only') -> dict[str, Any]:
+    recommendation = 'proceed' if risk_level == 'low' else ('review' if risk_level == 'medium' else 'avoid')
+    return {
+        'recommendation': recommendation,
+        'requires_user_confirmation': True,
+        'trust_score': None,
+        'risk_level': risk_level,
+        'safe_to_apply': 'suggested_only',
+        'action': action,
+        'explicit_apply_requested': bool(allow_actual),
+        'reasoning': 'AI output is advisory. Execution requires explicit user action, and non-low-risk changes require a separate confirmation step.',
+    }
+
+
+def confirmation_prompt(risk_level: str) -> str:
+    impact = 'module-level change' if risk_level in {'medium', 'high', 'unknown'} else 'limited local change'
+    return (
+        '[CONFIRM REQUIRED]\n'
+        'Do you want to proceed?\n'
+        f'- risk: {risk_level}\n'
+        f'- impact: {impact}'
+    )
+
+
 def execute_leaf_once(
     *,
     workspace: Path,
@@ -460,6 +493,7 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
         leaf_id = str(leaf.get('leaf_id') or f'leaf-{len(leaf_results) + 1:03d}')
         task_dir = pipeline_dir / 'executor-task-packs' / leaf_id
         execution_mode = str(leaf.get('execution_mode') or 'dry_run_only')
+        risk_level = normalize_risk_level(leaf.get('risk_level'))
         leaf_result: dict[str, Any] = {
             'leaf_id': leaf_id,
             'objective': leaf.get('objective', ''),
@@ -480,8 +514,29 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
             'execution_time': '',
             'notes': 'actual execution disabled',
             'result': 'not_executed_actual_disabled',
+            'requires_user_confirmation': bool(args.allow_actual),
+            'decision_control': decision_control_payload(risk_level=risk_level, allow_actual=bool(args.allow_actual)),
         }
-        if actual_requested and execution_mode == 'actual_allowed' and leaf.get('resolution') == 'execute':
+        if actual_requested and execution_mode == 'actual_allowed' and leaf.get('resolution') == 'execute' and risk_level != 'low':
+            leaf_result.update(
+                {
+                    'execution_mode': 'confirmation_required',
+                    'backend_status': 'not_invoked_confirmation_required',
+                    'delivery_outcome': 'blocked',
+                    'reason': 'user_confirmation_required_for_risky_change',
+                    'execution_status': 'unknown',
+                    'confidence': 0.0,
+                    'notes': 'non_low_risk_change_requires_user_confirmation',
+                    'result': 'user_confirmation_required',
+                    'confirmation_prompt': confirmation_prompt(risk_level),
+                    'decision_control': decision_control_payload(
+                        risk_level=risk_level,
+                        allow_actual=bool(args.allow_actual),
+                        action='blocked_pending_user_confirmation',
+                    ),
+                }
+            )
+        elif actual_requested and execution_mode == 'actual_allowed' and leaf.get('resolution') == 'execute':
             resilient = resilient_execute_leaf(
                 workspace=workspace,
                 task_dir=task_dir,
@@ -520,6 +575,13 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                     'notes': final_model.get('notes', ''),
                     **final_delivery,
                     'result': 'backend_worker_resilient_execution',
+                    'requires_user_confirmation': True,
+                    'user_confirmation_source': '--apply',
+                    'decision_control': decision_control_payload(
+                        risk_level=risk_level,
+                        allow_actual=bool(args.allow_actual),
+                        action='explicit_user_apply_low_risk',
+                    ),
                 }
             )
             if final_delivery.get('delivery_outcome') == 'dry_run_only':
@@ -563,6 +625,15 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
             'changed_files_available': True,
             'delivery_outcomes_available': True,
             'scope_evidence_available': True,
+        },
+        'decision_control': {
+            'enabled': True,
+            'suggestion_only': True,
+            'trust_score_is_advisory': True,
+            'risk_level_is_advisory': True,
+            'safe_to_apply': 'suggested_only',
+            'actual_requires_explicit_user_action': True,
+            'non_low_risk_requires_separate_confirmation': True,
         },
         'execution_resilience': {
             'enabled': True,

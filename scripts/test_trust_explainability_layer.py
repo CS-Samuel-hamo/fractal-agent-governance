@@ -84,10 +84,16 @@ def main() -> int:
     assert 0.0 <= float(trust['trust_score']) <= 1.0
     assert trust['confidence_level'] in {'low', 'medium', 'high'}
     assert trust['reasoning']
+    assert trust['safe_to_apply'] == 'suggested_only'
+    assert trust['requires_user_confirmation'] is True
+    assert trust['recommendation'] in {'proceed', 'review', 'avoid'}
 
     safety = load(repo / '.zoo-agent' / 'explain' / 'safety_summary.json')
-    for field in ['what_changed', 'risk_level', 'impact_scope', 'safe_to_deploy', 'rollback_available', 'summary']:
+    for field in ['what_changed', 'recommendation', 'requires_user_confirmation', 'risk_level', 'impact_scope', 'safe_to_apply', 'rollback_available', 'reasoning', 'summary']:
         assert field in safety
+    assert safety['safe_to_apply'] == 'suggested_only'
+    assert safety['requires_user_confirmation'] is True
+    assert safety['recommendation'] in {'proceed', 'review', 'avoid'}
     assert_no_internal_terms({'summary': safety['summary']})
     assert (repo / '.zoo-agent' / 'explain' / 'safety_summary.md').exists()
 

@@ -27,6 +27,15 @@ def _clean(text: str) -> str:
     return output
 
 
+def _recommendation(risk: str, trust: dict[str, Any]) -> str:
+    confidence = str(trust.get('confidence_level') or 'unknown')
+    if risk == 'high' or confidence == 'low':
+        return 'avoid'
+    if risk == 'medium' or confidence == 'medium':
+        return 'review'
+    return 'proceed'
+
+
 def build_execution_explanation(
     *,
     plan: dict[str, Any],
@@ -42,7 +51,9 @@ def build_execution_explanation(
     affected = impact.get('affected_files') or []
     verdict = str(final_result.get('final_verdict') or 'UNKNOWN')
     changed_sentence = 'No business files were changed.' if not affected else 'Changed or targeted: ' + ', '.join(str(item) for item in affected[:8])
-    risk_text = f"Risk is {impact.get('cross_module_risk', 'unknown')} with rollback cost {impact.get('rollback_cost', 'unknown')}."
+    risk = str(trust.get('risk_level') or ('medium' if impact.get('cross_module_risk') == 'medium' else 'low'))
+    recommendation = _recommendation(risk, trust)
+    risk_text = f"Risk is {risk} with rollback cost {impact.get('rollback_cost', 'unknown')}."
     if trust.get('confidence_level') == 'low':
         risk_text += ' Review carefully before relying on this result.'
     payload = {
@@ -50,6 +61,12 @@ def build_execution_explanation(
         'generated_by': 'explanation_engine.py',
         'generated_at': utc_now(),
         'task_id': execution.get('run_id') or final_result.get('run_id') or '',
+        'recommendation': recommendation,
+        'requires_user_confirmation': True,
+        'trust_score': trust.get('trust_score', 0.0),
+        'risk_level': risk,
+        'safe_to_apply': 'suggested_only',
+        'reasoning': _clean('This explanation is guidance only. The user must decide whether to apply any change.'),
         'why_this_change': _clean(f"The task asked for: {objective or 'a local workspace change'}. The run stayed within the requested scope."),
         'what_changed': [str(item) for item in affected],
         'why_this_approach': _clean('The system chose the smallest available change path and kept risky or unrelated work out of scope.'),

@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.9.2-alpha'
+VERSION = '0.9.3-alpha'
 
 KNOWN_COMMANDS = {
     'bootstrap',

@@ -17,20 +17,38 @@ def _risk_level(impact: dict[str, Any], trust: dict[str, Any]) -> str:
     return 'low'
 
 
+def _recommendation(risk: str, trust: dict[str, Any], final_result: dict[str, Any]) -> str:
+    verdict = str(final_result.get('final_verdict') or '')
+    confidence = str(trust.get('confidence_level') or 'unknown')
+    if risk == 'high' or confidence == 'low' or verdict in {'BLOCKED', 'NO_DELIVERY'}:
+        return 'avoid'
+    if risk == 'medium' or confidence == 'medium' or verdict in {'PARTIAL', 'NEEDS_DELIVERY_VERIFICATION'}:
+        return 'review'
+    return 'proceed'
+
+
 def build_safety_summary(explanation: dict[str, Any], impact: dict[str, Any], trust: dict[str, Any], final_result: dict[str, Any]) -> dict[str, Any]:
     risk = _risk_level(impact, trust)
     affected = impact.get('affected_files') or []
-    safe_to_deploy = risk == 'low' and str(final_result.get('final_verdict') or '') in {'COMPLETED', 'DRY_RUN_COMPLETE'}
+    recommendation = _recommendation(risk, trust, final_result)
     rollback_available = impact.get('rollback_cost') in {'low', 'medium'}
     if affected:
         changed = ', '.join(str(item) for item in affected[:8])
     else:
         changed = 'No business files changed.'
+    reasoning = (
+        f"Recommendation is {recommendation}. Risk is {risk}, confidence is "
+        f"{trust.get('confidence_level', 'unknown')}, and the result is "
+        f"{final_result.get('final_verdict', 'unknown')}. This is guidance only; "
+        "the user must decide before applying changes."
+    )
     summary_lines = [
         f"What changed: {changed}",
         f"Risk level: {risk}",
         f"Impact scope: {impact.get('cross_module_risk', 'unknown')}",
-        f"Safe to deploy: {'yes' if safe_to_deploy else 'no'}",
+        f"Recommendation: {recommendation}",
+        'Requires confirmation: yes',
+        'Safe to apply: suggested_only',
         f"Rollback available: {'yes' if rollback_available else 'no'}",
     ]
     return {
@@ -39,12 +57,15 @@ def build_safety_summary(explanation: dict[str, Any], impact: dict[str, Any], tr
         'generated_at': utc_now(),
         'run_id': final_result.get('run_id') or explanation.get('task_id') or '',
         'what_changed': changed,
+        'recommendation': recommendation,
+        'requires_user_confirmation': True,
         'risk_level': risk,
         'impact_scope': impact.get('cross_module_risk', 'unknown'),
-        'safe_to_deploy': bool(safe_to_deploy),
+        'safe_to_apply': 'suggested_only',
         'rollback_available': bool(rollback_available),
         'trust_score': trust.get('trust_score', 0.0),
         'confidence_level': trust.get('confidence_level', 'unknown'),
+        'reasoning': reasoning,
         'summary': '\n'.join(summary_lines),
     }
 

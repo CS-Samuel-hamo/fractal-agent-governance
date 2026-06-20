@@ -217,10 +217,12 @@ def run_trust_explainability_layer(
     run_safety_md.write_text(str(safety.get('summary') or '') + '\n', encoding='utf-8')
     return {
         'status': 'ok',
+        'recommendation': safety.get('recommendation', 'review'),
+        'requires_user_confirmation': bool(safety.get('requires_user_confirmation', True)),
         'trust_score': trust.get('trust_score', 0.0),
         'confidence_level': trust.get('confidence_level', ''),
         'risk_level': safety.get('risk_level', ''),
-        'safe_to_deploy': bool(safety.get('safe_to_deploy')),
+        'safe_to_apply': safety.get('safe_to_apply', 'suggested_only'),
     }
 
 
@@ -364,8 +366,11 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
                 },
                 'trust_explainability': {
                     'status': trust_explainability_result.get('status', ''),
+                    'recommendation': trust_explainability_result.get('recommendation', ''),
+                    'requires_user_confirmation': trust_explainability_result.get('requires_user_confirmation', True),
                     'confidence_level': trust_explainability_result.get('confidence_level', ''),
                     'risk_level': trust_explainability_result.get('risk_level', ''),
+                    'safe_to_apply': trust_explainability_result.get('safe_to_apply', 'suggested_only'),
                 },
             }
         )

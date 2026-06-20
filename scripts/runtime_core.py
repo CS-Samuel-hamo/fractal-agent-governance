@@ -75,6 +75,13 @@ class RuntimeCore:
             'status': 'ok' if result['returncode'] == 0 else 'failed',
             'backend': self.backend,
             'runtime_api': 'run_pipeline',
+            'decision_control': {
+                'suggestion_only': True,
+                'trust_score_is_advisory': True,
+                'safe_to_apply': 'suggested_only',
+                'actual_requires_explicit_user_action': True,
+                'apply_requested': bool(allow_actual),
+            },
             'result': payload,
             'process': result,
         }
@@ -121,7 +128,9 @@ class RuntimeCore:
                 'confidence_level': trust.get('confidence_level', ''),
                 'trust_score': trust.get('trust_score', ''),
                 'risk_level': safety.get('risk_level', ''),
-                'safe_to_deploy': safety.get('safe_to_deploy', ''),
+                'recommendation': safety.get('recommendation', ''),
+                'requires_user_confirmation': safety.get('requires_user_confirmation', True),
+                'safe_to_apply': safety.get('safe_to_apply', 'suggested_only'),
             },
             'runtime_api': ['run_goal', 'run_task', 'run_pipeline', 'get_status', 'switch_backend', 'pause', 'resume'],
         }

@@ -2,7 +2,7 @@
 
 Natural-language CLI for safe local AI tasks.
 
-Status: `0.9.2-alpha`. The product surface is intentionally small:
+Status: `0.9.3-alpha`. The product surface is intentionally small:
 
 ```text
 ask -> preview -> apply

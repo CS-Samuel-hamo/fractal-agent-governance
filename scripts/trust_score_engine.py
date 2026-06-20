@@ -21,6 +21,22 @@ def _confidence(score: float) -> str:
     return 'low'
 
 
+def _risk_level(impact: dict[str, Any], confidence: str) -> str:
+    if confidence == 'low' or impact.get('backward_compatibility') == 'needs_review':
+        return 'high'
+    if impact.get('cross_module_risk') == 'medium' or impact.get('rollback_cost') == 'medium':
+        return 'medium'
+    return 'low'
+
+
+def _recommendation(risk: str, confidence: str, false_success: bool) -> str:
+    if false_success or risk == 'high' or confidence == 'low':
+        return 'avoid'
+    if risk == 'medium' or confidence == 'medium':
+        return 'review'
+    return 'proceed'
+
+
 def _history(project: Path) -> list[dict[str, Any]]:
     payload = load_json(project / '.zoo-agent' / 'eval' / 'invisible_eval_history.json')
     rows = payload.get('history') if isinstance(payload.get('history'), list) else []
@@ -51,17 +67,26 @@ def build_trust_score(project: Path, eval_payload: dict[str, Any], impact: dict[
         - false_success_penalty
         - impact_penalty
     )
+    confidence = _confidence(trust_score)
+    risk = _risk_level(impact, confidence)
+    recommendation = _recommendation(risk, confidence, bool(eval_payload.get('false_success_detected')))
     reasoning = (
-        f"Trust is {_confidence(trust_score)} because the latest run scored {current_quality:.2f}, "
-        f"recent recovery frequency is {fallback_frequency:.2f}, and impact risk is {impact.get('cross_module_risk', 'unknown')}."
+        f"Recommendation is {recommendation}. Trust is {confidence} because the latest run scored "
+        f"{current_quality:.2f}, recent recovery frequency is {fallback_frequency:.2f}, "
+        f"and impact risk is {impact.get('cross_module_risk', 'unknown')}. "
+        "This score is advisory and cannot grant execution permission."
     )
     return {
         'schema_version': '1.0',
         'generated_by': 'trust_score_engine.py',
         'generated_at': utc_now(),
         'run_id': eval_payload.get('run_id', ''),
+        'recommendation': recommendation,
+        'requires_user_confirmation': True,
         'trust_score': trust_score,
-        'confidence_level': _confidence(trust_score),
+        'risk_level': risk,
+        'safe_to_apply': 'suggested_only',
+        'confidence_level': confidence,
         'reasoning': reasoning,
         'inputs': {
             'execution_success_rate': current_quality,
