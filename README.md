@@ -1,83 +1,82 @@
-# Zoo Codex Worker Bridge
+# Agent Runtime
 
-CLI-first AI coding runtime with Codex execution backend and optional Zoo Code UI.
+CLI-first AI runtime with pluggable execution backend.
 
-Status: `0.4.0-local-alpha`. This project is experimental and not production-ready.
+Status: `0.8.3-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
 
-## Architecture
+## Three Commands
 
-```text
-User
--> agent CLI
--> goal + loop + classifier
--> fast | parallel | governed
--> Codex CLI / GPT / Zoo Code
+```powershell
+agent run "fix bug"
+agent pipeline "build feature"
+agent goal "complete project"
 ```
 
-- CLI Runtime: control plane for bootstrap, run, status, rollback, reroute, map, standards, and review.
-- Codex CLI: execution backend only.
-- GPT: final decision layer for governed work and merge/readiness decisions.
-- DeepSeek: cheap analysis and mechanical assistant.
-- Zoo Code: optional UI layer.
+The product mental model is intentionally small:
+
+```text
+User -> CLI -> Runtime -> Backend -> Result
+```
+
+- `goal`: what you want done.
+- `run`: ask the runtime to work on it.
+- `result`: review the outcome and artifacts.
+
+## Install
+
+```powershell
+git clone <repo-url>
+cd agent-runtime
+python scripts\validate_starter_pack.py
+.\bin\agent.cmd --version
+```
+
+Add `bin` to your user `PATH`, or run `python scripts\agent.py ...` directly.
 
 ## Quickstart
 
 ```powershell
-agent bootstrap
-agent "fix typo in README"
+agent bootstrap --workspace .
+agent backend list
+agent backend switch mock
+agent run "add a short README note" --workspace . --dry-run
+agent status --workspace . --no-write
 ```
 
-Run `agent` with no subcommand to enter interactive mode:
-
-```text
-agent>
-```
-
-Natural-language input in the prompt is treated as `agent run "<input>"`.
-
-## Existing Project
+For a real backend, select one explicitly:
 
 ```powershell
-agent bootstrap --workspace <existing-git-repo>
-agent status --workspace <existing-git-repo>
-agent "fix typo in README" --workspace <existing-git-repo>
+agent backend switch codex
+agent run "fix typo in README" --workspace . --dry-run
 ```
 
-Bootstrap scans metadata only, writes reviewable `.zoo-agent` runtime files, and does not edit business source directories.
+Actual execution is opt-in through the runtime command flags and should start with low-risk, tightly scoped files.
 
-## New Project
+## Backends
 
-In an empty directory:
+Included backend plugins:
 
-```powershell
-agent bootstrap
-agent "create a small README improvement"
-```
+- `mock`: deterministic local test backend.
+- `dry_run`: no-op backend for safe planning and demos.
+- `codex`: optional local execution plugin.
 
-Bootstrap initializes git, creates starter runtime files, and does not generate business modules unless explicitly requested later.
+The runtime core talks to backends through one execution interface. A backend failure should not corrupt runtime state or produce false success.
 
-## Safety Boundaries
+## Safety
 
-- Scope guard checks assigned file boundaries.
-- No automatic merge, push, deploy, release, or production database migration.
-- No reading or printing secrets, API keys, tokens, `.env` contents, or credential files.
-- Worktree isolation is used for worker execution and rollback planning.
-- Rollback defaults to dry-run and does not use `git reset --hard`.
+- No automatic merge.
+- No automatic push.
+- No deployment or production migration.
+- No secret, API key, token, or `.env` content reading.
+- Rollback defaults to dry-run.
+- Runtime artifacts are written under `.zoo-agent/`.
 
-## Useful Commands
+## Documentation
 
-```powershell
-agent --help
-agent --version
-agent bootstrap
-agent status --no-write
-agent run "<task>"
-agent "<task>"
-agent rollback --run-id <run-id> --task-id <task-id> --dry-run
-agent reroute --run-id <run-id> --task-id <task-id> --path governed
-agent map check
-agent standards check
-agent review --run-id <run-id>
-```
-
-See [docs/quickstart.md](docs/quickstart.md) and [docs/cli-usage.md](docs/cli-usage.md).
+- [INSTALL.md](INSTALL.md)
+- [QUICKSTART.md](QUICKSTART.md)
+- [EXAMPLES.md](EXAMPLES.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [CLI_REFERENCE.md](CLI_REFERENCE.md)
+- [BACKEND_PLUGINS.md](BACKEND_PLUGINS.md)
+- [docs/product-mind-model.md](docs/product-mind-model.md)

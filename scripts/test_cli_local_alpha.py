@@ -92,6 +92,7 @@ def main() -> int:
                 'three-stage-pipeline-runtime',
                 'runtime-engine-productization',
                 'semantic-decoupling-runtime-engine',
+                'cli-product-alpha',
             ]
         )
 

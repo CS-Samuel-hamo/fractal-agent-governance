@@ -72,8 +72,13 @@ def main() -> int:
             repo,
         ).stdout
     )
-    assert run_report['generated_by'] == 'pipeline_loop.py'
-    assert run_report['stages'] == ['planner', 'executor', 'verifier']
+    assert run_report['status'] == 'ok'
+    assert run_report['run']['run_id'] == 'run-default'
+    assert run_report['result']['verdict'] == 'DRY_RUN_COMPLETE'
+    assert 'stages' not in run_report
+    assert 'planner' not in run_report
+    assert 'executor' not in run_report
+    assert 'verifier' not in run_report
 
     route_report = parse_json(
         run(

@@ -12,10 +12,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.8.2-semantic-decoupling-runtime-engine'
+VERSION = '0.8.3-cli-product-alpha'
 
 KNOWN_COMMANDS = {
     'bootstrap',
+    'backend',
     'pipeline',
     'run',
     'status',
@@ -38,6 +39,7 @@ KNOWN_COMMANDS = {
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
 from check_project_readiness import analyze_project_readiness  # noqa: E402
 from update_runtime_metrics import update_metrics  # noqa: E402
+from backend_registry import read_backend_selection  # noqa: E402
 
 
 def run_command(command: list[str], cwd: Path) -> int:
@@ -66,6 +68,10 @@ def run_command_capture(command: list[str], cwd: Path) -> dict:
 
 def delegate(script_name: str, args_list: list[str]) -> int:
     return run_command([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
+
+
+def delegate_capture(script_name: str, args_list: list[str]) -> dict:
+    return run_command_capture([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
 
 
 def workspace_arg(workspace: str) -> str:
@@ -554,7 +560,9 @@ def run(args) -> int:
             allow_actual=not args.dry_run and not args.worker_dry_run,
             sandbox=args.sandbox,
             codex_home=args.codex_home,
+            backend=args.backend,
             timeout_seconds=args.timeout_seconds,
+            max_retries=args.max_retries,
             input=args.input,
         )
     )
@@ -562,11 +570,13 @@ def run(args) -> int:
 
 def pipeline(args) -> int:
     ensure_bootstrap_before_run(args)
+    project = project_root(args.workspace)
+    selected_backend = str(getattr(args, 'backend', '') or read_backend_selection(project))
     command = [
         sys.executable,
         str(ROOT / 'scripts' / 'pipeline_loop.py'),
         '--workspace',
-        workspace_arg(args.workspace),
+        str(project),
         '--max-iterations',
         str(args.max_iterations),
         '--sandbox',
@@ -576,7 +586,7 @@ def pipeline(args) -> int:
         '--max-retries',
         str(getattr(args, 'max_retries', 0)),
         '--backend',
-        str(getattr(args, 'backend', 'codex') or 'codex'),
+        selected_backend,
     ]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
@@ -597,7 +607,38 @@ def pipeline(args) -> int:
     for item in args.denied_file:
         command.extend(['--denied-file', item])
     command.extend(args.input)
-    return run_command(command, ROOT)
+    proc = run_command_capture(command, ROOT)
+    payload: dict = {}
+    stdout = str(proc.get('stdout') or '').strip()
+    if stdout.startswith('{'):
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            payload = {}
+    if proc.get('returncode') != 0:
+        print(json.dumps({'status': 'failed', 'result': 'error', 'message': (proc.get('stderr') or proc.get('stdout') or '').strip()[-1200:]}, ensure_ascii=False, indent=2))
+        return int(proc.get('returncode') or 1)
+    product = {
+        'status': 'ok',
+        'goal': {
+            'goal_id': payload.get('goal_id') or args.goal_id or '',
+            'task': ' '.join(args.input).strip(),
+        },
+        'run': {
+            'run_id': payload.get('run_id', ''),
+            'mode': 'dry_run' if args.dry_run else 'actual',
+        },
+        'result': {
+            'verdict': payload.get('final_verdict') or 'unknown',
+            'complete': bool(payload.get('converged')),
+            'next_action': payload.get('next_action') or '',
+        },
+        'artifacts': {
+            'result': payload.get('final_result_ref') or '',
+        },
+    }
+    print(json.dumps(product, ensure_ascii=False, indent=2))
+    return 0
 
 
 def plan_big(args) -> int:
@@ -871,6 +912,40 @@ def codex_health(args) -> int:
     return delegate('check_codex_backend_health.py', command)
 
 
+def backend_command(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.backend_action == 'switch':
+        command.extend(['--select', args.name])
+    elif args.backend_action == 'health':
+        command.append('--health')
+    elif args.backend_action == 'list':
+        command.append('--list')
+    else:
+        print(f'Unsupported backend action: {args.backend_action}', file=sys.stderr)
+        return 2
+    result = delegate_capture('backend_registry.py', command)
+    if result.get('returncode') != 0:
+        print(json.dumps({'status': 'failed', 'message': (result.get('stderr') or result.get('stdout') or '').strip()}, ensure_ascii=False, indent=2))
+        return int(result.get('returncode') or 1)
+    raw = str(result.get('stdout') or '{}').strip()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        payload = {}
+    if args.backend_action == 'switch':
+        product = {'status': 'ok', 'selected_backend': payload.get('backend'), 'result': 'backend switched'}
+    elif args.backend_action == 'health':
+        product = {'status': 'ok', 'result': 'backend health checked', 'backends': payload.get('backends', {})}
+    else:
+        product = {
+            'status': 'ok',
+            'selected_backend': payload.get('selected', ''),
+            'available_backends': payload.get('backends', []),
+        }
+    print(json.dumps(product, ensure_ascii=False, indent=2))
+    return 0
+
+
 def latest_run_id(project: Path) -> str:
     runs = project / '.zoo-agent' / 'runs'
     if not runs.exists():
@@ -899,6 +974,7 @@ def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
         sandbox='workspace-write',
         profile='',
         codex_home='',
+        backend='',
         timeout_seconds=360,
         no_output_timeout_seconds=600,
         test_timeout_seconds=0,
@@ -1041,18 +1117,60 @@ def normalize_argv(argv: list[str]) -> list[str]:
     first = argv[0]
     if first in {'-h', '--help'}:
         return argv
+    if first == 'goal' and len(argv) > 1 and argv[1] not in {
+        'set',
+        'show',
+        'status',
+        'clear',
+        'list',
+        'pause',
+        'resume',
+        'complete',
+        'backlog',
+        'block',
+        'schedule',
+        'conflicts',
+    }:
+        return ['goal', 'set', *argv[1:]]
     if first not in KNOWN_COMMANDS and not first.startswith('-'):
         return ['run', *argv]
     return argv
+
+
+def product_help() -> str:
+    return f"""usage: agent [-h] [--version] <command> ...
+
+CLI-first AI runtime: goal -> run -> result.
+
+commands:
+  bootstrap          Prepare a workspace for Agent Runtime.
+  run                Run a task and return a concise result.
+  pipeline           Run a task through the product pipeline.
+  goal               Set or inspect the current goal.
+  status             Show workspace runtime status.
+  backend            List, switch, and check execution backends.
+  rollback           Create a safe rollback dry-run plan.
+
+examples:
+  agent goal "make README onboarding clear"
+  agent backend list
+  agent backend switch mock
+  agent run "add a short README note" --dry-run
+
+version: {VERSION}
+"""
 
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if not raw_argv:
         return interactive_shell('.')
+    if raw_argv in (['-h'], ['--help']):
+        print(product_help())
+        return 0
     raw_argv = normalize_argv(raw_argv)
 
-    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v0.8.')
+    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI runtime: goal -> run -> result.')
     parser.add_argument('--version', action='version', version=f'agent {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
 
@@ -1073,7 +1191,7 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap_parser.add_argument('--refresh-instructions', action='store_true')
     bootstrap_parser.set_defaults(handler=bootstrap)
 
-    run_parser = sub.add_parser('run', help='Run a task through the CLI-first router.')
+    run_parser = sub.add_parser('run', help='Run a task and return a concise result.')
     run_parser.add_argument('input', nargs='*')
     run_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     run_parser.add_argument('--run-id', default='')
@@ -1090,7 +1208,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--sandbox', default='workspace-write')
     run_parser.add_argument('--profile', default='')
     run_parser.add_argument('--codex-home', default='')
-    run_parser.add_argument('--backend', default='codex')
+    run_parser.add_argument('--backend', default='')
     run_parser.add_argument('--timeout-seconds', type=int, default=360)
     run_parser.add_argument('--no-output-timeout-seconds', type=int, default=600)
     run_parser.add_argument('--test-timeout-seconds', type=int, default=0)
@@ -1107,7 +1225,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
 
-    pipeline_parser = sub.add_parser('pipeline', help='Run the simplified goal -> planner -> executor -> verifier pipeline.')
+    pipeline_parser = sub.add_parser('pipeline', help='Run a task through the product pipeline and return a result.')
     pipeline_parser.add_argument('input', nargs='*')
     pipeline_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     pipeline_parser.add_argument('--run-id', default='')
@@ -1121,19 +1239,19 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--allow-actual', action='store_true')
     pipeline_parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
     pipeline_parser.add_argument('--codex-home', default='')
-    pipeline_parser.add_argument('--backend', default='codex')
+    pipeline_parser.add_argument('--backend', default='')
     pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
     pipeline_parser.add_argument('--max-retries', type=int, default=2)
     pipeline_parser.set_defaults(handler=pipeline)
 
-    plan_big_parser = sub.add_parser('plan-big', help='Compatibility/debug: create a big task readiness contract without Codex actual execution.')
+    plan_big_parser = sub.add_parser('plan-big', help=argparse.SUPPRESS)
     plan_big_parser.add_argument('input', nargs='*')
     plan_big_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     plan_big_parser.add_argument('--run-id', default='run-big-task')
     plan_big_parser.add_argument('--goal-id', default='')
     plan_big_parser.set_defaults(handler=plan_big)
 
-    decompose_parser = sub.add_parser('decompose', help='Compatibility/debug: decompose a big task into leaf task contracts.')
+    decompose_parser = sub.add_parser('decompose', help=argparse.SUPPRESS)
     decompose_parser.add_argument('input', nargs='*')
     decompose_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     decompose_parser.add_argument('--run-id', default='run-big-task')
@@ -1141,14 +1259,14 @@ def main(argv: list[str] | None = None) -> int:
     decompose_parser.add_argument('--allow-leaf-actual', action='store_true')
     decompose_parser.set_defaults(handler=decompose_big)
 
-    aggregate_parser = sub.add_parser('aggregate', help='Compatibility/debug: run parent aggregation gate for a big task run.')
+    aggregate_parser = sub.add_parser('aggregate', help=argparse.SUPPRESS)
     aggregate_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     aggregate_parser.add_argument('--run-id', required=True)
     aggregate_parser.add_argument('--goal-id', default='')
     aggregate_parser.add_argument('--max-iterations', type=int, default=10)
     aggregate_parser.set_defaults(handler=aggregate_big)
 
-    goal_loop_parser = sub.add_parser('goal-loop', help='Compatibility/debug: advance the goal-driven execution loop after aggregation.')
+    goal_loop_parser = sub.add_parser('goal-loop', help=argparse.SUPPRESS)
     goal_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     goal_loop_parser.add_argument('--run-id', required=True)
     goal_loop_parser.add_argument('--goal-id', default='')
@@ -1157,7 +1275,7 @@ def main(argv: list[str] | None = None) -> int:
     goal_loop_parser.add_argument('--no-next-goal-suggestions', action='store_true')
     goal_loop_parser.set_defaults(handler=goal_loop)
 
-    global_loop_parser = sub.add_parser('global-loop', help='Compatibility/debug: schedule the multi-goal runtime and advance global loop state.')
+    global_loop_parser = sub.add_parser('global-loop', help=argparse.SUPPRESS)
     global_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     global_loop_parser.add_argument('--max-iterations', type=int, default=100)
     global_loop_parser.add_argument('--max-continuous-goal-iterations', type=int, default=3)
@@ -1165,13 +1283,13 @@ def main(argv: list[str] | None = None) -> int:
     global_loop_parser.add_argument('--no-advance', action='store_true')
     global_loop_parser.set_defaults(handler=global_loop)
 
-    integration_parser = sub.add_parser('integration-check', help='Compatibility/debug: render or create an integration worktree candidate report.')
+    integration_parser = sub.add_parser('integration-check', help=argparse.SUPPRESS)
     integration_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     integration_parser.add_argument('--run-id', required=True)
     integration_parser.add_argument('--yes', action='store_true', help='Actually create the isolated integration worktree.')
     integration_parser.set_defaults(handler=integration_check)
 
-    status_parser = sub.add_parser('status', help='Summarize runtime, run, map, metrics, and gate state.')
+    status_parser = sub.add_parser('status', help='Show workspace runtime status.')
     status_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     status_parser.add_argument('--run-id', default='')
     status_parser.add_argument('--no-write', action='store_true')
@@ -1186,7 +1304,7 @@ def main(argv: list[str] | None = None) -> int:
     rollback_parser.add_argument('--confirm-current-branch', action='store_true')
     rollback_parser.set_defaults(handler=rollback)
 
-    reroute_parser = sub.add_parser('reroute', help='Reroute a previous task through fast, parallel, or governed path.')
+    reroute_parser = sub.add_parser('reroute', help=argparse.SUPPRESS)
     reroute_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     reroute_parser.add_argument('--run-id', required=True)
     reroute_parser.add_argument('--task-id', required=True)
@@ -1204,7 +1322,7 @@ def main(argv: list[str] | None = None) -> int:
     reroute_parser.add_argument('--dry-run', action='store_true')
     reroute_parser.set_defaults(handler=reroute)
 
-    map_parser = sub.add_parser('map', help='Check, refresh, or promote project-map alignment.')
+    map_parser = sub.add_parser('map', help=argparse.SUPPRESS)
     map_sub = map_parser.add_subparsers(dest='map_action', required=True)
     for action in ['check', 'refresh', 'promote']:
         item = map_sub.add_parser(action)
@@ -1213,7 +1331,7 @@ def main(argv: list[str] | None = None) -> int:
         item.add_argument('--promote-if-missing', action='store_true')
         item.set_defaults(handler=map_command)
 
-    standards_parser = sub.add_parser('standards', help='Check or promote project instruction/code-standard proposals.')
+    standards_parser = sub.add_parser('standards', help=argparse.SUPPRESS)
     standards_sub = standards_parser.add_subparsers(dest='standards_action', required=True)
     for action in ['check', 'promote']:
         item = standards_sub.add_parser(action)
@@ -1222,7 +1340,7 @@ def main(argv: list[str] | None = None) -> int:
         item.add_argument('--dry-run', action='store_true')
         item.set_defaults(handler=standards)
 
-    review_parser = sub.add_parser('review', help='Run evidence closure checks for a runtime run.')
+    review_parser = sub.add_parser('review', help=argparse.SUPPRESS)
     review_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     review_parser.add_argument('--run-id', default='')
     review_parser.add_argument('--governance-only', action='store_true')
@@ -1234,7 +1352,20 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument('--accept-parent-aggregation', action='store_true')
     review_parser.set_defaults(handler=review)
 
-    goal_parser = sub.add_parser('goal', help='Manage the active runtime goal anchor.')
+    backend_parser = sub.add_parser('backend', help='List, switch, and check execution backends.')
+    backend_sub = backend_parser.add_subparsers(dest='backend_action', required=True)
+    backend_list = backend_sub.add_parser('list', help='List available backends.')
+    backend_list.add_argument('--workspace', '--project', dest='workspace', default='.')
+    backend_list.set_defaults(handler=backend_command)
+    backend_switch = backend_sub.add_parser('switch', help='Select the backend for this workspace.')
+    backend_switch.add_argument('name')
+    backend_switch.add_argument('--workspace', '--project', dest='workspace', default='.')
+    backend_switch.set_defaults(handler=backend_command)
+    backend_health = backend_sub.add_parser('health', help='Show backend health summary.')
+    backend_health.add_argument('--workspace', '--project', dest='workspace', default='.')
+    backend_health.set_defaults(handler=backend_command)
+
+    goal_parser = sub.add_parser('goal', help='Set or inspect the current goal.')
     goal_sub = goal_parser.add_subparsers(dest='goal_action', required=True)
     goal_set = goal_sub.add_parser('set')
     goal_set.add_argument('goal')
@@ -1270,7 +1401,7 @@ def main(argv: list[str] | None = None) -> int:
     goal_conflicts.add_argument('--apply', action='store_true')
     goal_conflicts.set_defaults(handler=goal_command)
 
-    loop_parser = sub.add_parser('loop', help='Manage lightweight convergence and loss-control loop state.')
+    loop_parser = sub.add_parser('loop', help=argparse.SUPPRESS)
     loop_sub = loop_parser.add_subparsers(dest='loop_action', required=True)
     for action in ['status', 'reset', 'stop', 'explain']:
         item = loop_sub.add_parser(action)
@@ -1284,7 +1415,7 @@ def main(argv: list[str] | None = None) -> int:
     loop_set.add_argument('--max-iterations', type=int, default=5)
     loop_set.set_defaults(handler=loop_command)
 
-    health_parser = sub.add_parser('codex-health', help='Check local Codex worker execution health.')
+    health_parser = sub.add_parser('codex-health', help=argparse.SUPPRESS)
     health_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     health_parser.add_argument('--mode', choices=['quick', 'full'], default='full')
     health_parser.add_argument('--codex-home', default=os.environ.get('CODEX_HOME', ''))

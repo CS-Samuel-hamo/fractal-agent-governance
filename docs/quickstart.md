@@ -1,31 +1,19 @@
 # Quickstart
 
-Install or expose the `agent` wrapper from this repository on your PATH.
+For the product-facing quickstart, see [../QUICKSTART.md](../QUICKSTART.md).
+
+Minimal flow:
 
 ```powershell
-agent --version
-agent bootstrap
-agent "fix typo in README"
+agent bootstrap --workspace .
+agent backend switch mock
+agent goal "make README onboarding clear"
+agent run "add a short README note" --dry-run
+agent status --no-write
 ```
 
-Interactive mode:
-
-```powershell
-agent
-```
-
-Then type natural-language tasks:
+Daily model:
 
 ```text
-agent> fix typo in README
-agent> /status --no-write
-agent> /exit
+goal -> run -> result
 ```
-
-If the project has not been bootstrapped, the first run asks:
-
-```text
-Project not bootstrapped. Bootstrap now? yes/no
-```
-
-Answering `yes` runs bootstrap. Answering `no` allows a one-off run with a warning.

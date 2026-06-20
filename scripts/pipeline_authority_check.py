@@ -44,6 +44,7 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
         'three-stage-pipeline-runtime' in agent_py
         or 'runtime-engine-productization' in agent_py
         or 'semantic-decoupling-runtime-engine' in agent_py
+        or 'cli-product-alpha' in agent_py
     )
     pipeline_command = "'pipeline'" in agent_py and 'pipeline_parser' in agent_py
     run_defaults_pipeline = 'def run(args)' in agent_py and 'return pipeline(' in agent_py and 'legacy_runtime' in agent_py
@@ -74,7 +75,7 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
             continue
         parser_index = agent_py.find(f"sub.add_parser('{command}'")
         window = agent_py[parser_index: parser_index + 260].lower()
-        if 'compatibility/debug' not in window:
+        if 'compatibility/debug' not in window and 'argparse.suppress' not in window:
             legacy_help_conflicts.append(command)
     if legacy_help_conflicts:
         conflicts.append(

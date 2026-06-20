@@ -184,13 +184,18 @@ def test_simple_pipeline_loop() -> None:
         repo,
     )
     report = json.loads(proc.stdout)
-    assert report['stages'] == ['planner', 'executor', 'verifier']
-    assert report['multi_layer_loop'] is False
-    assert report['scheduler_control'] is False
-    assert report['goal_state_management'] is False
-    assert report['iterations'][0]['stages']['planner']['returncode'] == 0
-    assert report['iterations'][0]['stages']['executor']['returncode'] == 0
-    assert report['iterations'][0]['stages']['verifier']['returncode'] == 0
+    assert report['status'] == 'ok'
+    assert report['run']['run_id'] == run_id
+    assert report['result']['verdict'] == 'DRY_RUN_COMPLETE'
+    assert 'stages' not in report
+    internal = load(pipeline_dir(repo, run_id) / 'pipeline-loop.json')
+    assert internal['stages'] == ['planner', 'executor', 'verifier']
+    assert internal['multi_layer_loop'] is False
+    assert internal['scheduler_control'] is False
+    assert internal['goal_state_management'] is False
+    assert internal['iterations'][0]['stages']['planner']['returncode'] == 0
+    assert internal['iterations'][0]['stages']['executor']['returncode'] == 0
+    assert internal['iterations'][0]['stages']['verifier']['returncode'] == 0
     final = load(pipeline_dir(repo, run_id) / 'final_result.json')
     assert final['final_verdict'] == 'DRY_RUN_COMPLETE'
 
