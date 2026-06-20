@@ -86,7 +86,7 @@ def main() -> int:
         assert 'bootstrap' in help_result.stdout
         version_result = run([sys.executable, str(AGENT), '--version'], ROOT, env=env)
         assert 'agent ' in version_result.stdout
-        assert 'three-stage-pipeline-runtime' in version_result.stdout
+        assert 'three-stage-pipeline-runtime' in version_result.stdout or 'runtime-engine-productization' in version_result.stdout
 
         existing = init_existing_repo(env)
         src_hash = sha(existing / 'src' / 'app.py')

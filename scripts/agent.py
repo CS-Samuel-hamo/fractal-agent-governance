@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.7.6-execution-resilience-layer-three-stage-pipeline-runtime'
+VERSION = '0.8.0-runtime-engine-productization'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -575,6 +575,8 @@ def pipeline(args) -> int:
         str(args.timeout_seconds),
         '--max-retries',
         str(getattr(args, 'max_retries', 0)),
+        '--backend',
+        str(getattr(args, 'backend', 'codex') or 'codex'),
     ]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
@@ -1050,7 +1052,7 @@ def main(argv: list[str] | None = None) -> int:
         return interactive_shell('.')
     raw_argv = normalize_argv(raw_argv)
 
-    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v0.7.')
+    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI Agent Runtime v0.8.')
     parser.add_argument('--version', action='version', version=f'agent {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
 
@@ -1088,6 +1090,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--sandbox', default='workspace-write')
     run_parser.add_argument('--profile', default='')
     run_parser.add_argument('--codex-home', default='')
+    run_parser.add_argument('--backend', default='codex')
     run_parser.add_argument('--timeout-seconds', type=int, default=360)
     run_parser.add_argument('--no-output-timeout-seconds', type=int, default=600)
     run_parser.add_argument('--test-timeout-seconds', type=int, default=0)
@@ -1118,6 +1121,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--allow-actual', action='store_true')
     pipeline_parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
     pipeline_parser.add_argument('--codex-home', default='')
+    pipeline_parser.add_argument('--backend', default='codex')
     pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
     pipeline_parser.add_argument('--max-retries', type=int, default=2)
     pipeline_parser.set_defaults(handler=pipeline)

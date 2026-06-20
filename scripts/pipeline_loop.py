@@ -231,6 +231,8 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
             str(args.timeout_seconds),
             '--max-retries',
             str(args.max_retries),
+            '--backend',
+            args.backend,
         ]
         if args.dry_run:
             executor_cmd.append('--dry-run')
@@ -308,6 +310,7 @@ def main() -> int:
     parser.add_argument('--allow-actual', action='store_true')
     parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
     parser.add_argument('--codex-home', default='')
+    parser.add_argument('--backend', default='codex')
     parser.add_argument('--timeout-seconds', type=int, default=360)
     parser.add_argument('--max-retries', type=int, default=2)
     args = parser.parse_args()

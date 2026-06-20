@@ -14,8 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from runtime_common import load_json, utc_now, write_json  # noqa: E402
+from backend_registry import default_registry  # noqa: E402
 from execution_fallback_router import fallback_decision  # noqa: E402
 from execution_health_scoring import score_execution_health  # noqa: E402
+from execution_interface import ExecutionContext, ExecutionTask  # noqa: E402
 from execution_level_splitter import split_leaf_execution  # noqa: E402
 from execution_result_model import build_execution_result_model, delivery_outcome_from_execution_status  # noqa: E402
 from execution_retry_controller import retry_decision  # noqa: E402
@@ -224,11 +226,37 @@ def run_codex_leaf(
     )
     return {
         'command': command,
+        'backend': 'codex',
         'returncode': proc.returncode,
         'stdout_tail': proc.stdout[-4000:],
         'stderr_tail': proc.stderr[-4000:],
         'duration_seconds': round(time.monotonic() - started, 3),
     }
+
+
+def run_backend_leaf(
+    *,
+    backend_name: str,
+    workspace: Path,
+    task_dir: Path,
+    leaf: dict[str, Any],
+    sandbox: str,
+    codex_home: str,
+    timeout_seconds: int,
+    dry_run: bool,
+) -> dict[str, Any]:
+    backend = default_registry().get(backend_name)
+    task = ExecutionTask.from_leaf(leaf)
+    context = ExecutionContext(
+        workspace=str(workspace),
+        task_dir=str(task_dir),
+        sandbox=sandbox,
+        codex_home=codex_home,
+        timeout_seconds=timeout_seconds,
+        dry_run=dry_run,
+    )
+    result = backend.execute(task, context)
+    return result.to_worker_result()
 
 
 def execute_leaf_once(
@@ -242,6 +270,7 @@ def execute_leaf_once(
     timeout_seconds: int,
     attempt_no: int,
     fallback_used: str,
+    backend_name: str,
 ) -> dict[str, Any]:
     create_task_pack(task_dir, workspace, leaf, plan)
     write_json(
@@ -255,16 +284,18 @@ def execute_leaf_once(
         },
     )
     before_status = git_name_only(workspace)
-    codex_result = run_codex_leaf(
+    backend_result = run_backend_leaf(
+        backend_name=backend_name,
         workspace=workspace,
         task_dir=task_dir,
+        leaf=leaf,
         sandbox=sandbox,
         codex_home=codex_home,
         timeout_seconds=timeout_seconds,
         dry_run=False,
     )
     after_status = git_name_only(workspace)
-    worker = worker_status_from_codex_result(codex_result)
+    worker = worker_status_from_codex_result(backend_result)
     returncode = int(worker.get('returncode') or 0)
     delivery = delivery_from_delta(before_status, after_status, leaf, returncode)
     model = build_execution_result_model(
@@ -275,7 +306,7 @@ def execute_leaf_once(
         expected_files=expected_files_for_leaf(leaf),
         denied_files_touched=delivery.get('denied_files_touched') or [],
         out_of_scope_files=delivery.get('out_of_scope_files') or [],
-        execution_time=codex_result.get('duration_seconds', ''),
+        execution_time=backend_result.get('duration_seconds', ''),
         retry_count=max(0, attempt_no - 1),
         fallback_used=fallback_used,
         notes=delivery.get('reason', ''),
@@ -287,7 +318,8 @@ def execute_leaf_once(
     return {
         'attempt': attempt_no,
         'task_dir': str(task_dir),
-        'codex_result': codex_result,
+        'codex_result': backend_result,
+        'backend_result': backend_result,
         'worker_status': worker,
         'delivery': delivery,
         'execution_model': model,
@@ -305,6 +337,7 @@ def execute_unit_with_retries(
     timeout_seconds: int,
     max_retries: int,
     fallback_used: str,
+    backend_name: str,
 ) -> dict[str, Any]:
     attempts: list[dict[str, Any]] = []
     for attempt_no in range(1, max_retries + 2):
@@ -319,6 +352,7 @@ def execute_unit_with_retries(
             timeout_seconds=timeout_seconds,
             attempt_no=attempt_no,
             fallback_used=fallback_used if fallback_used else ('retry_codex' if attempt_no > 1 else ''),
+            backend_name=backend_name,
         )
         model = attempt['execution_model']
         delivery = attempt['delivery']
@@ -342,6 +376,7 @@ def resilient_execute_leaf(
     codex_home: str,
     timeout_seconds: int,
     max_retries: int,
+    backend_name: str,
 ) -> dict[str, Any]:
     fallback_history: list[str] = []
     primary = execute_unit_with_retries(
@@ -354,6 +389,7 @@ def resilient_execute_leaf(
         timeout_seconds=timeout_seconds,
         max_retries=max_retries,
         fallback_used='',
+        backend_name=backend_name,
     )
     attempts = list(primary.get('attempts') or [])
     final_attempt = primary.get('final_attempt') or {}
@@ -381,6 +417,7 @@ def resilient_execute_leaf(
                     timeout_seconds=max(60, min(timeout_seconds, timeout_seconds // 2 if timeout_seconds > 120 else timeout_seconds)),
                     max_retries=0,
                     fallback_used=action,
+                    backend_name=backend_name,
                 )
                 split_results.append(result)
             split_attempts = [item.get('final_attempt') or {} for item in split_results]
@@ -452,8 +489,9 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
     leaves = list((plan.get('decomposition') or {}).get('leaf_tasks') or [])
     actual_allowed_by_plan = (plan.get('execution_plan') or {}).get('mode') == 'actual_allowed'
     actual_requested = bool(args.allow_actual and not args.dry_run and actual_allowed_by_plan)
+    backend_name = str(getattr(args, 'backend', '') or 'codex')
     leaf_results: list[dict[str, Any]] = []
-    codex_invoked = False
+    backend_invoked = False
 
     for leaf in leaves:
         leaf_id = str(leaf.get('leaf_id') or f'leaf-{len(leaf_results) + 1:03d}')
@@ -466,6 +504,8 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
             'input_contract': 'plan.json',
             'route': leaf.get('preferred_route') or (plan.get('execution_plan') or {}).get('route') or 'fast',
             'execution_mode': 'dry_run_only',
+            'backend': backend_name,
+            'backend_invoked': False,
             'codex_invoked': False,
             'delivery_outcome': 'dry_run_only',
             'business_changed_files': [],
@@ -481,16 +521,20 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                 codex_home=args.codex_home,
                 timeout_seconds=args.timeout_seconds,
                 max_retries=args.max_retries,
+                backend_name=backend_name,
             )
-            codex_invoked = True
+            backend_invoked = True
             final_delivery = resilient.get('final_delivery') or {}
             final_model = resilient.get('final_model') or {}
             attempt_count = len(resilient.get('attempts') or [])
             leaf_result.update(
                 {
                     'execution_mode': 'actual',
-                    'codex_invoked': True,
+                    'backend': backend_name,
+                    'backend_invoked': True,
+                    'codex_invoked': backend_name == 'codex',
                     'codex_result': (resilient.get('attempts') or [{}])[-1].get('codex_result', {}),
+                    'backend_result': (resilient.get('attempts') or [{}])[-1].get('backend_result', {}),
                     'retry_history': resilient.get('attempts') or [],
                     'split_results': resilient.get('split_results') or [],
                     'fallback_chain': ['retry_codex', 'split_execution', 'reduce_scope_execution', 'dry_run_mode', 'escalate_to_planner'],
@@ -526,16 +570,23 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
         'scheduler_used': False,
         'conflict_detector_used': False,
         'aggregation_used': False,
+        'execution_backend': {
+            'selected': backend_name,
+            'interface': 'ExecutionBackend.execute(task, context)',
+            'invoked': backend_invoked,
+            'replaceable': True,
+        },
         'codex_backend': {
             'allowed_in_stage': True,
-            'invoked': codex_invoked,
+            'invoked': backend_invoked and backend_name == 'codex',
+            'plugin': backend_name == 'codex',
             'actual_requested': actual_requested,
             'reason': 'actual disabled unless --allow-actual and plan execution_mode=actual_allowed',
         },
         'execution_summary': {
             'leaf_count': len(leaves),
-            'actual_leaf_count': sum(1 for item in leaf_results if item.get('codex_invoked')),
-            'dry_run_leaf_count': sum(1 for item in leaf_results if not item.get('codex_invoked')),
+            'actual_leaf_count': sum(1 for item in leaf_results if item.get('backend_invoked')),
+            'dry_run_leaf_count': sum(1 for item in leaf_results if not item.get('backend_invoked')),
             'retry_count': sum(int(item.get('retry_count') or 0) for item in leaf_results),
             'fallback_count': sum(1 for item in leaf_results if item.get('fallback_used')),
         },
@@ -559,6 +610,7 @@ def main() -> int:
     parser.add_argument('--allow-actual', action='store_true')
     parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
     parser.add_argument('--codex-home', default='')
+    parser.add_argument('--backend', default='codex')
     parser.add_argument('--timeout-seconds', type=int, default=360)
     parser.add_argument('--max-retries', type=int, default=2)
     args = parser.parse_args()

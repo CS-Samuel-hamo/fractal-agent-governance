@@ -40,14 +40,14 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
     conflicts: list[dict[str, Any]] = []
     blocking_paths: list[str] = []
 
-    version_pipeline = 'three-stage-pipeline-runtime' in agent_py
+    version_pipeline = 'three-stage-pipeline-runtime' in agent_py or 'runtime-engine-productization' in agent_py
     pipeline_command = "'pipeline'" in agent_py and 'pipeline_parser' in agent_py
     run_defaults_pipeline = 'def run(args)' in agent_py and 'return pipeline(' in agent_py and 'legacy_runtime' in agent_py
     route_defaults_pipeline = 'def delegate_to_pipeline' in route_task_py and 'if not args.legacy_runtime:' in route_task_py
     legacy_flag_present = '--legacy-runtime' in agent_py and '--legacy-runtime' in route_task_py
 
     if not version_pipeline:
-        conflicts.append({'type': 'version', 'message': 'agent version does not advertise three-stage pipeline runtime'})
+        conflicts.append({'type': 'version', 'message': 'agent version does not advertise pipeline/runtime engine authority'})
     if not pipeline_command:
         conflicts.append({'type': 'entrypoint', 'message': 'agent pipeline command is missing'})
         blocking_paths.append('agent pipeline')

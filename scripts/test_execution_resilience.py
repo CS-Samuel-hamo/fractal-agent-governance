@@ -73,8 +73,19 @@ def write_plan(repo: Path, run_id: str, objective: str, allowed: list[str]) -> P
 
 
 def execute_with_fake(plan: Path, fake: Callable[..., dict[str, Any]], *, max_retries: int = 2) -> dict[str, Any]:
-    original = pipeline_executor.run_codex_leaf
-    pipeline_executor.run_codex_leaf = fake
+    original = pipeline_executor.run_backend_leaf
+
+    def fake_backend(**kwargs: Any) -> dict[str, Any]:
+        return fake(
+            workspace=kwargs['workspace'],
+            task_dir=kwargs['task_dir'],
+            sandbox=kwargs['sandbox'],
+            codex_home=kwargs['codex_home'],
+            timeout_seconds=kwargs['timeout_seconds'],
+            dry_run=kwargs['dry_run'],
+        )
+
+    pipeline_executor.run_backend_leaf = fake_backend
     try:
         args = argparse.Namespace(
             plan=str(plan),
@@ -90,7 +101,7 @@ def execute_with_fake(plan: Path, fake: Callable[..., dict[str, Any]], *, max_re
         )
         return pipeline_executor.execute_plan(args)
     finally:
-        pipeline_executor.run_codex_leaf = original
+        pipeline_executor.run_backend_leaf = original
 
 
 def test_timeout_retry_success() -> None:
