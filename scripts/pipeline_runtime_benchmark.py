@@ -93,7 +93,7 @@ def parse_json_or_empty(text: str) -> dict[str, Any]:
         return {}
 
 
-def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actual: bool, timeout_seconds: int) -> dict[str, Any]:
+def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actual: bool, timeout_seconds: int, max_retries: int) -> dict[str, Any]:
     run_id = f"bench-{task['name']}-{'dry' if dry_run else 'actual'}"
     cmd = [
         sys.executable,
@@ -106,6 +106,8 @@ def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actua
         run_id,
         '--timeout-seconds',
         str(timeout_seconds),
+        '--max-retries',
+        str(max_retries),
     ]
     for item in task['allowed_files']:
         cmd.extend(['--allowed-file', item])
@@ -170,6 +172,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Benchmark the three-stage pipeline against legacy dry-run routing.')
     parser.add_argument('--allow-actual', action='store_true', help='Allow real Codex actual execution in temp repositories.')
     parser.add_argument('--timeout-seconds', type=int, default=360)
+    parser.add_argument('--max-retries', type=int, default=2)
     parser.add_argument('--json-output', default='')
     args = parser.parse_args()
 
@@ -192,8 +195,8 @@ def main() -> int:
     results = []
     for task in TASKS:
         repo = temp_repo(task['name'])
-        dry = run_pipeline(repo, task, dry_run=True, allow_actual=False, timeout_seconds=args.timeout_seconds)
-        actual = run_pipeline(repo, task, dry_run=False, allow_actual=args.allow_actual, timeout_seconds=args.timeout_seconds)
+        dry = run_pipeline(repo, task, dry_run=True, allow_actual=False, timeout_seconds=args.timeout_seconds, max_retries=args.max_retries)
+        actual = run_pipeline(repo, task, dry_run=False, allow_actual=args.allow_actual, timeout_seconds=args.timeout_seconds, max_retries=args.max_retries)
         legacy = run_legacy_dry(repo, task, timeout_seconds=args.timeout_seconds)
         results.append({'task_class': task['name'], 'task': task['task'], 'dry_run': dry, 'actual_run': actual, 'legacy_dry_run': legacy})
 

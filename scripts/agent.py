@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.7.5-three-stage-pipeline-runtime'
+VERSION = '0.7.6-execution-resilience-layer-three-stage-pipeline-runtime'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -573,6 +573,8 @@ def pipeline(args) -> int:
         args.sandbox,
         '--timeout-seconds',
         str(args.timeout_seconds),
+        '--max-retries',
+        str(getattr(args, 'max_retries', 0)),
     ]
     if args.run_id:
         command.extend(['--run-id', args.run_id])
@@ -1117,6 +1119,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
     pipeline_parser.add_argument('--codex-home', default='')
     pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
+    pipeline_parser.add_argument('--max-retries', type=int, default=2)
     pipeline_parser.set_defaults(handler=pipeline)
 
     plan_big_parser = sub.add_parser('plan-big', help='Compatibility/debug: create a big task readiness contract without Codex actual execution.')
