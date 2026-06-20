@@ -10,6 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
+from classify_goal_domain import classify_goal  # noqa: E402
 from runtime_common import load_json, project_root, resolve_goal, safe_name, utc_now, write_json  # noqa: E402
 
 
@@ -104,9 +105,12 @@ def goal_record_from_payload(
     goal_status = status or str(goal.get('scheduler_status') or goal.get('status') or 'paused')
     if goal_status not in GOAL_STATUSES:
         goal_status = 'paused'
+    classified = classify_goal({**goal, 'goal_id': goal_id})
     return {
         'goal_id': goal_id,
         'goal': str(goal.get('goal') or goal.get('root_goal') or ''),
+        'goal_type': classified['goal_type'],
+        'execution_mode': classified['execution_mode'],
         'status': goal_status,
         'priority': normalized_priority,
         'progress': normalize_progress(goal.get('progress') if goal.get('progress') is not None else goal.get('progress_score')),
@@ -473,6 +477,9 @@ def sync_goals(project: Path) -> dict[str, Any]:
         if goal_id in existing:
             record = existing[goal_id]
             record['goal'] = str(payload.get('goal') or payload.get('root_goal') or record.get('goal') or '')
+            classified = classify_goal({**payload, **record})
+            record['goal_type'] = classified['goal_type']
+            record['execution_mode'] = classified['execution_mode']
             if not record.get('resource_usage'):
                 record['resource_usage'] = infer_resource_usage(payload)
             record['updated_at'] = utc_now()

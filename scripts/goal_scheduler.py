@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from goal_conflict_detector import apply_conflict_resolutions, detect_conflicts, write_conflict_report  # noqa: E402
 from goal_priority_engine import dependency_blocked, rank_goals  # noqa: E402
 from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state, sync_goals  # noqa: E402
+from filter_system_goals import filter_goals  # noqa: E402
 from runtime_common import project_root, utc_now, write_json  # noqa: E402
 
 
@@ -31,10 +32,13 @@ def status_groups(goals: list[dict[str, Any]]) -> dict[str, list[str]]:
 def eligible_goal_ids(state: dict[str, Any]) -> set[str]:
     goals = [dict(item) for item in state.get('goals') or []]
     goals_by_id = {str(item.get('goal_id')): item for item in goals}
+    production_goal_ids = {str(item.get('goal_id')) for item in filter_goals(state)['eligible_goals']}
     eligible: set[str] = set()
     for goal in goals:
         goal_id = str(goal.get('goal_id') or '')
         if not goal_id:
+            continue
+        if goal_id not in production_goal_ids:
             continue
         if goal.get('status') in {'completed', 'blocked'}:
             continue
@@ -105,16 +109,32 @@ def schedule_goals(
     )
     state = load_goal_state(project)
 
+    goal_filter = filter_goals(state)
     conflict_report = detect_conflicts(project)
     if apply_conflicts:
         conflict_report = apply_conflict_resolutions(project, conflict_report)
         state = load_goal_state(project)
         loop = state.setdefault('global_loop_state', {})
+        goal_filter = filter_goals(state)
     write_conflict_report(project, conflict_report)
 
     actual_execution_frozen = (backend_health or '').strip() in BACKEND_UNHEALTHY
     starvation_prevention_applied = False
     schedule_changes: list[dict[str, Any]] = []
+    for excluded in goal_filter.get('excluded_goals') or []:
+        goal_id = str(excluded.get('goal_id') or '')
+        goal = next((item for item in state.get('goals') or [] if item.get('goal_id') == goal_id), {})
+        if goal.get('status') == 'active':
+            schedule_changes.append(
+                {
+                    'goal_id': goal_id,
+                    'op': 'set_status',
+                    'from': 'active',
+                    'to': 'paused',
+                    'requires_explicit_reason': True,
+                    'reason': f"excluded_from_production_scheduler:{excluded.get('goal_type')}",
+                }
+            )
     if actual_execution_frozen:
         schedule_changes.extend(
             [
@@ -129,9 +149,12 @@ def schedule_goals(
             max_continuous_iterations=max(1, max_continuous_iterations),
         )
         goals = state.get('goals') or []
+        production_goal_ids = {str(item.get('goal_id')) for item in goal_filter.get('eligible_goals') or []}
         for goal in goals:
             goal_id = str(goal.get('goal_id') or '')
             if not goal_id:
+                continue
+            if goal_id not in production_goal_ids:
                 continue
             if goal.get('status') == 'completed':
                 continue
@@ -168,8 +191,9 @@ def schedule_goals(
             ]
         )
 
-    groups = status_groups(state.get('goals') or [])
-    if state.get('goals') and len(groups['completed_goals']) == len(state.get('goals') or []):
+    production_goals = [item for item in state.get('goals') or [] if item.get('goal_id') in {row.get('goal_id') for row in goal_filter.get('eligible_goals') or []}]
+    groups = status_groups(production_goals)
+    if production_goals and len(groups['completed_goals']) == len(production_goals):
         schedule_changes.extend(
             [
                 loop_patch('system_status', 'converged', 'all_goals_completed'),
@@ -188,13 +212,18 @@ def schedule_goals(
         changes=schedule_changes,
     )
     state = load_goal_state(project)
-    groups = status_groups(state.get('goals') or [])
+    final_filter = filter_goals(state)
+    final_queue_ids = eligible_goal_ids(state)
+    final_eligible_goals = [row for row in final_filter.get('eligible_goals') or [] if row.get('goal_id') in final_queue_ids]
+    final_production_goals = [item for item in state.get('goals') or [] if item.get('goal_id') in {row.get('goal_id') for row in final_filter.get('eligible_goals') or []}]
+    groups = status_groups(final_production_goals)
 
     report = {
         'schema_version': '1.0',
         'generated_by': 'goal_scheduler.py',
         'generated_at': utc_now(),
         'workspace': str(project),
+        'active_goal': (state.get('global_loop_state') or {}).get('active_goal_id') or '',
         'active_goal_id': (state.get('global_loop_state') or {}).get('active_goal_id') or '',
         'single_goal_mode': bool(single_goal_mode),
         'actual_execution_frozen': bool((state.get('global_loop_state') or {}).get('actual_execution_frozen')),
@@ -202,8 +231,12 @@ def schedule_goals(
         'starvation_prevention_applied': starvation_prevention_applied,
         'max_continuous_goal_iterations': max_continuous_iterations,
         'ranking': rank_goals(state),
+        'eligible_goals': final_eligible_goals,
+        'production_goals': final_filter.get('eligible_goals') or [],
+        'excluded_goals': final_filter.get('excluded_goals') or [],
+        'exclusion_reason': final_filter.get('exclusion_reason') or {},
         'conflict_report': conflict_report,
-        **status_groups(state.get('goals') or []),
+        **status_groups(final_production_goals),
         'paths': {
             'goal_state': str(project / '.zoo-agent' / 'goal' / 'goal_state.json'),
             'goal_schedule': str(project / '.zoo-agent' / 'goal' / 'goal-schedule.json'),

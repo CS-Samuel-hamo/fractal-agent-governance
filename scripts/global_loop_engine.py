@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 from goal_scheduler import schedule_goals  # noqa: E402
 from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state  # noqa: E402
+from filter_system_goals import filter_goals  # noqa: E402
 from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
 
 
@@ -40,7 +41,8 @@ def detect_backend_health(project: Path, explicit: str = '') -> str:
 
 
 def system_pressure(state: dict[str, Any], *, conflicts: list[dict[str, Any]], backend_health: str) -> float:
-    goals = state.get('goals') or []
+    production_goal_ids = {str(item.get('goal_id')) for item in filter_goals(state).get('eligible_goals') or []}
+    goals = [item for item in state.get('goals') or [] if item.get('goal_id') in production_goal_ids]
     active = len([item for item in goals if item.get('status') == 'active'])
     paused = len([item for item in goals if item.get('status') == 'paused'])
     backlog = len([item for item in goals if item.get('status') == 'backlog'])
@@ -100,12 +102,14 @@ def run_global_loop(
     loop = state.setdefault('global_loop_state', {})
     conflicts = (schedule.get('conflict_report') or {}).get('conflicts') or []
     pressure = system_pressure(state, conflicts=conflicts, backend_health=health)
-    completed_goals = [str(item.get('goal_id')) for item in state.get('goals') or [] if item.get('status') == 'completed']
-    paused_goals = [str(item.get('goal_id')) for item in state.get('goals') or [] if item.get('status') == 'paused']
-    backlog_goals = [str(item.get('goal_id')) for item in state.get('goals') or [] if item.get('status') == 'backlog']
+    production_goal_ids = {str(item.get('goal_id')) for item in filter_goals(state).get('eligible_goals') or []}
+    production_goals = [item for item in state.get('goals') or [] if item.get('goal_id') in production_goal_ids]
+    completed_goals = [str(item.get('goal_id')) for item in production_goals if item.get('status') == 'completed']
+    paused_goals = [str(item.get('goal_id')) for item in production_goals if item.get('status') == 'paused']
+    backlog_goals = [str(item.get('goal_id')) for item in production_goals if item.get('status') == 'backlog']
     active_goal = str(loop.get('active_goal_id') or schedule.get('active_goal_id') or '')
 
-    if state.get('goals') and len(completed_goals) == len(state.get('goals') or []):
+    if production_goals and len(completed_goals) == len(production_goals):
         system_status = 'converged'
     elif next_iteration >= int(loop.get('max_iterations') or max_iterations):
         system_status = 'paused'

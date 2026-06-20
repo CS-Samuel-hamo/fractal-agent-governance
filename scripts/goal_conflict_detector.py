@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state, sync_goals  # noqa: E402
+from filter_system_goals import filter_goals  # noqa: E402
 from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
 
 
@@ -70,10 +71,11 @@ def resolution_for(severity: str) -> str:
 
 def detect_conflicts(project: Path) -> dict[str, Any]:
     state = sync_goals(project)
+    production_goal_ids = {str(item.get('goal_id')) for item in filter_goals(state).get('eligible_goals') or []}
     goals = [
         dict(item)
         for item in state.get('goals') or []
-        if item.get('status') not in {'completed', 'blocked'} and item.get('goal_id')
+        if item.get('status') not in {'completed', 'blocked'} and item.get('goal_id') in production_goal_ids
     ]
     resource_map_known = resource_map_resources(project)
     conflicts: list[dict[str, Any]] = []

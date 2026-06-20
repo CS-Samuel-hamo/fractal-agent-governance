@@ -149,6 +149,24 @@ def health_payload(
         verdict = 'UNHEALTHY'
     elif warnings:
         verdict = 'HEALTHY_WITH_WARNINGS'
+    execution_gate = {
+        'HEALTHY': {
+            'allow_actual': True,
+            'allow_parallel_actual': True,
+            'allowed_modes': ['fast_actual', 'parallel_actual_if_independent', 'dry_run', 'planning', 'decomposition', 'reporting'],
+        },
+        'HEALTHY_WITH_WARNINGS': {
+            'allow_actual': True,
+            'allow_single_low_risk_leaf_actual': True,
+            'allow_parallel_actual': False,
+            'allowed_modes': ['single_low_risk_leaf_actual', 'dry_run', 'planning', 'decomposition', 'reporting'],
+        },
+        'UNHEALTHY': {
+            'allow_actual': False,
+            'allow_parallel_actual': False,
+            'allowed_modes': ['dry_run', 'planning', 'decomposition', 'reporting'],
+        },
+    }[verdict]
 
     return {
         'schema_version': '1.0',
@@ -168,6 +186,7 @@ def health_payload(
         'full_health_fresh': full_fresh,
         'health_ttl_minutes': ttl_minutes,
         'worker_health': worker_health,
+        'execution_gate': execution_gate,
         'blockers': sorted(set(blockers)),
         'warnings': sorted(set(warnings)),
         'secrets_read': False,
@@ -184,6 +203,7 @@ def write_markdown(path: Path, payload: dict[str, Any], profile: dict[str, Any])
         f"- profile_health_status: {profile.get('health_status')}",
         f"- allow_fast_actual: {profile.get('recommended_usage', {}).get('allow_fast_actual')}",
         f"- allow_parallel_actual: {profile.get('recommended_usage', {}).get('allow_parallel_actual')}",
+        f"- health_execution_gate: {payload.get('execution_gate', {}).get('allowed_modes')}",
         '',
         '## Blockers',
         '',

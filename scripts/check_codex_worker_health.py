@@ -228,6 +228,24 @@ def main() -> int:
         verdict = 'UNHEALTHY'
     elif warnings:
         verdict = 'HEALTHY_WITH_WARNINGS'
+    execution_gate = {
+        'HEALTHY': {
+            'allow_actual': True,
+            'allow_parallel_actual': True,
+            'allowed_modes': ['fast_actual', 'parallel_actual_if_independent', 'dry_run', 'planning', 'decomposition', 'reporting'],
+        },
+        'HEALTHY_WITH_WARNINGS': {
+            'allow_actual': True,
+            'allow_single_low_risk_leaf_actual': True,
+            'allow_parallel_actual': False,
+            'allowed_modes': ['single_low_risk_leaf_actual', 'dry_run', 'planning', 'decomposition', 'reporting'],
+        },
+        'UNHEALTHY': {
+            'allow_actual': False,
+            'allow_parallel_actual': False,
+            'allowed_modes': ['dry_run', 'planning', 'decomposition', 'reporting'],
+        },
+    }[verdict]
 
     payload = {
         'schema_version': '1.0',
@@ -244,6 +262,7 @@ def main() -> int:
         'codex_command': codex_command,
         'adapter_command_result': adapter_result,
         'adapter_smoke': adapter_status,
+        'execution_gate': execution_gate,
         'blockers': blockers,
         'warnings': warnings,
         'report_dir': str(health_dir),

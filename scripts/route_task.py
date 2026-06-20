@@ -30,6 +30,7 @@ from task_classifier import classify  # noqa: E402
 from update_runtime_metrics import update_metrics  # noqa: E402
 from classify_codex_failure import classify as classify_codex_failure  # noqa: E402
 from update_loop_state import update_state as update_loop_from_outcome  # noqa: E402
+from classify_goal_domain import classify_goal  # noqa: E402
 
 FAST_SKIPPED_GOVERNANCE = [
     'product_doc_generation',
@@ -46,7 +47,6 @@ FAST_SKIPPED_GOVERNANCE = [
 LOCAL_OPTIMIZATION_TERMS = ['optimize', 'optimization', 'cleanup', 'polish', 'tune', 'refactor', 'local', '\u4f18\u5316', '\u6574\u7406']
 CODING_INTENT_TERMS = ['implement', 'code', 'build', 'validation', 'bug', 'form', 'api', 'schema', 'database', '\u5b9e\u73b0', '\u4fee\u590d', '\u65b0\u589e']
 DOC_INTENT_TERMS = ['readme', 'doc', 'docs', 'documentation', 'typo', 'markdown', '\u6587\u6863']
-HEALTHY_CODEX_WORKER_VERDICTS = {'HEALTHY', 'HEALTHY_WITH_WARNINGS'}
 HEALTHY_BACKEND_STATUSES = {'healthy', 'healthy_with_warnings'}
 
 
@@ -116,18 +116,64 @@ def health_fresh(payload: dict[str, Any]) -> bool:
     return not stale if generated_at else False
 
 
-def backend_actual_allowed(project: Path, *, require_parallel: bool = False) -> tuple[bool, dict[str, Any]]:
+def backend_actual_allowed(
+    project: Path,
+    *,
+    require_parallel: bool = False,
+    selected_path: str = 'fast',
+    goal: dict[str, Any] | None = None,
+    classification: dict[str, Any] | None = None,
+) -> tuple[bool, dict[str, Any]]:
     payload = backend_profile(project)
     if not payload:
         return False, {'health_status': 'missing', 'message': 'No codex backend profile found. Run agent codex-health.'}
     status = str(payload.get('health_status') or 'unknown')
+    goal_domain = classify_goal(goal or {})
+    gate = {
+        'goal_type': goal_domain.get('goal_type'),
+        'selected_path': selected_path,
+        'backend_health': status,
+        'gate_policy': 'backend_health_is_execution_gate',
+        'allowed': False,
+        'reason': '',
+    }
+    if goal_domain.get('goal_type') in {'system_goal', 'runtime_goal'}:
+        gate['reason'] = f"non_production_goal_no_codex_actual:{goal_domain.get('goal_type')}"
+        payload['execution_gate'] = gate
+        return False, payload
+    if goal_domain.get('goal_type') == 'diagnostic_goal':
+        gate['reason'] = 'diagnostic_goal_dry_run_only'
+        payload['execution_gate'] = gate
+        return False, payload
     if not health_fresh(payload):
         payload['_health_stale'] = True
+        gate['reason'] = 'backend_health_missing_or_stale'
+        payload['execution_gate'] = gate
         return False, payload
     recommended = payload.get('recommended_usage') if isinstance(payload.get('recommended_usage'), dict) else {}
+    if status == 'unhealthy':
+        gate['reason'] = 'backend_unhealthy_blocks_actual_execution'
+        payload['execution_gate'] = gate
+        return False, payload
     if require_parallel:
-        return bool(recommended.get('allow_parallel_actual')) and status == 'healthy', payload
-    return bool(recommended.get('allow_fast_actual')) and status in HEALTHY_BACKEND_STATUSES, payload
+        allowed = bool(recommended.get('allow_parallel_actual')) and status == 'healthy'
+        gate['allowed'] = allowed
+        gate['reason'] = 'parallel_requires_healthy_backend' if not allowed else 'healthy_backend_parallel_allowed'
+        payload['execution_gate'] = gate
+        return allowed, payload
+    if status == 'healthy_with_warnings':
+        class_payload = classification or {}
+        low_risk = class_payload.get('path') == 'fast' and class_payload.get('task_scale') != 'big' and not (class_payload.get('signals') or {}).get('hard_risk_hits')
+        allowed = selected_path == 'fast' and low_risk and bool(recommended.get('allow_fast_actual'))
+        gate['allowed'] = allowed
+        gate['reason'] = 'healthy_with_warnings_single_low_risk_fast_allowed' if allowed else 'healthy_with_warnings_blocks_non_fast_or_risky_actual'
+        payload['execution_gate'] = gate
+        return allowed, payload
+    allowed = bool(recommended.get('allow_fast_actual')) and status in HEALTHY_BACKEND_STATUSES
+    gate['allowed'] = allowed
+    gate['reason'] = 'healthy_backend_actual_allowed' if allowed else f'backend_health_{status}_blocks_actual_execution'
+    payload['execution_gate'] = gate
+    return allowed, payload
 
 
 def run_quick_backend_check(project: Path, args) -> dict[str, Any]:
@@ -455,7 +501,13 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     backend_check_run: dict[str, Any] = {}
     backend_profile_snapshot = backend_profile(project)
     if selected_path in {'fast', 'parallel'} and not args.dry_run and not args.worker_dry_run and not args.skip_health_check:
-        allowed_now, current_backend = backend_actual_allowed(project, require_parallel=selected_path == 'parallel')
+        allowed_now, current_backend = backend_actual_allowed(
+            project,
+            require_parallel=selected_path == 'parallel',
+            selected_path=selected_path,
+            goal=goal,
+            classification=classification,
+        )
         needs_full_health = not current_backend or current_backend.get('health_status') == 'missing' or current_backend.get('_health_stale')
         if not allowed_now and needs_full_health:
             backend_check_run = run_full_backend_check(project, args)
@@ -503,8 +555,13 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             scope_guard_status, tests_status = fast_statuses(execution)
     elif selected_path == 'fast':
         pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
-        health_ok, health_report = (True, {'health_status': 'skipped_for_worker_dry_run'}) if args.worker_dry_run else backend_actual_allowed(project)
-        if not health_ok and not args.skip_health_check:
+        health_ok, health_report = (True, {'health_status': 'skipped_for_worker_dry_run'}) if args.worker_dry_run else backend_actual_allowed(
+            project,
+            selected_path='fast',
+            goal=goal,
+            classification=classification,
+        )
+        if not health_ok:
             failure = classify_codex_failure(text=json.dumps(health_report, ensure_ascii=False), worker_status='failed')
             execution = {
                 'status': 'blocked_codex_backend_health_check_required',
@@ -532,7 +589,13 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
                 'parallel_denial_reason': classification.get('parallel_denial_reason') or 'not_independent',
             }
             returncode = 20
-        elif not args.dry_run and not args.worker_dry_run and not args.skip_health_check and not backend_actual_allowed(project, require_parallel=True)[0]:
+        elif not args.dry_run and not args.worker_dry_run and not backend_actual_allowed(
+            project,
+            require_parallel=True,
+            selected_path='parallel',
+            goal=goal,
+            classification=classification,
+        )[0]:
             execution = {
                 'status': 'blocked_codex_backend_not_healthy_for_parallel',
                 'message': 'Parallel actual requires HEALTHY backend without warnings. Use dry-run or reduce to serial/fast.',
@@ -741,6 +804,7 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         'goal_alignment': alignment,
         'execution': execution,
         'backend_profile': backend_profile_snapshot,
+        'backend_execution_gate': backend_profile_snapshot.get('execution_gate') if isinstance(backend_profile_snapshot, dict) else {},
         'backend_check_run': backend_check_run,
         'fast_path_report': fast_path_report,
         'fast_path_pre_codex_overhead_ms': pre_codex_overhead_ms if selected_path == 'fast' else 0.0,

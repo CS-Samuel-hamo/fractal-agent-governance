@@ -91,7 +91,7 @@ def latest_health(project: Path) -> dict[str, Any]:
 
 def recommended_usage(health_status: str, risks: list[str]) -> dict[str, Any]:
     allow_fast = health_status in {'healthy', 'healthy_with_warnings'}
-    allow_parallel = health_status == 'healthy' and 'windows_sandbox_fragility' not in risks
+    allow_parallel = health_status == 'healthy'
     return {
         'allow_fast_actual': allow_fast,
         'allow_parallel_actual': allow_parallel,
