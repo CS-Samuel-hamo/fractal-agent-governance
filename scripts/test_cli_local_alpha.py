@@ -94,6 +94,7 @@ def main() -> int:
                 'semantic-decoupling-runtime-engine',
                 'cli-product-alpha',
                 'product-surface-hardening-alpha',
+                'external-user-release-simulation-alpha',
             ]
         )
 

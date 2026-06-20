@@ -104,6 +104,25 @@ def main() -> int:
     assert_docs_clean()
     repo = init_repo(env)
 
+    no_bootstrap_run = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'run',
+            'fix README typo',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'surface-no-bootstrap',
+            '--allowed-file',
+            'README.md',
+            '--dry-run',
+        ],
+        repo,
+        env=env,
+    )
+    assert_product_payload(no_bootstrap_run.stdout)
+
     bootstrap = run([sys.executable, str(AGENT), 'bootstrap', '--workspace', str(repo)], repo, env=env)
     assert_product_payload(bootstrap.stdout)
 
@@ -169,6 +188,22 @@ def main() -> int:
         env=env,
     )
     assert_product_payload(rollback_result.stdout)
+
+    for typo in ['rum', 'runn']:
+        typo_result = run([sys.executable, str(AGENT), typo], repo, env=env, check=False)
+        assert typo_result.returncode != 0
+        assert_product_payload(typo_result.stdout)
+        assert 'try: agent run' in typo_result.stdout
+
+    empty_goal = run([sys.executable, str(AGENT), 'goal', ''], repo, env=env, check=False)
+    assert empty_goal.returncode != 0
+    assert_product_payload(empty_goal.stdout)
+    assert 'missing goal' in empty_goal.stdout
+
+    wrong_backend = run([sys.executable, str(AGENT), 'backend', 'switch', 'not-real', '--workspace', str(repo)], repo, env=env, check=False)
+    assert wrong_backend.returncode != 0
+    assert not ABSOLUTE_PATH_RE.search(wrong_backend.stdout)
+    assert 'unknown backend' in wrong_backend.stdout
 
     debug_status = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write', '--debug'], repo, env=env)
     assert any(term in debug_status.stdout for term in ['runtime_status.py', 'goal_state', 'loop_state'])

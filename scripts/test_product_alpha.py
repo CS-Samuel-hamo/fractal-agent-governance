@@ -70,7 +70,7 @@ def main() -> int:
         assert (ROOT / required).exists(), f'missing product document: {required}'
 
     version = run([sys.executable, str(AGENT), '--version'], ROOT, env=env).stdout
-    assert '0.8.4' in version
+    assert '0.8.5' in version
 
     help_text = run([sys.executable, str(AGENT), '--help'], ROOT, env=env).stdout
     for visible in ['run', 'pipeline', 'goal', 'status', 'backend']:

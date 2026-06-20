@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.8.4-product-surface-hardening-alpha'
+VERSION = '0.8.5-external-user-release-simulation-alpha'
 
 KNOWN_COMMANDS = {
     'bootstrap',
@@ -34,6 +34,18 @@ KNOWN_COMMANDS = {
     'integration-check',
     'goal-loop',
     'global-loop',
+}
+COMMAND_TYPO_SUGGESTIONS = {
+    'rum': 'run',
+    'runn': 'run',
+    'rn': 'run',
+    'stats': 'status',
+    'statuz': 'status',
+    'pipline': 'pipeline',
+    'pipeine': 'pipeline',
+    'bakend': 'backend',
+    'backnd': 'backend',
+    'goals': 'goal',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -504,20 +516,7 @@ def ensure_bootstrap_before_run(args) -> None:
     project = project_root(args.workspace)
     if is_bootstrapped(project):
         return
-
-    print('Project not bootstrapped. Bootstrap now? yes/no')
-    try:
-        answer = input().strip().lower()
-    except EOFError:
-        answer = 'no'
-
-    if answer in {'y', 'yes'}:
-        result = delegate('agent.py', ['bootstrap', '--workspace', str(project)])
-        if result != 0:
-            raise SystemExit(result)
-        return
-
-    print('WARNING: running one-off without project bootstrap; runtime evidence may be incomplete.')
+    return
 
 
 def legacy_run(args) -> int:
@@ -877,6 +876,9 @@ def review(args) -> int:
 
 def goal_command(args) -> int:
     if args.goal_action == 'set':
+        if not str(args.goal or '').strip():
+            print_json({'goal': '', 'progress': 'blocked', 'result': 'missing goal'})
+            return 2
         command = ['--workspace', workspace_arg(args.workspace), '--goal', args.goal]
         if args.goal_id:
             command.extend(['--goal-id', args.goal_id])
@@ -1021,7 +1023,15 @@ def backend_command(args) -> int:
         return 2
     result = delegate_capture('backend_registry.py', command)
     if result.get('returncode') != 0:
-        print(json.dumps({'status': 'failed', 'message': (result.get('stderr') or result.get('stdout') or '').strip()}, ensure_ascii=False, indent=2))
+        product = {'status': 'failed', 'result': 'backend command failed'}
+        if args.backend_action == 'switch':
+            product = {
+                'status': 'failed',
+                'selected_backend': '',
+                'available_backends': ['codex', 'dry_run', 'mock'],
+                'result': f'unknown backend: {args.name}',
+            }
+        print(json.dumps(product, ensure_ascii=False, indent=2))
         return int(result.get('returncode') or 1)
     raw = str(result.get('stdout') or '{}').strip()
     try:
@@ -1260,6 +1270,10 @@ def main(argv: list[str] | None = None) -> int:
     if raw_argv in (['-h'], ['--help']):
         print(product_help())
         return 0
+    suggestion = COMMAND_TYPO_SUGGESTIONS.get(raw_argv[0].lower()) if raw_argv else ''
+    if suggestion:
+        print_json({'goal': 'command help', 'progress': 'blocked', 'result': f'unknown command: {raw_argv[0]}; try: agent {suggestion}'})
+        return 2
     raw_argv = normalize_argv(raw_argv)
 
     parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI runtime: goal -> run -> result.')

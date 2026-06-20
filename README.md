@@ -2,7 +2,7 @@
 
 CLI-first AI runtime with pluggable execution backend.
 
-Status: `0.8.4-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
+Status: `0.8.5-alpha`. This repository is ready for GitHub alpha publication and local controlled use. It is still an alpha tool: review outputs before applying or merging work.
 
 ## Three Commands
 
