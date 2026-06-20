@@ -1,9 +1,0 @@
-# Only copied when patterns also appear in .gitignore.
-# Keep this minimal to avoid leaking secrets across worktrees.
-.env.local
-.env.development.local
-.node-version
-.nvmrc
-.tool-versions
-.pnpm-store
-.yarn/cache

@@ -1,8 +1,0 @@
-id: add-field
-title: Add field
-governance_level: 2
-expected_executor: codex_cli
-metrics:
-  - changed_file_count
-  - tests_pass
-  - review_blocker_count

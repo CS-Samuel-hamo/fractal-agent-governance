@@ -1,8 +1,0 @@
-id: api-behavior-change
-title: API behavior change
-governance_level: 2
-expected_executor: hybrid
-metrics:
-  - quality_gate_pass
-  - review_blocker_count
-  - manual_intervention_count

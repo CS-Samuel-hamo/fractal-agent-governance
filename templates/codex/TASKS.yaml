@@ -1,0 +1,28 @@
+tasks:
+  - id: "{{TASK_ID}}"
+    status: "pending"
+    goal_id: "{{GOAL_ID}}"
+    objective: {{OBJECTIVE_YAML}}
+    branch_id: "{{BRANCH_ID}}"
+    allowed_files:
+{{ALLOWED_FILES}}
+    denied_files:
+{{DENIED_FILES}}
+    requires_approval_if:
+      - "architecture change"
+      - "dependency change"
+      - "database schema change"
+      - "auth/security change"
+      - "public API breaking change"
+      - "production config change"
+      - "files outside allowed scope"
+    acceptance:
+{{ACCEPTANCE}}
+    test_commands:
+{{TEST_COMMANDS}}
+    evidence_required:
+      - "git status"
+      - "git diff --name-only"
+      - "relevant tests"
+      - "scope guard pass"
+      - "PROGRESS.md updated"

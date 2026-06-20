@@ -1,30 +1,29 @@
 # Contributing
 
-Contributions should improve governance quality, clarity, safety, or reproducibility.
+This repository is currently `0.4.0-local-alpha`.
 
-## Issues
+## Development Rules
 
-When opening an issue, include:
+- Use temporary projects for tests.
+- Keep changes reviewable and rollback-friendly.
+- Do not commit `.codex`, `CODEX_HOME`, caches, temporary smoke repos, or secrets.
+- Do not add product-document workflows, dashboards, or new runtime roles unless a design issue explicitly approves them.
 
-- The governance problem being addressed.
-- A toy example or minimal reproduction.
-- Expected obligations, gates, routing, or decomposition behavior.
-- Any safety concern.
+## Test Commands
 
-Do not include real business data, secrets, real logs, or private project paths.
+```powershell
+python -m py_compile scripts\*.py
+python scripts\validate_starter_pack.py
+python scripts\test_cli_runtime_paths.py
+python scripts\test_cli_local_alpha.py
+python scripts\smoke_test.py
+```
 
-## Rules, Skills, And Commands
+## Pull Request Checklist
 
-New rules, skills, and commands should include:
-
-- A clear purpose.
-- A concrete trigger condition.
-- A test, demo, or eval case.
-- Safety and failure behavior.
-- Scope boundaries.
-
-We do not accept vague prompts, generic agent advice, or examples containing real business data.
-
-## Eval Cases
-
-Every eval case should include expected obligations, expected surfaces, expected routing, expected decomposition, expected escalations, forbidden actions, and scoring.
+- CLI entrypoints still work.
+- Bootstrap remains idempotent.
+- Fast path skips heavy governance.
+- Parallel path denies unknown independence.
+- Rollback defaults to dry-run.
+- Public docs contain no personal absolute paths or secrets.

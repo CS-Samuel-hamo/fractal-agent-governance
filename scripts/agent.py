@@ -1,0 +1,1567 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+
+VERSION = '0.9.0-github-alpha-release-freeze'
+
+KNOWN_COMMANDS = {
+    'bootstrap',
+    'backend',
+    'pipeline',
+    'run',
+    'status',
+    'rollback',
+    'reroute',
+    'map',
+    'standards',
+    'review',
+    'codex-health',
+    'goal',
+    'loop',
+    'plan-big',
+    'decompose',
+    'aggregate',
+    'integration-check',
+    'goal-loop',
+    'global-loop',
+}
+COMMAND_TYPO_SUGGESTIONS = {
+    'rum': 'run',
+    'runn': 'run',
+    'rn': 'run',
+    'stats': 'status',
+    'statuz': 'status',
+    'pipline': 'pipeline',
+    'pipeine': 'pipeline',
+    'bakend': 'backend',
+    'backnd': 'backend',
+    'goals': 'goal',
+}
+
+from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
+from check_project_readiness import analyze_project_readiness  # noqa: E402
+from update_runtime_metrics import update_metrics  # noqa: E402
+from backend_registry import read_backend_selection  # noqa: E402
+
+
+def run_command(command: list[str], cwd: Path) -> int:
+    proc = subprocess.run(command, cwd=cwd)
+    return proc.returncode
+
+
+def run_command_capture(command: list[str], cwd: Path) -> dict:
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return {
+        'command': [str(item) for item in command],
+        'cwd': str(cwd),
+        'returncode': proc.returncode,
+        'stdout': proc.stdout,
+        'stderr': proc.stderr,
+    }
+
+
+def delegate(script_name: str, args_list: list[str]) -> int:
+    return run_command([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
+
+
+def delegate_capture(script_name: str, args_list: list[str]) -> dict:
+    return run_command_capture([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
+
+
+def parse_json_output(result: dict) -> dict:
+    raw = str(result.get('stdout') or '{}').strip()
+    if not raw.startswith('{'):
+        return {}
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+
+
+def print_json(payload: dict) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def clean_progress(value: object) -> str:
+    if isinstance(value, (int, float)):
+        return f'{max(0, min(int(value), 100))}%'
+    text = str(value or '').strip()
+    if not text:
+        return 'unknown'
+    return text if text.endswith('%') else text
+
+
+def workspace_arg(workspace: str) -> str:
+    return str(project_root(workspace))
+
+
+def bootstrap_lock_path(project: Path) -> Path:
+    return project / '.zoo-agent' / 'bootstrap.lock'
+
+
+def is_bootstrapped(project: Path) -> bool:
+    return (project / '.zoo-agent' / 'runtime-v4.json').exists() or bootstrap_lock_path(project).exists()
+
+
+def is_git_repo(project: Path) -> bool:
+    result = run_command_capture(['git', 'rev-parse', '--show-toplevel'], project)
+    return result.get('returncode') == 0
+
+
+def is_empty_project_dir(project: Path) -> bool:
+    return not any(item.name not in {'.', '..'} for item in project.iterdir())
+
+
+def detect_profile(project: Path) -> dict:
+    source_roots = [name for name in ['src', 'app', 'lib', 'packages', 'services', 'backend', 'frontend'] if (project / name).is_dir()]
+    test_roots = [name for name in ['tests', 'test', 'spec', 'frontend/tests', 'backend/tests'] if (project / name).is_dir()]
+    manifests = [name for name in ['package.json', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'pom.xml'] if (project / name).exists()]
+    return {
+        'schema_version': '1.0',
+        'generated_by': 'agent.py bootstrap',
+        'generated_at': utc_now(),
+        'workspace': str(project),
+        'project_kind': 'existing_git_project' if is_git_repo(project) else 'new_or_non_git_project',
+        'source_roots': source_roots,
+        'test_roots': test_roots,
+        'manifests': manifests,
+        'runtime_dirs': ['.zoo-agent'],
+        'scan_policy': {
+            'content_scan': 'metadata_only',
+            'secret_contents_read': False,
+            'excluded_patterns': ['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**', '.codex/**'],
+        },
+    }
+
+
+def readiness_for_profile(project: Path, profile: dict, *, initialized_git: bool = False, base_readiness: dict | None = None) -> dict:
+    readiness = base_readiness or analyze_project_readiness(project)
+    blockers = []
+    warnings = []
+    next_actions = []
+    if not is_git_repo(project):
+        blockers.append('workspace_is_not_git_repo')
+        next_actions.append('Run agent bootstrap --new or initialize git explicitly if this is a new project.')
+    if not profile.get('source_roots'):
+        warnings.append('source_roots_not_detected')
+    if not profile.get('test_roots'):
+        warnings.append('test_roots_not_detected')
+        next_actions.append('Add or document a test command before relying on merge readiness.')
+    if not (project / 'AGENTS.md').exists() and not (project / 'AGENTS.md.new').exists():
+        warnings.append('project_instructions_missing')
+    legacy = {
+        'schema_version': '1.0',
+        'generated_by': 'agent.py bootstrap',
+        'generated_at': utc_now(),
+        'workspace': str(project),
+        'safe_for_bootstrap': readiness.get('safe_for_bootstrap', not blockers),
+        'safe_for_level_0_1_trial': readiness.get('safe_for_level_0_1_trial', not blockers),
+        'safe_for_codex_actual_run': readiness.get('safe_for_codex_actual_run', False),
+        'blockers': readiness.get('blockers', []),
+        'blocking_issues': blockers,
+        'warnings': warnings,
+        'next_actions': next_actions or ['Run agent "fix typo in README" for a bounded dry-run/fast-path trial.'],
+        'initialized_git': initialized_git,
+        'codex_cli_detected': bool(shutil_which('codex')),
+    }
+    typed_blocking = [item.get('type') for item in readiness.get('blockers', []) if item.get('severity') == 'blocking']
+    typed_warnings = [item.get('type') for item in readiness.get('blockers', []) if item.get('severity') == 'warning']
+    legacy['blocking_issues'] = sorted(set([*blockers, *[str(item) for item in typed_blocking if item]]))
+    legacy['warnings'] = sorted(set([*warnings, *[str(item) for item in typed_warnings if item]]))
+    if readiness.get('next_actions'):
+        legacy['next_actions'] = readiness['next_actions']
+    return legacy
+
+
+def shutil_which(binary: str) -> str:
+    from shutil import which
+
+    return which(binary) or ''
+
+
+def write_text_if_missing(path: Path, content: str, actions: list[dict], *, reason: str) -> None:
+    if path.exists():
+        actions.append({'action': 'preserve_existing', 'path': str(path), 'reason': reason})
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding='utf-8')
+    actions.append({'action': 'write_missing', 'path': str(path), 'reason': reason})
+
+
+def write_gitignore_patch(project: Path, actions: list[dict]) -> None:
+    patch = project / '.gitignore.agent.patch'
+    if patch.exists():
+        actions.append({'action': 'preserve_existing', 'path': str(patch), 'reason': 'gitignore patch already exists'})
+        return
+    content = '\n'.join(
+        [
+            '# Proposed agent runtime ignores. Review before applying.',
+            '+.zoo-agent/tmp/',
+            '+.zoo-agent/worktrees/',
+            '+.codex/',
+            '+.codex-home/',
+            '+__pycache__/',
+            '+.pytest_cache/',
+            '',
+        ]
+    )
+    patch.write_text(content, encoding='utf-8')
+    actions.append({'action': 'write_proposal', 'path': str(patch), 'reason': '.gitignore exists; wrote patch proposal'})
+
+
+def write_roo_rules_proposal(project: Path, actions: list[dict]) -> None:
+    rules_dir = project / '.roo' / 'rules'
+    if not rules_dir.exists():
+        return
+    proposal = project / '.roo' / 'rules.new' / '00-cli-first-agent-runtime.md'
+    if proposal.exists():
+        actions.append({'action': 'preserve_existing', 'path': str(proposal), 'reason': 'roo rules proposal already exists'})
+        return
+    proposal.parent.mkdir(parents=True, exist_ok=True)
+    proposal.write_text(
+        '# CLI-first Agent Runtime Proposal\n\n'
+        '- CLI is the primary runtime entrypoint.\n'
+        '- Codex CLI is execution backend only.\n'
+        '- Do not read secrets or auto-merge/push.\n',
+        encoding='utf-8',
+    )
+    actions.append({'action': 'write_proposal', 'path': str(proposal), 'reason': '.roo/rules exists; wrote .new proposal'})
+
+
+def write_bootstrap_report(project: Path, profile: dict, readiness: dict, actions: list[dict], *, already_bootstrapped: bool) -> None:
+    lines = [
+        '# Agent Bootstrap Report',
+        '',
+        f'- version: {VERSION}',
+        f'- workspace: {project}',
+        f'- already_bootstrapped: {str(already_bootstrapped).lower()}',
+        f'- safe_for_level_0_1_trial: {str(readiness.get("safe_for_level_0_1_trial")).lower()}',
+        f'- blocking_issues: {", ".join(readiness.get("blocking_issues") or []) or "none"}',
+        f'- warnings: {", ".join(readiness.get("warnings") or []) or "none"}',
+        '',
+        '## Detected Profile',
+        '',
+        f'- source_roots: {", ".join(profile.get("source_roots") or []) or "none"}',
+        f'- test_roots: {", ".join(profile.get("test_roots") or []) or "none"}',
+        f'- manifests: {", ".join(profile.get("manifests") or []) or "none"}',
+        '',
+        '## Next Actions',
+        '',
+    ]
+    lines.extend(f'- {item}' for item in readiness.get('next_actions') or [])
+    lines.extend(['', '## Actions', ''])
+    lines.extend(f'- {item.get("action")}: {item.get("path", "")} ({item.get("reason", "")})' for item in actions)
+    path = project / '.zoo-agent' / 'bootstrap-report.md'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+
+def print_bootstrap_output(report: dict, *, debug: bool = False) -> None:
+    if debug:
+        print_json(report)
+        return
+    status = str(report.get('status') or 'unknown')
+    if report.get('already_bootstrapped'):
+        progress = 'already bootstrapped'
+        result = 'ready'
+    elif status == 'dry_run':
+        progress = 'dry_run'
+        result = 'bootstrap dry-run'
+    elif status.startswith('blocked') or status.endswith('failed'):
+        progress = 'blocked'
+        result = status
+    else:
+        progress = 'ready' if status == 'ready' else 'ready_with_warnings'
+        result = status
+    print_json({'goal': 'workspace setup', 'progress': progress, 'result': result})
+
+
+def prepare_bootstrap_workspace(project: Path, args) -> tuple[int, dict]:
+    entries = list(project.iterdir())
+    git_repo = is_git_repo(project)
+    if git_repo:
+        return 0, {'status': 'existing_git_repo', 'initialized_git': False}
+    if not entries:
+        if args.dry_run:
+            return 0, {'status': 'would_initialize_new_git_repo', 'initialized_git': False}
+        result = run_command_capture(['git', 'init'], project)
+        if result.get('returncode') != 0:
+            return 20, {'status': 'git_init_failed', 'initialized_git': False, 'git_init': result}
+        return 0, {'status': 'initialized_new_git_repo', 'initialized_git': True, 'git_init': result}
+    if args.new or args.force_new_project:
+        if args.dry_run:
+            return 0, {'status': 'would_initialize_non_empty_new_git_repo', 'initialized_git': False}
+        result = run_command_capture(['git', 'init'], project)
+        if result.get('returncode') != 0:
+            return 20, {'status': 'git_init_failed', 'initialized_git': False, 'git_init': result}
+        return 0, {'status': 'initialized_non_empty_new_git_repo', 'initialized_git': True, 'git_init': result}
+    return 20, {
+        'status': 'blocked_non_git_non_empty_directory',
+        'initialized_git': False,
+        'message': 'Directory is non-empty and is not a git repo. Pass --new or --force-new-project to initialize explicitly.',
+    }
+
+
+def write_onboarding_artifacts(project: Path, args, *, initialized_git: bool, already_bootstrapped: bool, base_readiness: dict | None = None) -> dict:
+    actions: list[dict] = []
+    base_readiness = base_readiness or analyze_project_readiness(project)
+    if initialized_git or args.new or args.force_new_project or not any(project.iterdir()):
+        write_text_if_missing(project / 'README.md', '# New Agent Project\n\nBootstrapped for CLI-first AI coding runtime.\n', actions, reason='new project README')
+        write_text_if_missing(
+            project / '.gitignore',
+            '\n'.join(['.zoo-agent/tmp/', '.zoo-agent/worktrees/', '.codex/', '.codex-home/', '__pycache__/', '.pytest_cache/', '']) ,
+            actions,
+            reason='new project gitignore',
+        )
+        write_text_if_missing(project / '.zoo-agent' / 'TASKS.md', '# Tasks\n\n- [ ] Define the first bounded coding task.\n', actions, reason='new project task draft')
+    elif (project / '.gitignore').exists():
+        write_gitignore_patch(project, actions)
+
+    write_roo_rules_proposal(project, actions)
+    profile = detect_profile(project)
+    readiness = readiness_for_profile(project, profile, initialized_git=initialized_git, base_readiness=base_readiness)
+    write_json(project / '.zoo-agent' / 'project-profile.json', profile)
+    write_json(project / '.zoo-agent' / 'project-readiness.json', readiness)
+    write_bootstrap_report(project, profile, readiness, actions, already_bootstrapped=already_bootstrapped)
+    return {'actions': actions, 'project_profile': profile, 'project_readiness': readiness}
+
+
+def bootstrap(args) -> int:
+    project = project_root(args.workspace)
+    marker_path = project / '.zoo-agent' / 'runtime-v4.json'
+    lock_path = bootstrap_lock_path(project)
+    prepare_code, prepare_report = prepare_bootstrap_workspace(project, args)
+    if prepare_code != 0:
+        print_bootstrap_output({'status': prepare_report.get('status'), 'workspace': str(project), **prepare_report}, debug=getattr(args, 'debug', False))
+        return prepare_code
+    if args.dry_run:
+        print_bootstrap_output(
+            {
+                'status': 'dry_run',
+                'workspace': str(project),
+                'version': VERSION,
+                'workspace_preparation': prepare_report,
+                'would_create_or_update': [
+                    str(marker_path),
+                    str(lock_path),
+                    str(project / '.zoo-agent' / 'project-profile.json'),
+                    str(project / '.zoo-agent' / 'project-readiness.json'),
+                    str(project / '.zoo-agent' / 'bootstrap-report.md'),
+                    str(project / 'AGENTS.md'),
+                ],
+            },
+            debug=getattr(args, 'debug', False),
+        )
+        return 0
+    initial_readiness = analyze_project_readiness(project)
+    missing_artifacts = [
+        str(path)
+        for path in [
+            project / 'AGENTS.md',
+            project / '.zoo-agent' / 'code-standards.json',
+            project / '.zoo-agent' / 'project-map.json',
+            project / '.zoo-agent' / 'project-map.md',
+            project / '.zoo-agent' / 'project-profile.json',
+            project / '.zoo-agent' / 'project-readiness.json',
+            project / '.zoo-agent' / 'bootstrap-report.md',
+        ]
+        if not path.exists()
+    ]
+    if lock_path.exists() and not args.force and not args.refresh_instructions and not args.dry_run and not missing_artifacts:
+        report = {
+            'status': 'already_bootstrapped',
+            'workspace': str(project),
+            'runtime_marker': str(marker_path),
+            'lock': str(lock_path),
+            'already_bootstrapped': True,
+            'missing_artifacts': missing_artifacts,
+            'message': 'already bootstrapped; bootstrap.lock exists and no project files were overwritten.',
+        }
+        print_bootstrap_output(report, debug=getattr(args, 'debug', False))
+        return 0
+
+    already_bootstrapped = marker_path.exists() and not args.force
+    if already_bootstrapped:
+        marker = load_json(marker_path)
+        goal = {'goal_id': args.goal_id or marker.get('goal_id', ''), '_path': ''}
+    else:
+        goal = set_active_goal(
+            project,
+            args.goal or 'Operate this project through the CLI-first AI Agent Runtime with bounded Codex execution.',
+            goal_id=args.goal_id,
+            success_criteria=args.success_criteria,
+            constraints=args.constraint,
+            activate=True,
+            source='agent.py bootstrap',
+        )
+        loop_state = initialize_loop(project, max_iteration=args.max_iteration, source='agent.py bootstrap')
+        update_metrics(project, path='fast', status='bootstrap_initialized')
+        marker = {
+            'schema_version': '4.0',
+            'generated_by': 'agent.py bootstrap',
+            'generated_at': utc_now(),
+            'workspace': str(project),
+            'entrypoints': {
+                'bootstrap': 'agent bootstrap',
+                'run': 'agent run <input>',
+                'fast': 'agent run --fast <input>',
+                'parallel': 'agent run --parallel <input>',
+                'governed': 'agent run --governed <input>',
+            },
+            'runtime_model': {
+                'cli_runtime': 'task routing, goal, loop, execution control',
+                'codex_cli': 'execution backend',
+                'gpt': 'decision layer',
+                'deepseek': 'cheap worker',
+                'zoo_code': 'optional UI layer',
+            },
+            'goal_id': goal.get('goal_id'),
+            'loop_state': loop_state,
+        }
+        write_json(marker_path, marker)
+
+    legacy_result = None
+    if args.with_project_bootstrap:
+        command = [sys.executable, str(ROOT / 'scripts' / 'agent_bootstrap.py'), '--project', str(project), '--mode', args.mode]
+        if args.goal:
+            command.extend(['--goal', args.goal])
+        if args.codex_home:
+            command.extend(['--codex-home', args.codex_home])
+        if args.dry_run:
+            command.append('--dry-run')
+        legacy_result = run_command(command, ROOT)
+
+    instruction_args = ['--workspace', str(project)]
+    if args.refresh_instructions:
+        instruction_args.append('--refresh')
+    if args.dry_run:
+        instruction_args.append('--dry-run')
+    instruction_capture = delegate_capture('init_project_instructions.py', instruction_args)
+    instruction_result = int(instruction_capture.get('returncode') or 0)
+
+    map_args = ['--workspace', str(project), '--refresh', '--promote-if-missing']
+    if args.dry_run:
+        map_args.append('--dry-run')
+    map_capture = delegate_capture('check_project_map_alignment.py', map_args)
+    map_result = int(map_capture.get('returncode') or 0)
+    onboarding = write_onboarding_artifacts(
+        project,
+        args,
+        initialized_git=bool(prepare_report.get('initialized_git')),
+        already_bootstrapped=already_bootstrapped,
+        base_readiness=initial_readiness,
+    )
+
+    report = {
+        'status': 'ready' if legacy_result in {None, 0} and instruction_result == 0 and map_result in {0, 10} else 'ready_with_bootstrap_warnings',
+        'version': VERSION,
+        'workspace': str(project),
+        'runtime_marker': str(marker_path),
+        'lock': str(lock_path),
+        'already_bootstrapped': already_bootstrapped,
+        'workspace_preparation': prepare_report,
+        'goal_id': goal.get('goal_id'),
+        'goal_path': goal.get('_path', ''),
+        'loop_state_path': str(project / '.zoo-agent' / 'loop_state.json'),
+        'with_project_bootstrap': args.with_project_bootstrap,
+        'project_bootstrap_returncode': legacy_result,
+        'instruction_init_returncode': instruction_result,
+        'project_map_returncode': map_result,
+        'safe_for_level_0_1_trial': onboarding.get('project_readiness', {}).get('safe_for_level_0_1_trial', False),
+        'blocking_issues': onboarding.get('project_readiness', {}).get('blocking_issues', []),
+        'warnings': onboarding.get('project_readiness', {}).get('warnings', []),
+        'next_actions': onboarding.get('project_readiness', {}).get('next_actions', []),
+        'onboarding_actions': onboarding.get('actions', []),
+    }
+    if getattr(args, 'debug', False):
+        report['instruction_init_stdout'] = instruction_capture.get('stdout', '')
+        report['instruction_init_stderr'] = instruction_capture.get('stderr', '')
+        report['project_map_stdout'] = map_capture.get('stdout', '')
+        report['project_map_stderr'] = map_capture.get('stderr', '')
+    if not args.dry_run and report['status'] == 'ready':
+        write_json(
+            lock_path,
+            {
+                'schema_version': '4.0',
+                'generated_by': 'agent.py bootstrap',
+                'generated_at': utc_now(),
+                'workspace': str(project),
+                'runtime_marker': str(marker_path),
+                'goal_id': goal.get('goal_id'),
+            },
+        )
+    print_bootstrap_output(report, debug=getattr(args, 'debug', False))
+    return 0 if report['status'] == 'ready' else 10
+
+
+def ensure_bootstrap_before_run(args) -> None:
+    project = project_root(args.workspace)
+    if is_bootstrapped(project):
+        return
+    return
+
+
+def legacy_run(args) -> int:
+    ensure_bootstrap_before_run(args)
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'route_task.py'),
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--legacy-runtime',
+    ]
+    if args.run_id:
+        command.extend(['--run-id', args.run_id])
+    if args.task_id:
+        command.extend(['--task-id', args.task_id])
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.fast:
+        command.append('--fast')
+    if args.parallel:
+        command.append('--parallel')
+    if args.governed:
+        command.append('--governed')
+    if args.dry_run:
+        command.append('--dry-run')
+    if args.worker_dry_run:
+        command.append('--worker-dry-run')
+    if args.allow_ambiguous_fast:
+        command.append('--allow-ambiguous-fast')
+    if args.no_execute_governed_workers:
+        command.append('--no-execute-governed-workers')
+    if args.discard_failed_worktree:
+        command.append('--discard-failed-worktree')
+    if args.ephemeral:
+        command.append('--ephemeral')
+    if args.skip_health_check:
+        command.append('--skip-health-check')
+    for flag, value in [
+        ('--changed-file-estimate', args.changed_file_estimate),
+        ('--max-workers', args.max_workers),
+        ('--timeout-seconds', args.timeout_seconds),
+        ('--no-output-timeout-seconds', args.no_output_timeout_seconds),
+        ('--test-timeout-seconds', args.test_timeout_seconds),
+        ('--max-retries', args.max_retries),
+        ('--max-iteration', args.max_iteration),
+    ]:
+        command.extend([flag, str(value)])
+    for flag, value in [
+        ('--sandbox', args.sandbox),
+        ('--profile', args.profile),
+        ('--codex-home', args.codex_home),
+        ('--start-point', args.start_point),
+    ]:
+        if value:
+            command.extend([flag, value])
+    for item in args.allowed_file:
+        command.extend(['--allowed-file', item])
+    for item in args.denied_file:
+        command.extend(['--denied-file', item])
+    for item in args.test_command:
+        command.extend(['--test-command', item])
+    command.extend(['--input-text', ' '.join(args.input).strip()])
+    return run_command(command, ROOT)
+
+
+def run(args) -> int:
+    force_path = ''
+    if getattr(args, 'fast', False):
+        force_path = 'fast'
+    elif getattr(args, 'parallel', False):
+        force_path = 'parallel'
+    elif getattr(args, 'governed', False):
+        force_path = 'governed'
+    if getattr(args, 'legacy_runtime', False):
+        return legacy_run(args)
+    return pipeline(
+        argparse.Namespace(
+            workspace=args.workspace,
+            run_id=args.run_id,
+            task_id=args.task_id,
+            goal_id=args.goal_id,
+            allowed_file=args.allowed_file,
+            denied_file=args.denied_file,
+            force_path=force_path,
+            max_iterations=args.max_iteration,
+            dry_run=args.dry_run,
+            allow_actual=not args.dry_run and not args.worker_dry_run,
+            sandbox=args.sandbox,
+            codex_home=args.codex_home,
+            backend=args.backend,
+            timeout_seconds=args.timeout_seconds,
+            max_retries=args.max_retries,
+            debug=getattr(args, 'debug', False),
+            input=args.input,
+        )
+    )
+
+
+def pipeline(args) -> int:
+    ensure_bootstrap_before_run(args)
+    project = project_root(args.workspace)
+    selected_backend = str(getattr(args, 'backend', '') or read_backend_selection(project))
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'pipeline_loop.py'),
+        '--workspace',
+        str(project),
+        '--max-iterations',
+        str(args.max_iterations),
+        '--sandbox',
+        args.sandbox,
+        '--timeout-seconds',
+        str(args.timeout_seconds),
+        '--max-retries',
+        str(getattr(args, 'max_retries', 0)),
+        '--backend',
+        selected_backend,
+    ]
+    if args.run_id:
+        command.extend(['--run-id', args.run_id])
+    if getattr(args, 'task_id', ''):
+        command.extend(['--task-id', args.task_id])
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.force_path:
+        command.extend(['--force-path', args.force_path])
+    if args.dry_run:
+        command.append('--dry-run')
+    if args.allow_actual:
+        command.append('--allow-actual')
+    if args.codex_home:
+        command.extend(['--backend-option', f'codex_home={args.codex_home}'])
+    for item in args.allowed_file:
+        command.extend(['--allowed-file', item])
+    for item in args.denied_file:
+        command.extend(['--denied-file', item])
+    command.extend(args.input)
+    proc = run_command_capture(command, ROOT)
+    payload: dict = {}
+    stdout = str(proc.get('stdout') or '').strip()
+    if stdout.startswith('{'):
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            payload = {}
+    if getattr(args, 'debug', False):
+        if stdout:
+            print(stdout)
+        else:
+            print_json({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')})
+        return int(proc.get('returncode') or 0)
+    if proc.get('returncode') != 0:
+        print_json({'goal': ' '.join(args.input).strip(), 'progress': 'blocked', 'result': 'error'})
+        return int(proc.get('returncode') or 1)
+    product = {
+        'goal': ' '.join(args.input).strip(),
+        'progress': 'complete' if payload.get('converged') else 'in_progress',
+        'result': payload.get('final_verdict') or 'unknown',
+    }
+    print_json(product)
+    return 0
+
+
+def plan_big(args) -> int:
+    run_id = args.run_id or 'run-big-task'
+    text = ' '.join(args.input).strip()
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id, '--input-text', text]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    result = delegate('generate_big_task_contract.py', command)
+    delegate('render_big_task_plan.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
+    return result
+
+
+def decompose_big(args) -> int:
+    run_id = args.run_id or 'run-big-task'
+    text = ' '.join(args.input).strip()
+    if text:
+        command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id, '--input-text', text]
+        if args.goal_id:
+            command.extend(['--goal-id', args.goal_id])
+        result = delegate('generate_big_task_contract.py', command)
+        if result not in {0, 10}:
+            return result
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id]
+    if args.allow_leaf_actual:
+        command.append('--allow-leaf-actual')
+    result = delegate('decompose_big_task_to_leaf_contracts.py', command)
+    if result != 0:
+        return result
+    delegate('check_leaf_task_contracts.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
+    delegate('schedule_leaf_execution.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
+    return result
+
+
+def aggregate_big(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--max-iterations', str(args.max_iterations)]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    return delegate('run_parent_aggregation_gate.py', command)
+
+
+def goal_loop(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--max-iterations', str(args.max_iterations)]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.no_advance:
+        command.append('--no-advance')
+    if args.no_next_goal_suggestions:
+        command.append('--no-next-goal-suggestions')
+    return delegate('goal_loop_engine.py', command)
+
+
+def global_loop(args) -> int:
+    command = [
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--max-iterations',
+        str(args.max_iterations),
+        '--max-continuous-goal-iterations',
+        str(args.max_continuous_goal_iterations),
+    ]
+    if args.backend_health:
+        command.extend(['--backend-health', args.backend_health])
+    if args.no_advance:
+        command.append('--no-advance')
+    return delegate('global_loop_engine.py', command)
+
+
+def integration_check(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id]
+    if args.yes:
+        command.append('--yes')
+    else:
+        command.append('--dry-run')
+    return delegate('create_integration_worktree.py', command)
+
+
+def status(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.run_id:
+        command.extend(['--run-id', args.run_id])
+    if args.no_write:
+        command.append('--no-write')
+    result = delegate_capture('runtime_status.py', command)
+    payload = parse_json_output(result)
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+        return int(result.get('returncode') or 0)
+    goals = ((payload.get('goal_state') or {}).get('goals') or []) if isinstance(payload.get('goal_state'), dict) else []
+    active = next((item for item in goals if item.get('status') == 'active'), {}) if isinstance(goals, list) else {}
+    goal_text = str(active.get('goal') or active.get('goal_id') or 'no active goal')
+    progress = clean_progress(active.get('progress', 0) if active else 0)
+    print_json({'goal': goal_text, 'progress': progress, 'result': payload.get('status') or 'unknown'})
+    return int(result.get('returncode') or 0)
+
+
+def rollback(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
+    if args.dry_run or not args.yes:
+        command.append('--dry-run')
+    if args.yes:
+        command.append('--yes')
+    if args.confirm_current_branch:
+        command.append('--confirm-current-branch')
+    result = delegate_capture('rollback_task.py', command)
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+        return int(result.get('returncode') or 0)
+    payload = parse_json_output(result)
+    status = str(payload.get('status') or ('ok' if result.get('returncode') == 0 else 'error'))
+    progress = 'dry_run' if status == 'dry_run' else status
+    print_json({'goal': 'rollback plan', 'progress': progress, 'result': 'rollback ready' if result.get('returncode') == 0 else 'rollback error'})
+    return int(result.get('returncode') or 0)
+
+
+def reroute(args) -> int:
+    command = [
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--run-id',
+        args.run_id,
+        '--task-id',
+        args.task_id,
+        '--path',
+        args.path,
+        '--timeout-seconds',
+        str(args.timeout_seconds),
+    ]
+    for flag, value in [
+        ('--new-run-id', args.new_run_id),
+        ('--new-task-id', args.new_task_id),
+        ('--input-text', args.input_text),
+        ('--goal-id', args.goal_id),
+        ('--codex-home', args.codex_home),
+        ('--profile', args.profile),
+    ]:
+        if value:
+            command.extend([flag, value])
+    if args.dry_run:
+        command.append('--dry-run')
+    if args.worker_dry_run:
+        command.append('--worker-dry-run')
+    if args.no_execute_governed_workers:
+        command.append('--no-execute-governed-workers')
+    if args.discard_failed_worktree:
+        command.append('--discard-failed-worktree')
+    return delegate('reroute_task.py', command)
+
+
+def map_command(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.map_action == 'refresh':
+        command.append('--refresh')
+    elif args.map_action == 'promote':
+        command.append('--promote')
+    if args.promote_if_missing:
+        command.append('--promote-if-missing')
+    if args.dry_run:
+        command.append('--dry-run')
+    return delegate('check_project_map_alignment.py', command)
+
+
+def standards(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.standards_action == 'check':
+        command.append('--check')
+    elif args.standards_action == 'promote':
+        command.append('--promote')
+    if args.refresh:
+        command.append('--refresh')
+    if args.dry_run:
+        command.append('--dry-run')
+    return delegate('init_project_instructions.py', command)
+
+
+def review(args) -> int:
+    project = project_root(args.workspace)
+    run_id = args.run_id or latest_run_id(project)
+    if not run_id:
+        print('No run_id supplied and no local run was found.', file=sys.stderr)
+        return 2
+    command = ['--workspace', str(project), '--run-id', run_id]
+    for enabled, flag in [
+        (args.governance_only, '--governance-only'),
+        (args.allow_missing_tests, '--allow-missing-tests'),
+        (args.allow_open_risks, '--allow-open-risks'),
+        (args.allow_task_board_warnings, '--allow-task-board-warnings'),
+        (args.allow_project_readiness_blocks, '--allow-project-readiness-blocks'),
+        (args.allow_architecture_blocks, '--allow-architecture-blocks'),
+        (args.accept_parent_aggregation, '--accept-parent-aggregation'),
+    ]:
+        if enabled:
+            command.append(flag)
+    return delegate('runtime_review.py', command)
+
+
+def goal_command(args) -> int:
+    if args.goal_action == 'set':
+        if not str(args.goal or '').strip():
+            print_json({'goal': '', 'progress': 'blocked', 'result': 'missing goal'})
+            return 2
+        command = ['--workspace', workspace_arg(args.workspace), '--goal', args.goal]
+        if args.goal_id:
+            command.extend(['--goal-id', args.goal_id])
+        command.extend(['--priority', str(args.priority)])
+        for item in args.resource:
+            command.extend(['--resource', item])
+        for item in args.depends_on:
+            command.extend(['--depends-on', item])
+        for item in args.success_criteria:
+            command.extend(['--success-criteria', item])
+        for item in args.constraint:
+            command.extend(['--constraint', item])
+        for item in args.non_goal:
+            command.extend(['--non-goal', item])
+        command.extend(['--risk-tolerance', args.risk_tolerance])
+        if args.no_activate:
+            command.append('--no-activate')
+        result = delegate_capture('set_goal.py', command)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        goal_payload = payload.get('goal') if isinstance(payload.get('goal'), dict) else {}
+        print_json(
+            {
+                'goal': goal_payload.get('goal') or args.goal,
+                'progress': 'active' if payload.get('active') is not False else 'paused',
+                'result': 'goal set' if result.get('returncode') == 0 else 'error',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if args.goal_action == 'clear':
+        result = delegate_capture('set_goal.py', ['--workspace', workspace_arg(args.workspace), '--clear'])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+        else:
+            print_json({'goal': 'none', 'progress': 'cleared', 'result': 'goal cleared'})
+        return int(result.get('returncode') or 0)
+    if args.goal_action == 'list':
+        result = delegate_capture('goal_state_manager.py', ['list', '--workspace', workspace_arg(args.workspace)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        goals = payload.get('goals') if isinstance(payload.get('goals'), list) else []
+        active = next((item for item in goals if item.get('status') == 'active'), {}) if goals else {}
+        print_json({'goal': active.get('goal') or f'{len(goals)} goals', 'progress': clean_progress(active.get('progress', 0) if active else 0), 'result': f'{len(goals)} goals'})
+        return int(result.get('returncode') or 0)
+    if args.goal_action in {'pause', 'resume', 'complete', 'backlog', 'block'}:
+        if not args.goal_id:
+            print(f'goal {args.goal_action} requires --goal-id.', file=sys.stderr)
+            return 2
+        result = delegate_capture('goal_state_manager.py', [args.goal_action, '--workspace', workspace_arg(args.workspace), '--goal-id', args.goal_id])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+        else:
+            print_json({'goal': args.goal_id, 'progress': args.goal_action, 'result': f'goal {args.goal_action}'})
+        return int(result.get('returncode') or 0)
+    if args.goal_action == 'schedule':
+        command = [
+            '--workspace',
+            workspace_arg(args.workspace),
+            '--max-continuous-iterations',
+            str(args.max_continuous_iterations),
+        ]
+        if args.backend_health:
+            command.extend(['--backend-health', args.backend_health])
+        if args.multi_goal_mode:
+            command.append('--multi-goal-mode')
+        return delegate('goal_scheduler.py', command)
+    if args.goal_action == 'conflicts':
+        command = ['--workspace', workspace_arg(args.workspace)]
+        if args.apply:
+            command.append('--apply')
+        return delegate('goal_conflict_detector.py', command)
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.goal_id:
+        command.extend(['--goal-id', args.goal_id])
+    if args.goal_action in {'status', 'show'}:
+        result = delegate_capture('get_goal.py', command)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        goal_payload = payload.get('goal') if isinstance(payload.get('goal'), dict) else {}
+        print_json({'goal': goal_payload.get('goal') or 'no active goal', 'progress': 'active' if payload.get('active') else 'inactive', 'result': payload.get('status') or 'unknown'})
+        return int(result.get('returncode') or 0)
+    print(f'Unsupported goal action: {args.goal_action}', file=sys.stderr)
+    return 2
+
+
+def loop_command(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.run_id:
+        command.extend(['--run-id', args.run_id])
+    if hasattr(args, 'max_iterations'):
+        command.extend(['--max-iterations', str(args.max_iterations)])
+    if args.loop_action == 'reset':
+        command.append('--reset')
+    elif args.loop_action == 'stop':
+        command.append('--stop')
+    elif args.loop_action == 'set':
+        command.append('--set-max')
+    elif args.loop_action == 'explain':
+        return delegate('check_loop_convergence.py', ['--workspace', workspace_arg(args.workspace)])
+    elif args.loop_action == 'status':
+        pass
+    else:
+        print(f'Unsupported loop action: {args.loop_action}', file=sys.stderr)
+        return 2
+    return delegate('loop_controller.py', command)
+
+
+def codex_health(args) -> int:
+    command = [
+        '--workspace',
+        workspace_arg(args.workspace),
+        '--mode',
+        args.mode,
+        '--timeout-seconds',
+        str(args.timeout_seconds),
+        '--no-output-timeout-seconds',
+        str(args.no_output_timeout_seconds),
+    ]
+    if args.codex_home:
+        command.extend(['--codex-home', args.codex_home])
+    if args.skip_real_codex:
+        command.append('--skip-real-codex')
+    return delegate('check_codex_backend_health.py', command)
+
+
+def backend_command(args) -> int:
+    command = ['--workspace', workspace_arg(args.workspace)]
+    if args.backend_action == 'switch':
+        command.extend(['--select', args.name])
+    elif args.backend_action == 'health':
+        command.append('--health')
+    elif args.backend_action == 'list':
+        command.append('--list')
+    else:
+        print(f'Unsupported backend action: {args.backend_action}', file=sys.stderr)
+        return 2
+    result = delegate_capture('backend_registry.py', command)
+    if result.get('returncode') != 0:
+        product = {'status': 'failed', 'result': 'backend command failed'}
+        if args.backend_action == 'switch':
+            product = {
+                'status': 'failed',
+                'selected_backend': '',
+                'available_backends': ['codex', 'dry_run', 'mock'],
+                'result': f'unknown backend: {args.name}',
+            }
+        print(json.dumps(product, ensure_ascii=False, indent=2))
+        return int(result.get('returncode') or 1)
+    raw = str(result.get('stdout') or '{}').strip()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        payload = {}
+    if args.backend_action == 'switch':
+        product = {'status': 'ok', 'selected_backend': payload.get('backend'), 'result': 'backend switched'}
+    elif args.backend_action == 'health':
+        product = {'status': 'ok', 'result': 'backend health checked', 'backends': payload.get('backends', {})}
+    else:
+        product = {
+            'status': 'ok',
+            'selected_backend': payload.get('selected', ''),
+            'available_backends': payload.get('backends', []),
+        }
+    print(json.dumps(product, ensure_ascii=False, indent=2))
+    return 0
+
+
+def latest_run_id(project: Path) -> str:
+    runs = project / '.zoo-agent' / 'runs'
+    if not runs.exists():
+        return ''
+    candidates = [path for path in runs.iterdir() if path.is_dir()]
+    if not candidates:
+        return ''
+    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)[0].name
+
+
+def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
+    return argparse.Namespace(
+        workspace=workspace,
+        input=[text],
+        run_id='',
+        task_id='',
+        goal_id='',
+        allowed_file=[],
+        denied_file=[],
+        test_command=[],
+        changed_file_estimate=0,
+        fast=False,
+        parallel=False,
+        governed=False,
+        max_workers=2,
+        sandbox='workspace-write',
+        profile='',
+        codex_home='',
+        backend='',
+        timeout_seconds=360,
+        no_output_timeout_seconds=600,
+        test_timeout_seconds=0,
+        max_retries=0,
+        max_iteration=10,
+        start_point='HEAD',
+        discard_failed_worktree=False,
+        ephemeral=False,
+        worker_dry_run=False,
+        skip_health_check=False,
+        allow_ambiguous_fast=False,
+        no_execute_governed_workers=False,
+        dry_run=dry_run,
+    )
+
+
+def interactive_help() -> str:
+    return '\n'.join(
+        [
+            'Commands:',
+            '  natural language       Run as: agent run <input>',
+            '  /goal <goal>           Set the active goal',
+            '  /status [--no-write]   Show runtime status',
+            '  /rollback <run-id> <task-id> [--yes]',
+            '  /exit                  Leave interactive mode',
+            '  /help                  Show this help',
+        ]
+    )
+
+
+def interactive_shell(workspace: str = '.') -> int:
+    project = project_root(workspace)
+    dry_run = os.environ.get('AGENT_INTERACTIVE_DRY_RUN') == '1'
+    print(interactive_help())
+    while True:
+        try:
+            line = input('agent> ').strip()
+        except EOFError:
+            print()
+            return 0
+
+        if not line:
+            continue
+        if line in {'/exit', 'exit', 'quit'}:
+            return 0
+        if line == '/help':
+            print(interactive_help())
+            continue
+
+        try:
+            parts = shlex.split(line)
+        except ValueError as exc:
+            print(f'Could not parse command: {exc}')
+            continue
+
+        if not parts:
+            continue
+
+        command = parts[0]
+        try:
+            if command == '/status':
+                status(argparse.Namespace(workspace=str(project), run_id='', no_write='--no-write' in parts[1:]))
+            elif command == '/review':
+                review(argparse.Namespace(workspace=str(project), run_id=parts[1] if len(parts) > 1 else ''))
+            elif command == '/reroute':
+                if len(parts) < 4:
+                    print('Usage: /reroute <run-id> <task-id> <fast|parallel|governed>')
+                    continue
+                reroute(
+                    argparse.Namespace(
+                        workspace=str(project),
+                        run_id=parts[1],
+                        task_id=parts[2],
+                        path=parts[3],
+                        timeout_seconds=360,
+                        new_run_id='',
+                        new_task_id='',
+                        input_text='',
+                        goal_id='',
+                        codex_home='',
+                        profile='',
+                        dry_run=False,
+                        worker_dry_run=False,
+                        no_execute_governed_workers=False,
+                        discard_failed_worktree=False,
+                    )
+                )
+            elif command == '/rollback':
+                if len(parts) < 3:
+                    print('Usage: /rollback <run-id> <task-id> [--yes]')
+                    continue
+                rollback(
+                    argparse.Namespace(
+                        workspace=str(project),
+                        run_id=parts[1],
+                        task_id=parts[2],
+                        dry_run='--yes' not in parts[3:],
+                        yes='--yes' in parts[3:],
+                        confirm_current_branch='--confirm-current-branch' in parts[3:],
+                    )
+                )
+            elif command == '/goal':
+                if len(parts) < 2:
+                    goal_command(argparse.Namespace(goal_action='show', workspace=str(project), goal_id=''))
+                else:
+                    goal_command(
+                        argparse.Namespace(
+                            goal_action='set',
+                            workspace=str(project),
+                            goal=' '.join(parts[1:]),
+                            goal_id='',
+                            success_criteria=[],
+                            constraint=[],
+                            non_goal=[],
+                            risk_tolerance='low',
+                            priority=50,
+                            resource=[],
+                            depends_on=[],
+                            no_activate=False,
+                        )
+                    )
+            elif command == '/loop':
+                action = parts[1] if len(parts) > 1 else 'status'
+                loop_command(argparse.Namespace(loop_action=action, workspace=str(project), run_id='', max_iterations=5))
+            elif command.startswith('/'):
+                print('Unknown command. Use /help.')
+            else:
+                run(make_run_namespace(str(project), line, dry_run=dry_run))
+        except subprocess.CalledProcessError as exc:
+            print(f'Command failed with exit code {exc.returncode}')
+
+
+def normalize_argv(argv: list[str]) -> list[str]:
+    if not argv:
+        return argv
+    first = argv[0]
+    if first in {'-h', '--help'}:
+        return argv
+    if first == 'goal' and len(argv) > 1 and argv[1] not in {
+        'set',
+        'show',
+        'status',
+        'clear',
+        'list',
+        'pause',
+        'resume',
+        'complete',
+        'backlog',
+        'block',
+        'schedule',
+        'conflicts',
+    }:
+        return ['goal', 'set', *argv[1:]]
+    if first not in KNOWN_COMMANDS and not first.startswith('-'):
+        return ['run', *argv]
+    return argv
+
+
+def product_help() -> str:
+    return f"""usage: agent [-h] [--version] <command> ...
+
+CLI-first AI runtime: goal -> run -> result.
+
+commands:
+  run                Run a task and return a concise result.
+  pipeline           Run a task through the product flow.
+  goal               Set or inspect the current goal.
+  status             Show concise workspace status.
+  backend            List and switch execution backends.
+
+examples:
+  agent goal "make README onboarding clear"
+  agent backend list
+  agent backend switch mock
+  agent run "add a short README note" --dry-run
+
+version: {VERSION}
+"""
+
+
+def product_subcommand_help(argv: list[str]) -> str:
+    if len(argv) == 2 and argv[1] in {'-h', '--help'}:
+        command = argv[0]
+        if command == 'run':
+            return 'usage: agent run "<task>" [--workspace .] [--dry-run]\n\nRun a task and print goal, progress, and result.\n'
+        if command == 'pipeline':
+            return 'usage: agent pipeline "<task>" [--workspace .] [--dry-run]\n\nRun a task through the product flow and print a concise result.\n'
+        if command == 'goal':
+            return 'usage: agent goal "<goal>"\n       agent goal show\n       agent goal list\n\nSet or inspect goals without exposing internal state.\n'
+        if command == 'status':
+            return 'usage: agent status [--workspace .] [--no-write]\n\nShow goal, progress, and result.\n'
+        if command == 'backend':
+            return 'usage: agent backend list\n       agent backend switch <backend>\n\nList or select an execution backend.\n'
+    return ''
+
+
+def main(argv: list[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    if not raw_argv:
+        return interactive_shell('.')
+    if raw_argv in (['-h'], ['--help']):
+        print(product_help())
+        return 0
+    subcommand_help = product_subcommand_help(raw_argv)
+    if subcommand_help:
+        print(subcommand_help)
+        return 0
+    suggestion = COMMAND_TYPO_SUGGESTIONS.get(raw_argv[0].lower()) if raw_argv else ''
+    if suggestion:
+        print_json({'goal': 'command help', 'progress': 'blocked', 'result': f'unknown command: {raw_argv[0]}; try: agent {suggestion}'})
+        return 2
+    raw_argv = normalize_argv(raw_argv)
+
+    parser = argparse.ArgumentParser(prog='agent', description='CLI-first AI runtime: goal -> run -> result.')
+    parser.add_argument('--version', action='version', version=f'agent {VERSION}')
+    sub = parser.add_subparsers(dest='command', required=True)
+
+    bootstrap_parser = sub.add_parser('bootstrap', help='Initialize CLI-first runtime state once.')
+    bootstrap_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    bootstrap_parser.add_argument('--goal', default='')
+    bootstrap_parser.add_argument('--goal-id', default='')
+    bootstrap_parser.add_argument('--success-criteria', action='append', default=[])
+    bootstrap_parser.add_argument('--constraint', action='append', default=[])
+    bootstrap_parser.add_argument('--max-iteration', type=int, default=10)
+    bootstrap_parser.add_argument('--with-project-bootstrap', action='store_true')
+    bootstrap_parser.add_argument('--mode', choices=['auto', 'existing', 'new'], default='auto')
+    bootstrap_parser.add_argument('--new', action='store_true', help='Explicitly initialize a non-empty non-git directory as a new project.')
+    bootstrap_parser.add_argument('--force-new-project', action='store_true', help='Explicitly allow git init for a non-empty non-git directory.')
+    bootstrap_parser.add_argument('--codex-home', default='')
+    bootstrap_parser.add_argument('--dry-run', action='store_true')
+    bootstrap_parser.add_argument('--force', action='store_true')
+    bootstrap_parser.add_argument('--refresh-instructions', action='store_true')
+    bootstrap_parser.add_argument('--debug', action='store_true')
+    bootstrap_parser.set_defaults(handler=bootstrap)
+
+    run_parser = sub.add_parser('run', help='Run a task and return a concise result.')
+    run_parser.add_argument('input', nargs='*')
+    run_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    run_parser.add_argument('--run-id', default='')
+    run_parser.add_argument('--task-id', default='')
+    run_parser.add_argument('--goal-id', default='')
+    run_parser.add_argument('--allowed-file', action='append', default=[])
+    run_parser.add_argument('--denied-file', action='append', default=[])
+    run_parser.add_argument('--test-command', action='append', default=[])
+    run_parser.add_argument('--changed-file-estimate', type=int, default=0)
+    run_parser.add_argument('--fast', action='store_true')
+    run_parser.add_argument('--parallel', action='store_true')
+    run_parser.add_argument('--governed', action='store_true')
+    run_parser.add_argument('--max-workers', type=int, default=2)
+    run_parser.add_argument('--sandbox', default='workspace-write')
+    run_parser.add_argument('--profile', default='')
+    run_parser.add_argument('--codex-home', default='')
+    run_parser.add_argument('--backend', default='')
+    run_parser.add_argument('--timeout-seconds', type=int, default=360)
+    run_parser.add_argument('--no-output-timeout-seconds', type=int, default=600)
+    run_parser.add_argument('--test-timeout-seconds', type=int, default=0)
+    run_parser.add_argument('--max-retries', type=int, default=0)
+    run_parser.add_argument('--max-iteration', type=int, default=10)
+    run_parser.add_argument('--start-point', default='HEAD')
+    run_parser.add_argument('--discard-failed-worktree', action='store_true')
+    run_parser.add_argument('--ephemeral', action='store_true')
+    run_parser.add_argument('--worker-dry-run', action='store_true')
+    run_parser.add_argument('--skip-health-check', action='store_true')
+    run_parser.add_argument('--allow-ambiguous-fast', action='store_true')
+    run_parser.add_argument('--no-execute-governed-workers', action='store_true')
+    run_parser.add_argument('--legacy-runtime', action='store_true', help='Compatibility/debug only: use the pre-pipeline route_task runtime.')
+    run_parser.add_argument('--debug', action='store_true', help='Show full internal runtime output.')
+    run_parser.add_argument('--dry-run', action='store_true')
+    run_parser.set_defaults(handler=run)
+
+    pipeline_parser = sub.add_parser('pipeline', help='Run a task through the product pipeline and return a result.')
+    pipeline_parser.add_argument('input', nargs='*')
+    pipeline_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    pipeline_parser.add_argument('--run-id', default='')
+    pipeline_parser.add_argument('--task-id', default='')
+    pipeline_parser.add_argument('--goal-id', default='')
+    pipeline_parser.add_argument('--allowed-file', action='append', default=[])
+    pipeline_parser.add_argument('--denied-file', action='append', default=[])
+    pipeline_parser.add_argument('--force-path', choices=['', 'fast', 'parallel', 'governed'], default='')
+    pipeline_parser.add_argument('--max-iterations', type=int, default=1)
+    pipeline_parser.add_argument('--dry-run', action='store_true')
+    pipeline_parser.add_argument('--allow-actual', action='store_true')
+    pipeline_parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
+    pipeline_parser.add_argument('--codex-home', default='')
+    pipeline_parser.add_argument('--backend', default='')
+    pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
+    pipeline_parser.add_argument('--max-retries', type=int, default=2)
+    pipeline_parser.add_argument('--debug', action='store_true', help='Show full internal runtime output.')
+    pipeline_parser.set_defaults(handler=pipeline)
+
+    plan_big_parser = sub.add_parser('plan-big', help=argparse.SUPPRESS)
+    plan_big_parser.add_argument('input', nargs='*')
+    plan_big_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    plan_big_parser.add_argument('--run-id', default='run-big-task')
+    plan_big_parser.add_argument('--goal-id', default='')
+    plan_big_parser.set_defaults(handler=plan_big)
+
+    decompose_parser = sub.add_parser('decompose', help=argparse.SUPPRESS)
+    decompose_parser.add_argument('input', nargs='*')
+    decompose_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    decompose_parser.add_argument('--run-id', default='run-big-task')
+    decompose_parser.add_argument('--goal-id', default='')
+    decompose_parser.add_argument('--allow-leaf-actual', action='store_true')
+    decompose_parser.set_defaults(handler=decompose_big)
+
+    aggregate_parser = sub.add_parser('aggregate', help=argparse.SUPPRESS)
+    aggregate_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    aggregate_parser.add_argument('--run-id', required=True)
+    aggregate_parser.add_argument('--goal-id', default='')
+    aggregate_parser.add_argument('--max-iterations', type=int, default=10)
+    aggregate_parser.set_defaults(handler=aggregate_big)
+
+    goal_loop_parser = sub.add_parser('goal-loop', help=argparse.SUPPRESS)
+    goal_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_loop_parser.add_argument('--run-id', required=True)
+    goal_loop_parser.add_argument('--goal-id', default='')
+    goal_loop_parser.add_argument('--max-iterations', type=int, default=10)
+    goal_loop_parser.add_argument('--no-advance', action='store_true')
+    goal_loop_parser.add_argument('--no-next-goal-suggestions', action='store_true')
+    goal_loop_parser.set_defaults(handler=goal_loop)
+
+    global_loop_parser = sub.add_parser('global-loop', help=argparse.SUPPRESS)
+    global_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    global_loop_parser.add_argument('--max-iterations', type=int, default=100)
+    global_loop_parser.add_argument('--max-continuous-goal-iterations', type=int, default=3)
+    global_loop_parser.add_argument('--backend-health', default='')
+    global_loop_parser.add_argument('--no-advance', action='store_true')
+    global_loop_parser.set_defaults(handler=global_loop)
+
+    integration_parser = sub.add_parser('integration-check', help=argparse.SUPPRESS)
+    integration_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    integration_parser.add_argument('--run-id', required=True)
+    integration_parser.add_argument('--yes', action='store_true', help='Actually create the isolated integration worktree.')
+    integration_parser.set_defaults(handler=integration_check)
+
+    status_parser = sub.add_parser('status', help='Show workspace runtime status.')
+    status_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    status_parser.add_argument('--run-id', default='')
+    status_parser.add_argument('--no-write', action='store_true')
+    status_parser.add_argument('--debug', action='store_true')
+    status_parser.set_defaults(handler=status)
+
+    rollback_parser = sub.add_parser('rollback', help=argparse.SUPPRESS)
+    rollback_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    rollback_parser.add_argument('--run-id', required=True)
+    rollback_parser.add_argument('--task-id', required=True)
+    rollback_parser.add_argument('--dry-run', action='store_true')
+    rollback_parser.add_argument('--yes', action='store_true')
+    rollback_parser.add_argument('--confirm-current-branch', action='store_true')
+    rollback_parser.add_argument('--debug', action='store_true')
+    rollback_parser.set_defaults(handler=rollback)
+
+    reroute_parser = sub.add_parser('reroute', help=argparse.SUPPRESS)
+    reroute_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    reroute_parser.add_argument('--run-id', required=True)
+    reroute_parser.add_argument('--task-id', required=True)
+    reroute_parser.add_argument('--path', required=True, choices=['fast', 'parallel', 'governed'])
+    reroute_parser.add_argument('--new-run-id', default='')
+    reroute_parser.add_argument('--new-task-id', default='')
+    reroute_parser.add_argument('--input-text', default='')
+    reroute_parser.add_argument('--goal-id', default='')
+    reroute_parser.add_argument('--codex-home', default='')
+    reroute_parser.add_argument('--profile', default='')
+    reroute_parser.add_argument('--timeout-seconds', type=int, default=360)
+    reroute_parser.add_argument('--worker-dry-run', action='store_true')
+    reroute_parser.add_argument('--no-execute-governed-workers', action='store_true')
+    reroute_parser.add_argument('--discard-failed-worktree', action='store_true')
+    reroute_parser.add_argument('--dry-run', action='store_true')
+    reroute_parser.set_defaults(handler=reroute)
+
+    map_parser = sub.add_parser('map', help=argparse.SUPPRESS)
+    map_sub = map_parser.add_subparsers(dest='map_action', required=True)
+    for action in ['check', 'refresh', 'promote']:
+        item = map_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--dry-run', action='store_true')
+        item.add_argument('--promote-if-missing', action='store_true')
+        item.set_defaults(handler=map_command)
+
+    standards_parser = sub.add_parser('standards', help=argparse.SUPPRESS)
+    standards_sub = standards_parser.add_subparsers(dest='standards_action', required=True)
+    for action in ['check', 'promote']:
+        item = standards_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--refresh', action='store_true')
+        item.add_argument('--dry-run', action='store_true')
+        item.set_defaults(handler=standards)
+
+    review_parser = sub.add_parser('review', help=argparse.SUPPRESS)
+    review_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    review_parser.add_argument('--run-id', default='')
+    review_parser.add_argument('--governance-only', action='store_true')
+    review_parser.add_argument('--allow-missing-tests', action='store_true')
+    review_parser.add_argument('--allow-open-risks', action='store_true')
+    review_parser.add_argument('--allow-task-board-warnings', action='store_true')
+    review_parser.add_argument('--allow-project-readiness-blocks', action='store_true')
+    review_parser.add_argument('--allow-architecture-blocks', action='store_true')
+    review_parser.add_argument('--accept-parent-aggregation', action='store_true')
+    review_parser.set_defaults(handler=review)
+
+    backend_parser = sub.add_parser('backend', help='List, switch, and check execution backends.')
+    backend_sub = backend_parser.add_subparsers(dest='backend_action', required=True)
+    backend_list = backend_sub.add_parser('list', help='List available backends.')
+    backend_list.add_argument('--workspace', '--project', dest='workspace', default='.')
+    backend_list.set_defaults(handler=backend_command)
+    backend_switch = backend_sub.add_parser('switch', help='Select the backend for this workspace.')
+    backend_switch.add_argument('name')
+    backend_switch.add_argument('--workspace', '--project', dest='workspace', default='.')
+    backend_switch.set_defaults(handler=backend_command)
+    backend_health = backend_sub.add_parser('health', help='Show backend health summary.')
+    backend_health.add_argument('--workspace', '--project', dest='workspace', default='.')
+    backend_health.set_defaults(handler=backend_command)
+
+    goal_parser = sub.add_parser('goal', help='Set or inspect the current goal.')
+    goal_sub = goal_parser.add_subparsers(dest='goal_action', required=True)
+    goal_set = goal_sub.add_parser('set')
+    goal_set.add_argument('goal')
+    goal_set.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_set.add_argument('--goal-id', default='')
+    goal_set.add_argument('--success-criteria', action='append', default=[])
+    goal_set.add_argument('--constraint', action='append', default=[])
+    goal_set.add_argument('--non-goal', action='append', default=[])
+    goal_set.add_argument('--risk-tolerance', choices=['low', 'medium', 'high'], default='low')
+    goal_set.add_argument('--priority', type=int, default=50)
+    goal_set.add_argument('--resource', action='append', default=[])
+    goal_set.add_argument('--depends-on', action='append', default=[])
+    goal_set.add_argument('--no-activate', action='store_true')
+    goal_set.add_argument('--debug', action='store_true')
+    goal_set.set_defaults(handler=goal_command)
+    for action in ['show', 'status', 'clear', 'list']:
+        item = goal_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--goal-id', default='')
+        item.add_argument('--debug', action='store_true')
+        item.set_defaults(handler=goal_command)
+    for action in ['pause', 'resume', 'complete', 'backlog', 'block']:
+        item = goal_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--goal-id', required=True)
+        item.add_argument('--debug', action='store_true')
+        item.set_defaults(handler=goal_command)
+    goal_schedule = goal_sub.add_parser('schedule')
+    goal_schedule.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_schedule.add_argument('--max-continuous-iterations', type=int, default=3)
+    goal_schedule.add_argument('--backend-health', default='')
+    goal_schedule.add_argument('--multi-goal-mode', action='store_true')
+    goal_schedule.set_defaults(handler=goal_command)
+    goal_conflicts = goal_sub.add_parser('conflicts')
+    goal_conflicts.add_argument('--workspace', '--project', dest='workspace', default='.')
+    goal_conflicts.add_argument('--apply', action='store_true')
+    goal_conflicts.set_defaults(handler=goal_command)
+
+    loop_parser = sub.add_parser('loop', help=argparse.SUPPRESS)
+    loop_sub = loop_parser.add_subparsers(dest='loop_action', required=True)
+    for action in ['status', 'reset', 'stop', 'explain']:
+        item = loop_sub.add_parser(action)
+        item.add_argument('--workspace', '--project', dest='workspace', default='.')
+        item.add_argument('--run-id', default='')
+        item.add_argument('--max-iterations', type=int, default=5)
+        item.set_defaults(handler=loop_command)
+    loop_set = loop_sub.add_parser('set')
+    loop_set.add_argument('--workspace', '--project', dest='workspace', default='.')
+    loop_set.add_argument('--run-id', default='')
+    loop_set.add_argument('--max-iterations', type=int, default=5)
+    loop_set.set_defaults(handler=loop_command)
+
+    health_parser = sub.add_parser('codex-health', help=argparse.SUPPRESS)
+    health_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    health_parser.add_argument('--mode', choices=['quick', 'full'], default='full')
+    health_parser.add_argument('--codex-home', default=os.environ.get('CODEX_HOME', ''))
+    health_parser.add_argument('--timeout-seconds', type=int, default=240)
+    health_parser.add_argument('--no-output-timeout-seconds', type=int, default=120)
+    health_parser.add_argument('--skip-real-codex', action='store_true')
+    health_parser.set_defaults(handler=codex_health)
+
+    args = parser.parse_args(raw_argv)
+    if args.command in {'run', 'pipeline'} and not ' '.join(args.input).strip():
+        print('Missing task input.', file=sys.stderr)
+        return 2
+    return args.handler(args)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

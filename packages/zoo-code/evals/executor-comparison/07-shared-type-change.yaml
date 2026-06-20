@@ -1,8 +1,0 @@
-id: shared-type-change
-title: Shared type change
-governance_level: 2
-expected_executor: hybrid
-metrics:
-  - architecture_drift
-  - quality_gate_pass
-  - review_blocker_count

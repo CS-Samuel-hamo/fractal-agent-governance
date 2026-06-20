@@ -1,21 +1,21 @@
-# Security Policy
+# Security
 
-Do not submit secrets, credentials, API keys, private keys, real project run logs, or customer data to this repository.
+This project is local-alpha software. Do not use it as a production deployment, release, or secrets-management system.
 
-This project is an experimental governance runtime for AI coding agents. It is not an official Zoo Code project.
+## Boundaries
 
-## Reporting A Security Issue
+- Do not read or print `.env`, credentials, API keys, tokens, private keys, provider profiles, or secret stores.
+- Do not run automatic merge, push, deploy, release, or production database migration.
+- Do not run `git reset --hard`, destructive clean commands, or unreviewed worktree deletion.
+- Keep `CODEX_HOME` outside business project source and outside commits.
 
-Open a private security advisory if the hosting platform supports it. If private advisories are unavailable, open a minimal public issue that describes the category of problem without including secrets or exploit payloads.
+## Reporting
 
-## Secrets Policy
+Open a private security report with:
 
-- Do not commit `.env` files.
-- Do not commit API keys or tokens.
-- Do not commit private keys or PEM files.
-- Do not commit real `.zoo-agent/runs` or `.zoo-agent/metrics` data.
-- Use toy fixtures in examples and evals.
+- affected command or script
+- reproduction steps using a temporary project
+- expected safe behavior
+- observed unsafe behavior
 
-## Runtime Policy
-
-This project does not require reading API keys. Provider profiles and credentials should be configured separately by the user in their local tool environment.
+Do not include real secrets in reports.

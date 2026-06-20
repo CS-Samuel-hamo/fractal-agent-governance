@@ -1,8 +1,0 @@
-id: cross-module-feature
-title: Cross-module feature
-governance_level: 3
-expected_executor: hybrid
-metrics:
-  - wall_time
-  - changed_file_count
-  - parent_aggregation_pass
