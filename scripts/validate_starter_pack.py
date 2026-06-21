@@ -31,6 +31,7 @@ required.extend([
  'scripts/cross_project_learning_dogfood_runner.py','scripts/learning_lift_evaluator.py','scripts/learning_baseline_comparator.py','scripts/learning_trace_replayer.py','scripts/learning_product_report_generator.py','scripts/test_cross_project_learning_dogfood.py',
  'scripts/git_context_detector.py','scripts/github_readiness_detector.py','scripts/release_readiness_evaluator.py','scripts/pr_plan_generator.py','scripts/pr_draft_generator.py','scripts/release_notes_generator.py','scripts/changelog_draft_generator.py','scripts/release_action_plan_generator.py','scripts/release_workflow_report_generator.py','scripts/github_workflow_safety_gate.py',
  'scripts/test_github_pr_release_workflow.py','scripts/test_release_readiness_workflow.py','scripts/test_pr_draft_safety.py',
+ 'scripts/release_workflow_dogfood_runner.py','scripts/release_artifact_quality_gate.py','scripts/pr_draft_quality_gate.py','scripts/release_workflow_trace_replayer.py','scripts/release_product_report_generator.py','scripts/test_release_workflow_dogfood.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

@@ -96,6 +96,8 @@ def parse_status(project: Path, porcelain: str) -> tuple[int, int, int, list[str
         if ' -> ' in path:
             path = path.split(' -> ', 1)[1].strip()
         path = path.replace('\\', '/')
+        if path.startswith('.zoo-agent/'):
+            continue
         if path and path not in files:
             files.append(path)
         if code == '??':

@@ -205,7 +205,7 @@ def release_panel(release: dict[str, Any]) -> str:
 <p><b>Suggested command:</b> <code>{esc(release.get('suggested_next_command') or 'agent release')}</code></p>
 <h3>Local artifacts</h3>
 {list_items([item for item in path_items if item], empty='No release artifacts available yet.')}
-<h3>Release blockers</h3>
+<h3>Main blockers</h3>
 {list_items(blockers, empty='No release blocker recorded.')}
 <h3>Learning-informed release path</h3>
 {list_items(learning_path, empty='No local learning path available yet.')}'''

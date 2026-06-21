@@ -1133,6 +1133,21 @@ def run_release_pack(project: Path, *, debug: bool = False, pr_only: bool = Fals
 
 def release_command(args) -> int:
     project = project_root(args.workspace)
+    if getattr(args, 'dogfood', False):
+        result = delegate_capture('release_workflow_dogfood_runner.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        readiness = str(payload.get('readiness_value') or 'NOT_READY')
+        print_json(
+            {
+                'task': 'release workflow dogfood',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f'Report: .zoo-agent/release_dogfood/release_product_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
     if getattr(args, 'safety_check', False):
         result = delegate_capture('github_workflow_safety_gate.py', ['--workspace', str(project)])
         if getattr(args, 'debug', False):
@@ -2012,6 +2027,7 @@ def main(argv: list[str] | None = None) -> int:
     release_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     release_parser.add_argument('--doctor', action='store_true', help=argparse.SUPPRESS)
     release_parser.add_argument('--safety-check', dest='safety_check', action='store_true', help=argparse.SUPPRESS)
+    release_parser.add_argument('--dogfood', action='store_true', help=argparse.SUPPRESS)
     release_parser.add_argument('--debug', action='store_true')
     release_parser.set_defaults(handler=release_command)
 
