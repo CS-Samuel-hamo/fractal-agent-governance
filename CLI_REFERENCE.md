@@ -3,57 +3,46 @@
 The normal user model is:
 
 ```text
-ask -> preview -> apply
-project goal -> session -> progress -> release pack
+project goal -> job -> inbox -> progress
 ```
 
-## Public Commands
+## Daily Path
 
-### `agent "<task>"`
+### `agent "<goal>"`
 
-Preview a one-off task.
+Start or update the current Project Job.
 
 ```bash
-agent "fix README typo"
+agent "prepare this project for public release"
 ```
 
-### `agent "<task>" --preview`
+Without `--preview` or `--apply`, a natural-language command is treated as a project job. The job reuses the existing session runtime, project map, worker router, checkpoints, and Cockpit sync.
 
-Explicit preview mode. This is equivalent to the default one-off task mode.
+### `agent`
+
+Show the Job Inbox.
 
 ```bash
-agent "add a quickstart note" --preview
+agent
 ```
 
-### `agent "<task>" --apply`
-
-Apply a bounded one-off task.
-
-```bash
-agent "fix README typo" -f README.md --apply
-```
-
-Use `-f` to keep the task scoped to a specific file.
-
-### `agent start "<project goal>"`
-
-Start a durable project session.
-
-```bash
-agent start "prepare this project for public release"
-```
+The inbox shows current job, status, what happened, next action, attention items, available outputs, and suggested commands.
 
 ### `agent status`
 
-Show the current project session state and useful next command.
+Explicit alias for `agent`.
 
 ```bash
 agent status
 ```
 
+Use this when you prefer a named command, but day to day `agent` is enough.
+
+## Steering Commands
+
 ### `agent continue`
 
-Continue the current session.
+Continue the current job/session by one bounded step.
 
 ```bash
 agent continue
@@ -61,7 +50,7 @@ agent continue
 
 ### `agent stop`
 
-Safely stop the current session without deleting artifacts.
+Safely stop the current job without deleting artifacts.
 
 ```bash
 agent stop
@@ -69,7 +58,7 @@ agent stop
 
 ### `agent undo`
 
-Inspect the latest recovery point.
+Inspect the latest recovery point and keep job state in sync.
 
 ```bash
 agent undo
@@ -82,6 +71,8 @@ Generate or refresh the local Project Cockpit.
 ```bash
 agent cockpit
 ```
+
+## Release Preparation
 
 ### `agent release`
 
@@ -103,15 +94,29 @@ agent pr
 
 This does not create a remote PR.
 
-## Developer Diagnostics
+## One-off Task Mode
 
-The alpha also includes hidden diagnostics for maintainers. They do not appear in normal help and are not part of the public user path.
+Use explicit flags when you want a bounded single task instead of a Project Job.
 
 ```bash
-agent workers --doctor
-agent learning --build
-agent release --safety-check
-agent alpha --audit
+agent "fix README typo" --preview
+agent "fix README typo" --apply
+agent "fix README typo" -f README.md --apply
 ```
 
-Use these for local validation, not for normal project operation.
+## Compatibility Commands
+
+These still work, but they are not the main user path:
+
+```bash
+agent start "<project goal>"
+agent status
+```
+
+`agent start "<goal>"` is an explicit alias for `agent "<goal>"`.
+
+## Developer Diagnostics
+
+The alpha includes hidden diagnostics for maintainers. They do not appear in normal help and are not part of the public user path.
+
+Examples include worker, learning, release safety, feedback, and launch audit commands.

@@ -14,11 +14,13 @@ You are preparing a small sample project for public release. Agent Runtime shoul
 
 ## Try It
 
+The general pattern is `agent "<goal>"`, then `agent`.
+
 ```bash
 cd examples/demo_project
+agent "prepare this demo project for public release"
+agent
 agent cockpit
-agent start "prepare this demo project for public release"
-agent status
 agent release
 agent pr
 ```

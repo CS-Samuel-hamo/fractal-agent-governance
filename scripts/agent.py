@@ -70,6 +70,7 @@ from runtime_common import initialize_loop, load_json, project_root, set_active_
 from check_project_readiness import analyze_project_readiness  # noqa: E402
 from update_runtime_metrics import update_metrics  # noqa: E402
 from backend_registry import read_backend_selection  # noqa: E402
+from job_controller import continue_job, show_job_inbox, start_or_update_job, stop_job, undo_job  # noqa: E402
 
 
 def run_command(command: list[str], cwd: Path) -> int:
@@ -779,50 +780,43 @@ def start_command(args) -> int:
     if not goal:
         print_json(user_task_result(task='', mode='blocked', result='please describe the project goal'))
         return 2
-    command = ['--workspace', str(project), '--mode', args.mode]
-    if args.max_steps:
-        command.extend(['--max-steps', str(args.max_steps)])
-    if getattr(args, 'steps', 0):
-        command.extend(['--steps', str(args.steps)])
-    if args.backend:
-        command.extend(['--backend', args.backend])
-    command.append('--start')
-    command.append(goal)
-    result = delegate_capture('session_runtime_engine.py', command)
     if getattr(args, 'debug', False):
+        result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--mode', args.mode, '--start', goal])
         print(str(result.get('stdout') or '').strip())
-    else:
-        print(str(result.get('stdout') or '').strip())
-    return int(result.get('returncode') or 0)
+        return int(result.get('returncode') or 0)
+    payload = start_or_update_job(project, goal, mode=args.mode, max_steps=args.max_steps, backend=args.backend, steps=getattr(args, 'steps', 0))
+    print(str(payload.get('message') or '').strip())
+    print('\nTip: next time you can just run:')
+    print(f'agent "{goal}"')
+    return 0 if payload.get('status') != 'blocked' else 2
 
 
 def stop_command(args) -> int:
     project = project_root(args.workspace)
-    result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--stop'])
     if getattr(args, 'debug', False):
+        result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--stop'])
         print(str(result.get('stdout') or '').strip())
-    else:
-        print_json(user_task_result(task='autopilot', mode='stop', result='stopped' if result.get('returncode') == 0 else 'could not stop'))
-    return int(result.get('returncode') or 0)
+        return int(result.get('returncode') or 0)
+    payload = stop_job(project)
+    print(str(payload.get('message') or '').strip())
+    return 0
 
 
 def continue_command(args) -> int:
     project = project_root(args.workspace)
-    command = ['--workspace', str(project), '--continue-session', '--mode', args.mode]
-    steps = getattr(args, 'steps', 0) or args.max_steps
-    if steps:
-        command.extend(['--steps', str(steps)])
-    if args.max_steps:
-        command.extend(['--max-steps', str(args.max_steps)])
-    if args.backend:
-        command.extend(['--backend', args.backend])
-    result = delegate_capture('session_runtime_engine.py', command)
-    print(str(result.get('stdout') or '').strip())
-    return int(result.get('returncode') or 0)
+    steps = getattr(args, 'steps', 0) or args.max_steps or 1
+    payload = continue_job(project, mode=args.mode, steps=steps, backend=args.backend)
+    print(str(payload.get('message') or '').strip())
+    return 0
 
 
 def status(args) -> int:
     project = project_root(args.workspace)
+    if not getattr(args, 'debug', False) and not getattr(args, 'no_write', False):
+        payload = show_job_inbox(project)
+        print(str(payload.get('message') or '').strip())
+        print('\nTip: `agent` also shows this inbox.')
+        return 0
     session_result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--status'])
     session_payload = parse_json_output(session_result)
     if session_payload and not getattr(args, 'debug', False):
@@ -1911,30 +1905,45 @@ def normalize_argv(argv: list[str]) -> list[str]:
 
 
 def product_help() -> str:
-    return f"""usage: agent "<task>" [--preview|--apply]
-       agent start "<project goal>"
-       agent status
+    return f"""usage: agent "<goal>"
+       agent
        agent continue
        agent stop
        agent undo
        agent cockpit
        agent release
        agent pr
+       agent "<task>" --preview|--apply
 
 AI Project Operator.
-task flow: ask -> preview -> apply.
+Give it a project. It keeps moving it forward.
 
-default:
-  task commands preview only. start uses standard mode for small, reversible work.
+Most of the time:
+  agent "prepare this project for public release"
+  agent
+
+When you want to steer:
+  agent continue
+  agent stop
+  agent undo
+  agent cockpit
+
+Compatibility aliases:
+  agent start "<project goal>"
+  agent status
+
+When preparing release:
+  agent release
+  agent pr
+
+One-off task:
+  agent "fix README typo" --preview
+  agent "fix README typo" --apply
 
 examples:
-  agent "fix README typo"
-  agent "add a short README note" --preview
-  agent "fix README typo" -f README.md --apply
-  agent start "improve project readiness"
-  agent status
+  agent "improve project readiness"
+  agent
   agent continue
-  agent undo
   agent cockpit
   agent release
   agent pr
@@ -1947,11 +1956,11 @@ def product_subcommand_help(argv: list[str]) -> str:
     if len(argv) == 2 and argv[1] in {'-h', '--help'}:
         command = argv[0]
         if command == 'ask':
-            return 'usage: agent "<task>" [-f file] [--preview|--apply] [--workspace .]\n\nPreview by default. Use --apply only when you want changes.\n'
+            return 'usage: agent "<goal>"\n       agent "<task>" [-f file] --preview|--apply\n\nWithout --preview or --apply, this starts or updates a project job.\n'
         if command == 'undo':
             return 'usage: agent undo [--preview|--apply] [--workspace .]\n\nPreview an undo plan by default.\n'
         if command == 'start':
-            return 'usage: agent start "<project goal>" [--mode preview|standard|autopilot]\n\nStart map-backed project progress. Standard mode advances trusted, reversible work.\n'
+            return 'usage: agent start "<project goal>" [--mode preview|standard|autopilot]\n\nAlias for agent "<goal>". Next time you can usually run agent "<goal>".\n'
         if command == 'continue':
             return 'usage: agent continue [--workspace .]\n\nContinue the current project session.\n'
         if command == 'stop':
@@ -1967,7 +1976,7 @@ def product_subcommand_help(argv: list[str]) -> str:
         if command == 'goal':
             return 'usage: agent "<task>" [--preview|--apply]\n\nGoals are handled automatically in normal use.\n'
         if command == 'status':
-            return 'usage: agent status [--workspace .] [--no-write]\n\nShow current task status.\n'
+            return 'usage: agent status [--workspace .]\n\nAlias for agent. Shows the current Project Job Inbox.\n'
         if command == 'cockpit':
             return 'usage: agent cockpit [--workspace .]\n\nGenerate a local Project Cockpit you can open in your browser.\n'
         if command == 'release':
@@ -1991,9 +2000,13 @@ def ask(args) -> int:
     if not text:
         print_json(user_task_result(task='', mode='blocked', result='please describe what you want done'))
         return 2
+    project = project_root(args.workspace)
+    if not args.preview and not args.apply and not args.allowed_file:
+        payload = start_or_update_job(project, text)
+        print(str(payload.get('message') or '').strip())
+        return 0 if payload.get('status') != 'blocked' else 2
     mode = 'apply' if args.apply else 'preview'
     ensure_bootstrap_before_run(args)
-    project = project_root(args.workspace)
     selected_backend = str(read_backend_selection(project))
     command = [
         sys.executable,
@@ -2047,6 +2060,13 @@ def undo_command(args) -> int:
     project = project_root(args.workspace)
     session_result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--undo', '--json'])
     session_payload = parse_json_output(session_result)
+    try:
+        from job_state_store import sync_job_from_session, write_job_digest  # noqa: WPS433
+
+        job = sync_job_from_session(project)
+        write_job_digest(project, job)
+    except Exception:
+        pass
     checkpoint = session_payload.get('checkpoint') if isinstance(session_payload.get('checkpoint'), dict) else {}
     if checkpoint:
         print_json(user_task_result(task='undo', mode=mode, result=f'checkpoint available: {checkpoint.get("checkpoint_id")}'))
@@ -2099,7 +2119,9 @@ def debug_command(args) -> int:
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if not raw_argv:
-        return interactive_shell('.')
+        payload = show_job_inbox(project_root('.'))
+        print(str(payload.get('message') or '').strip())
+        return 0
     if raw_argv in (['-h'], ['--help']):
         print(product_help())
         return 0

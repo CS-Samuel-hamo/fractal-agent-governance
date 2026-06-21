@@ -49,6 +49,9 @@ required.extend([
  'POST_LAUNCH_FEEDBACK_TRIAGE.md','USER_FEEDBACK_LOG.md','FIRST_10_USERS_PLAN.md','ALPHA_FEEDBACK_SUMMARY.md','PRODUCT_ITERATION_PLAN.md','V1_0_4_PATCH_PLAN.md','V1_1_ROADMAP_CANDIDATES.md','POSITIONING_FEEDBACK_NOTES.md',
  'scripts/public_branch_sync_preflight.py','scripts/feedback_intake_schema.py','scripts/feedback_triage_engine.py','scripts/feedback_signal_classifier.py','scripts/feedback_priority_ranker.py','scripts/feedback_iteration_planner.py','scripts/positioning_feedback_analyzer.py','scripts/post_launch_feedback_report_generator.py',
  'scripts/test_post_launch_feedback_triage.py','scripts/test_feedback_signal_classifier.py','scripts/test_public_branch_sync_preflight.py',
+ 'NEW_PROJECT_GUIDE.md',
+ 'scripts/job_state_store.py','scripts/job_controller.py','scripts/job_inbox_renderer.py','scripts/background_job_policy.py','scripts/command_ux_linter.py','scripts/first_run_guidance_engine.py',
+ 'scripts/test_background_job_mode.py','scripts/test_command_simplification_ux.py','scripts/test_first_run_job_guidance.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

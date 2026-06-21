@@ -11,20 +11,27 @@ Version: `v1.0.0-alpha.1`
 ## Quick Demo
 
 ```bash
-agent cockpit
-agent start "prepare this project for public release"
-agent status
+agent "prepare this project for public release"
+agent
 agent release
 agent pr
 ```
 
 The public path is:
 
-1. Map the project.
-2. Start an autopilot session.
-3. Watch progress in Cockpit.
-4. Continue, stop, or undo.
-5. Generate a local release and PR pack.
+1. Give the operator a project goal.
+2. Come back and run `agent` to see the Job Inbox.
+3. Continue, stop, undo, or open Cockpit when needed.
+4. Generate a local release and PR pack.
+
+Most usage is two commands:
+
+```bash
+agent "<goal>"
+agent
+```
+
+You do not need to remember every command. Other commands are situational.
 
 ## What It Does
 
@@ -53,21 +60,39 @@ See [QUICKSTART.md](QUICKSTART.md).
 
 ## Public Commands
 
+Daily path:
+
 ```bash
-agent "<task>"
-agent "<task>" --preview
-agent "<task>" --apply
-agent start "<project goal>"
-agent status
+agent "<goal>"
+agent
+```
+
+Steer the current job:
+
+```bash
 agent continue
 agent stop
 agent undo
 agent cockpit
+```
+
+Prepare release artifacts:
+
+```bash
 agent release
 agent pr
 ```
 
+One-off task mode is still available when you explicitly ask for it:
+
+```bash
+agent "fix README typo" --preview
+agent "fix README typo" --apply
+```
+
 See [CLI_REFERENCE.md](CLI_REFERENCE.md) for details.
+
+For new projects, see [NEW_PROJECT_GUIDE.md](NEW_PROJECT_GUIDE.md).
 
 ## Demo Project
 

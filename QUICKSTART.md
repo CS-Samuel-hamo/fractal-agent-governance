@@ -1,32 +1,43 @@
 # Quickstart
 
-This guide shows the 5-minute path for the public alpha.
+This guide shows the simplest path for the public alpha.
 
-## 1. Open Or Refresh The Cockpit
+## Most Usage Is Two Commands
+
+```bash
+agent "prepare this project for public release"
+agent
+```
+
+The first command starts or updates a Project Job. The second command shows the Job Inbox: current status, what happened, what needs attention, and what to do next.
+
+## 1. Start A Project Job
+
+```bash
+agent "prepare this project for public release"
+```
+
+This creates a durable job backed by the existing session runtime. It does not start a true daemon or OS service. It makes one safe bounded step, saves state, and lets you come back later.
+
+## 2. Check Later
+
+```bash
+agent
+```
+
+This shows the current job, status, next action, attention items, Cockpit path, and suggested commands.
+
+`agent status` still works, but it is now just the explicit form of `agent`.
+
+## 3. Open The Cockpit
 
 ```bash
 agent cockpit
 ```
 
-Open the printed local file path in your browser. The Cockpit is a static local page. It does not require a server or network.
+The Cockpit is a static local page. It does not require a server or network.
 
-## 2. Start A Project Session
-
-```bash
-agent start "prepare this project for public release"
-```
-
-The session reads the project map, selects the next useful action, and records progress locally.
-
-## 3. Check Progress
-
-```bash
-agent status
-```
-
-Status shows the current session state, next action, digest path, and Cockpit path.
-
-## 4. Continue, Stop, Or Undo
+## 4. Steer When Needed
 
 ```bash
 agent continue
@@ -34,9 +45,9 @@ agent stop
 agent undo
 ```
 
-Use `continue` to advance the session, `stop` to pause safely, and `undo` to inspect the latest recovery point.
+Use these only when you want to steer the current job.
 
-## 5. Generate Release And PR Artifacts
+## 5. Prepare Release And PR Artifacts
 
 ```bash
 agent release
@@ -54,14 +65,20 @@ These commands generate local artifacts only:
 
 They do not call GitHub, push, merge, create a remote PR, read tokens, or read `.env` contents.
 
-## If A Worker Is Unavailable
+## One-off Task Mode
 
-The product can still run in preview, dry-run, or local scan mode. An unavailable worker is reported as a capability limitation, not a fatal product failure.
-
-## One-off Task Preview
+For a bounded single task, be explicit:
 
 ```bash
-agent "fix README typo"
+agent "fix README typo" --preview
+agent "fix README typo" --apply
 ```
 
-Task commands preview by default. Use `--apply` only when you explicitly want changes.
+Use `-f README.md` when you want to keep a one-off edit scoped to a file.
+
+## Where To Use It
+
+- CLI is the primary interface.
+- AI IDEs are good editing environments.
+- Codex App can assist by running, inspecting, and explaining agent commands.
+- Codex, Claude, local scanner, mock, and dry-run are workers, not the product.
