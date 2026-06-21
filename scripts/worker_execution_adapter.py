@@ -15,6 +15,8 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from runtime_common import load_json, project_root, write_json  # noqa: E402
 from worker_fallback_engine import fallback_for_result  # noqa: E402
 from worker_interface import worker_result  # noqa: E402
+from codex_worker_adapter_hardened import codex_health  # noqa: E402
+from local_scanner_worker import execute as execute_local_scan  # noqa: E402
 
 
 def pipeline_paths(project: Path, run_id: str) -> tuple[Path, Path, Path]:
@@ -65,6 +67,23 @@ def status_from_final(final_result: dict[str, Any], command_result: dict[str, An
 
 
 def execute_routed_worker(project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int) -> dict[str, Any]:
+    if routing_decision.get('selected_provider') == 'local_scanner':
+        worker_payload = execute_local_scan(project, task=action, context={'routing_decision': routing_decision, 'step_number': step_number})
+        final_result = {'final_verdict': 'DRY_RUN_COMPLETE', 'worker_result': worker_payload}
+        execution = {'leaf_results': [], 'worker_result': worker_payload}
+        fallback_for_result(project, routing_decision=routing_decision, worker_result=worker_payload)
+        return {
+            'run_id': f'local-scan-{time.strftime("%Y%m%d%H%M%S", time.gmtime())}-{step_number:02d}',
+            'plan_path': '',
+            'execution_path': '.zoo-agent/workers/worker_execution_result.json',
+            'final_path': '',
+            'execution': execution,
+            'final_result': final_result,
+            'worker_result': worker_payload,
+            'command_result': {'returncode': 0, 'stdout_tail': '', 'stderr_tail': ''},
+        }
+    if routing_decision.get('selected_provider') == 'codex':
+        codex_health(project)
     run_id = f'session-{time.strftime("%Y%m%d%H%M%S", time.gmtime())}-{step_number:02d}'
     backend = backend_from_worker(routing_decision)
     mode = str(routing_decision.get('execution_mode') or 'preview')

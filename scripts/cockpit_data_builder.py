@@ -227,6 +227,55 @@ def build_worker_summary(project: Path) -> dict[str, Any]:
     }
 
 
+def product_worker_label(worker: dict[str, Any]) -> str:
+    name = str(worker.get('name') or '')
+    provider = str(worker.get('provider') or '')
+    worker_type = str(worker.get('worker_type') or '')
+    if name == 'local_scanner_worker':
+        return 'Local Scanner'
+    if provider == 'dry_run':
+        return 'Dry-run Worker'
+    if provider == 'mock':
+        return 'Mock Worker'
+    if provider == 'codex':
+        return 'Code Worker'
+    if provider == 'claude':
+        return 'Analysis Worker'
+    return clean_text(worker.get('role') or worker_type or 'Worker')
+
+
+def build_worker_readiness(project: Path) -> dict[str, Any]:
+    registry = load_json(project / '.zoo-agent' / 'workers' / 'worker_registry.json')
+    workers = [item for item in registry.get('workers') or [] if isinstance(item, dict)]
+    rows = []
+    for item in workers:
+        rows.append(
+            {
+                'role': product_worker_label(item),
+                'status': clean_text(item.get('health') or ('ready' if item.get('available') else 'unavailable')),
+                'available': bool(item.get('available')),
+                'safe_capability': (
+                    'actual execution'
+                    if item.get('supports_actual_execution')
+                    else 'repo scan only'
+                    if 'repo_scan' in (item.get('capabilities') or [])
+                    else 'preview only'
+                    if item.get('supports_preview')
+                    else 'unavailable'
+                ),
+                'developer_details': {
+                    'provider': clean_text(item.get('provider') or ''),
+                    'worker_name': clean_text(item.get('name') or ''),
+                    'reason': clean_text(item.get('reason') or item.get('unavailable_reason') or ''),
+                },
+            }
+        )
+    return {
+        'workers': rows,
+        'actual_execution': 'available' if any(item.get('available') and item.get('supports_actual_execution') and item.get('provider') != 'mock' for item in workers) else 'unavailable',
+    }
+
+
 def build_cockpit_data(project: Path) -> dict[str, Any]:
     data = default_cockpit_data(project)
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
@@ -274,6 +323,7 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['safety'] = build_safety(checkpoints)
     data['readiness'] = readiness
     data['worker'] = build_worker_summary(project)
+    data['worker_readiness'] = build_worker_readiness(project)
     return data
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
+from claude_code_worker_detector import claude_health  # noqa: E402
+from codex_worker_adapter_hardened import codex_health  # noqa: E402
 from runtime_common import project_root, write_json  # noqa: E402
 
 
@@ -29,15 +30,19 @@ CAPABILITIES = [
     'low_cost',
     'high_reliability',
     'local_only',
+    'project_structure_scan',
+    'manifest_scan',
+    'test_file_scan',
+    'docs_file_scan',
+    'project_map_support',
 ]
 
 
-def codex_available() -> bool:
-    return bool(shutil.which('codex'))
-
-
-def worker_profiles() -> dict[str, dict[str, Any]]:
-    codex_is_available = codex_available()
+def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
+    codex = codex_health(project)
+    claude = claude_health(project)
+    codex_is_available = bool(codex.get('available'))
+    claude_detected = bool(claude.get('available'))
     return {
         'mock_worker': {
             'worker_name': 'mock_worker',
@@ -71,6 +76,22 @@ def worker_profiles() -> dict[str, dict[str, Any]]:
             'available': True,
             'health': 'healthy',
         },
+        'local_scanner_worker': {
+            'worker_name': 'local_scanner_worker',
+            'provider': 'local_scanner',
+            'worker_type': 'analysis',
+            'capabilities': ['repo_scan', 'project_structure_scan', 'manifest_scan', 'test_file_scan', 'docs_file_scan', 'project_map_support', 'analysis', 'safe_preview', 'local_only', 'low_cost', 'high_reliability'],
+            'best_for': ['safe repo scan', 'project map evidence', 'local metadata scan'],
+            'avoid_for': ['actual file edits', 'LLM reasoning'],
+            'risk_limit': 'high',
+            'supports_actual_execution': False,
+            'supports_preview': True,
+            'supports_session': True,
+            'cost_class': 'free',
+            'reliability_score': 0.99,
+            'available': True,
+            'health': 'healthy',
+        },
         'codex_worker_existing_adapter': {
             'worker_name': 'codex_worker_existing_adapter',
             'provider': 'codex',
@@ -79,13 +100,15 @@ def worker_profiles() -> dict[str, dict[str, Any]]:
             'best_for': ['bounded code edits', 'tests', 'local patch generation'],
             'avoid_for': ['blocked zones', 'unbounded project execution'],
             'risk_limit': 'medium',
-            'supports_actual_execution': True,
+            'supports_actual_execution': bool(codex.get('supports_actual_execution')),
             'supports_preview': True,
             'supports_session': True,
             'cost_class': 'unknown',
             'reliability_score': 0.72 if codex_is_available else 0.0,
             'available': codex_is_available,
-            'health': 'healthy' if codex_is_available else 'unavailable',
+            'health': codex.get('health') or ('healthy' if codex_is_available else 'unavailable'),
+            'unavailable_reason': '' if codex_is_available else str(codex.get('reason') or 'codex CLI not found'),
+            'reason': str(codex.get('reason') or ''),
         },
         'claude_worker_stub': {
             'worker_name': 'claude_worker_stub',
@@ -97,11 +120,13 @@ def worker_profiles() -> dict[str, dict[str, Any]]:
             'risk_limit': 'low',
             'supports_actual_execution': False,
             'supports_preview': True,
-            'supports_session': False,
+            'supports_session': bool(claude_detected),
             'cost_class': 'unknown',
-            'reliability_score': 0.0,
-            'available': False,
-            'health': 'unavailable',
+            'reliability_score': 0.15 if claude_detected else 0.0,
+            'available': bool(claude_detected),
+            'health': 'degraded' if claude_detected else 'unavailable',
+            'unavailable_reason': '' if claude_detected else str(claude.get('reason') or 'Claude Code CLI not detected'),
+            'reason': str(claude.get('reason') or ''),
         },
         'local_worker_stub': {
             'worker_name': 'local_worker_stub',
@@ -132,7 +157,7 @@ def main() -> int:
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    payload = {'schema_version': '1.0', 'capabilities': CAPABILITIES, 'profiles': list(worker_profiles().values())}
+    payload = {'schema_version': '1.0', 'capabilities': CAPABILITIES, 'profiles': list(worker_profiles(project).values())}
     output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'workers' / 'worker_capability_profiles.json'
     write_json(output, payload)
     print(json.dumps({'status': 'ok', 'profiles': str(output)}, ensure_ascii=False, indent=2))

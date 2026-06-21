@@ -49,11 +49,12 @@ def main() -> int:
     root = repo()
     registry = write_worker_registry(root)
     names = {item['name'] for item in registry['workers']}
-    assert {'mock_worker', 'dry_run_worker', 'codex_worker_existing_adapter', 'claude_worker_stub', 'local_worker_stub'} <= names
+    assert {'mock_worker', 'dry_run_worker', 'local_scanner_worker', 'codex_worker_existing_adapter', 'claude_worker_stub', 'local_worker_stub'} <= names
     worker_by_name = {item['name']: item for item in registry['workers']}
     assert worker_by_name['mock_worker']['available'] is True
     assert worker_by_name['dry_run_worker']['available'] is True
-    assert worker_by_name['claude_worker_stub']['available'] is False
+    assert worker_by_name['local_scanner_worker']['available'] is True
+    assert worker_by_name['claude_worker_stub']['supports_actual_execution'] is False
     assert worker_by_name['local_worker_stub']['available'] is False
 
     docs_profile = classify_task_profile(
@@ -77,7 +78,7 @@ def main() -> int:
     assert code_profile['task_type'] == 'code_edit'
     scan_profile = classify_task_profile({'title': 'Refresh project map release readiness', 'risk_level': 'low', 'trust_zone': 'trusted', 'execution_mode': 'preview', 'target_files': []})
     scan_decision = route_worker(root, task_profile=scan_profile, requested_worker='auto', execution_mode='preview')
-    assert scan_decision['selected_worker'] == 'dry_run_worker'
+    assert scan_decision['selected_worker'] == 'local_scanner_worker'
     assert scan_decision['execution_mode'] == 'preview'
 
     blocked_profile = classify_task_profile({'title': 'Change auth token handling', 'risk_level': 'high', 'trust_zone': 'blocked', 'execution_mode': 'auto', 'target_files': ['auth/secrets.py']})
@@ -94,9 +95,8 @@ def main() -> int:
     assert 'workers --doctor' not in help_text
     assert 'agent workers' not in help_text
     doctor = run([sys.executable, str(AGENT), 'workers', '--doctor', '--workspace', str(root)], root)
-    payload = json.loads(doctor.stdout)
-    assert payload['task'] == 'workers doctor'
-    assert '.zoo-agent/workers/worker_registry.json' in payload['result']
+    assert 'Workers:' in doctor.stdout
+    assert '.zoo-agent/workers/worker_doctor_report.json' in doctor.stdout
     print('multi backend worker router tests passed')
     return 0
 

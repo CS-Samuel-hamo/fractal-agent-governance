@@ -29,6 +29,8 @@ def _provider_or_name_match(worker: dict[str, Any], requested: str) -> bool:
 def _mode_from(task_profile: dict[str, Any], execution_mode: str = '') -> str:
     mode = str(execution_mode or '').lower()
     if mode in {'auto', 'preview', 'needs_attention'}:
+        if mode == 'auto' and not task_profile.get('requires_actual_execution'):
+            return 'preview'
         return mode
     if task_profile.get('trust_zone') == 'blocked':
         return 'needs_attention'
@@ -54,7 +56,7 @@ def route_worker(
     execution_mode: str = '',
 ) -> dict[str, Any]:
     registry = write_worker_registry(project)
-    profiles = list(worker_profiles().values())
+    profiles = list(worker_profiles(project).values())
     requested = str(requested_worker or 'auto')
     mode = _mode_from(task_profile, execution_mode)
     if requested in {'dry_run', 'dry_run_worker'}:
@@ -85,7 +87,7 @@ def route_worker(
     rejected: list[dict[str, str]] = []
     for worker in profiles:
         ok, reason = worker_can_route(worker, task_profile, mode=mode)
-        row = {'worker': str(worker.get('worker_name') or ''), 'reason': reason}
+        row = {'worker': str(worker.get('worker_name') or ''), 'reason': reason, 'detail': str(worker.get('unavailable_reason') or worker.get('reason') or '')}
         if ok:
             candidates.append(worker)
         else:
@@ -132,6 +134,7 @@ def route_worker(
                 'execution_mode': 'needs_attention',
                 'blocked_reason': 'no safe worker available',
                 'rejected_workers': rejected,
+                'worker_unavailable_reasons': {item['worker']: item.get('detail', item.get('reason', '')) for item in rejected if item.get('reason') in {'worker_unavailable', 'worker_unhealthy'}},
             }
             write_json(workers_dir(project) / 'routing_decision.json', decision)
             write_fallback_trace(project, fallback_trace(original_worker=requested, final_worker='', final_mode='needs_attention', reason='no_safe_worker_available', safe=True))
@@ -159,6 +162,7 @@ def route_worker(
         'execution_mode': mode,
         'blocked_reason': '',
         'rejected_workers': rejected,
+        'worker_unavailable_reasons': {item['worker']: item.get('detail', item.get('reason', '')) for item in rejected if item.get('reason') in {'worker_unavailable', 'worker_unhealthy'}},
         'registry_ref': '.zoo-agent/workers/worker_registry.json',
     }
     write_json(workers_dir(project) / 'routing_decision.json', decision)

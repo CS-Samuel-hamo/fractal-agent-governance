@@ -129,7 +129,7 @@ def make_trace_row(
     if scenario == 'blocked_zone':
         row['outcome'] = 'pass' if not decision.get('execution_allowed') and decision.get('execution_mode') == 'needs_attention' else 'fail'
     elif scenario == 'all_actual_workers_unavailable':
-        row['outcome'] = 'pass' if decision.get('execution_mode') == 'preview' and decision.get('selected_worker') == 'dry_run_worker' else 'fail'
+        row['outcome'] = 'pass' if decision.get('execution_mode') == 'preview' and decision.get('selected_worker') in {'dry_run_worker', 'local_scanner_worker'} else 'fail'
     elif scenario == 'degraded_worker':
         row['outcome'] = 'pass' if row['fallback_used'] and decision.get('selected_worker') not in {'claude_worker_stub', 'local_worker_stub'} else 'fail'
     elif decision.get('execution_mode') == 'auto' and not checkpoint_created:

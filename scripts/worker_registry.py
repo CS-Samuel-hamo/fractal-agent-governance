@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from runtime_common import project_root, utc_now, write_json  # noqa: E402
 from worker_capability_profile import profile_for, worker_profiles  # noqa: E402
 from worker_interface import worker_result  # noqa: E402
+from worker_adapter_contract import contract_for, write_contracts  # noqa: E402
 
 
 @dataclass
@@ -90,19 +91,30 @@ def required_capability(task_profile: dict[str, Any]) -> str:
     return ''
 
 
-def default_workers() -> dict[str, ProfileWorker]:
-    return {name: ProfileWorker(profile) for name, profile in worker_profiles().items()}
+def default_workers(project: Path | None = None) -> dict[str, ProfileWorker]:
+    return {name: ProfileWorker(profile) for name, profile in worker_profiles(project).items()}
 
 
 def registry_payload(project: Path) -> dict[str, Any]:
-    _ = project
     workers = []
-    for profile in worker_profiles().values():
+    profiles = worker_profiles(project)
+    contracts_payload = write_contracts(project, profiles)
+    contract_rows = {item.get('worker_name'): item for item in contracts_payload.get('contracts') or [] if isinstance(item, dict)}
+    for profile in profiles.values():
+        contract = contract_rows.get(profile.get('worker_name')) or contract_for(str(profile.get('worker_name') or ''))
         workers.append(
             {
                 'name': profile.get('worker_name'),
                 'provider': profile.get('provider'),
                 'worker_type': profile.get('worker_type'),
+                'role': {
+                    'code': 'Code Worker',
+                    'analysis': 'Analysis Worker',
+                    'test': 'Test Worker',
+                    'docs': 'Docs Worker',
+                    'mock': 'Mock Worker',
+                    'dry_run': 'Dry-run Worker',
+                }.get(str(profile.get('worker_type') or ''), 'Worker'),
                 'available': bool(profile.get('available')),
                 'health': profile.get('health'),
                 'capabilities': profile.get('capabilities') or [],
@@ -110,6 +122,10 @@ def registry_payload(project: Path) -> dict[str, Any]:
                 'supports_actual_execution': bool(profile.get('supports_actual_execution')),
                 'supports_preview': bool(profile.get('supports_preview')),
                 'reliability_score': profile.get('reliability_score', 0.0),
+                'contract': contract,
+                'reason': profile.get('reason', ''),
+                'unavailable_reason': profile.get('unavailable_reason', ''),
+                'suggested_fix': 'Use preview/dry-run or install/enable the worker later.' if not profile.get('available') else 'No fix required.',
             }
         )
     return {

@@ -144,6 +144,29 @@ def worker_panel(worker: dict[str, Any]) -> str:
 {developer}'''
 
 
+def worker_readiness_panel(readiness: dict[str, Any]) -> str:
+    rows = []
+    for item in readiness.get('workers') or []:
+        details = item.get('developer_details') if isinstance(item.get('developer_details'), dict) else {}
+        developer = (
+            '<details class="dev-details"><summary>Developer details</summary>'
+            f'<p>Provider: {esc(details.get("provider") or "not available")} | Adapter: {esc(details.get("worker_name") or "not available")}</p>'
+            f'<p>{esc(details.get("reason") or "")}</p>'
+            '</details>'
+        )
+        rows.append(
+            f'''<article class="item">
+  <div class="item-head"><strong>{esc(item.get('role'))}</strong>{badge(item.get('status'))}</div>
+  <div class="meta">{esc(item.get('safe_capability') or 'not available')}</div>
+  {developer}
+</article>'''
+        )
+    if not rows:
+        rows.append('<div class="empty">Worker readiness is not available yet.</div>')
+    return f'''<p>{badge('actual execution ' + str(readiness.get('actual_execution') or 'unknown'))}</p>
+{''.join(rows)}'''
+
+
 def render_cockpit_html(data: dict[str, Any]) -> str:
     project = data.get('project') or {}
     session = data.get('session') or {}
@@ -153,6 +176,7 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     safety = data.get('safety') or {}
     readiness = data.get('readiness') or {}
     worker = data.get('worker') or {}
+    worker_readiness = data.get('worker_readiness') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
     return f'''<!doctype html>
@@ -267,6 +291,11 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
     <section class="card span-4">
       <h2>Worker</h2>
       {worker_panel(worker)}
+    </section>
+
+    <section class="card span-8">
+      <h2>Worker Readiness</h2>
+      {worker_readiness_panel(worker_readiness)}
     </section>
 
     <section class="card span-8">

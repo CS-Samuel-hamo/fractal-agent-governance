@@ -925,18 +925,11 @@ def workers_command(args) -> int:
         )
         return int(result.get('returncode') or 0)
     if getattr(args, 'doctor', False):
-        result = delegate_capture('worker_registry.py', ['--workspace', str(project), '--doctor'])
+        result = delegate_capture('worker_doctor.py', ['--workspace', str(project)])
         if getattr(args, 'debug', False):
             print(str(result.get('stdout') or '').strip())
             return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        print_json(
-            {
-                'task': 'workers doctor',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f"Registry: .zoo-agent/workers/worker_registry.json; available workers: {payload.get('available_workers', 0)}",
-            }
-        )
+        print(str(result.get('stdout') or '').strip())
         return int(result.get('returncode') or 0)
     if getattr(args, 'list', False):
         result = delegate_capture('worker_registry.py', ['--workspace', str(project), '--list'])

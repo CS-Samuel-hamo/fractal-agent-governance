@@ -63,6 +63,10 @@ def worker_score(worker: dict[str, Any], task_profile: dict[str, Any], *, mode: 
         score += 2.0
     if mode == 'preview' and provider == 'dry_run':
         score += 5.0
+    if task_type in {'repo_scan', 'release_readiness'} and provider == 'local_scanner':
+        score += 8.0
+    if task_type == 'analysis' and provider == 'local_scanner':
+        score += 2.0
     if mode == 'auto' and provider == 'mock':
         score += 1.0
     return score

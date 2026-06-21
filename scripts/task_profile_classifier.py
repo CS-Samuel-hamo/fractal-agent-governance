@@ -32,7 +32,9 @@ def infer_task_type(title: str, target_files: list[str]) -> str:
         return 'docs_update'
     if any(any(marker in path for marker in TEST_MARKERS) for path in target_files):
         return 'test_update'
-    if any(term in surface for term in ['repo scan', 'project map', 'readiness', 'release']):
+    if any(term in surface for term in ['repo scan', 'scan repo', 'project map', 'map refresh']):
+        return 'repo_scan'
+    if any(term in surface for term in ['readiness', 'release']):
         return 'release_readiness'
     if any(term in surface for term in ['refactor', 'cross-module', 'public api', 'schema']):
         return 'refactor'
@@ -73,6 +75,8 @@ def classify_task_profile(action: dict[str, Any], *, session_state: dict[str, An
     execution_mode = str(action.get('execution_mode') or '').lower()
     task_type = infer_task_type(title, target_files)
     requires_actual = execution_mode == 'auto' and trust_zone != 'blocked'
+    if task_type in {'repo_scan', 'analysis', 'release_readiness'}:
+        requires_actual = False
     if trust_zone == 'blocked':
         requires_actual = False
     profile = {

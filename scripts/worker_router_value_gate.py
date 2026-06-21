@@ -68,7 +68,7 @@ def evaluate_worker_router_value(trace: dict[str, Any], registry: dict[str, Any]
 
     registry_rows = _registry_workers(trace, registry)
     names = {str(item.get('name') or '') for item in registry_rows}
-    required_workers = {'mock_worker', 'dry_run_worker', 'codex_worker_existing_adapter', 'claude_worker_stub', 'local_worker_stub'}
+    required_workers = {'mock_worker', 'dry_run_worker', 'local_scanner_worker', 'codex_worker_existing_adapter', 'claude_worker_stub', 'local_worker_stub'}
     if not required_workers <= names:
         failed.append('worker_registry_incomplete')
 
