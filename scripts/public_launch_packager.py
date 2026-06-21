@@ -52,7 +52,7 @@ def build_package(project: Path) -> dict[str, Any]:
         demo_assets = sorted(path.relative_to(project).as_posix() for path in demo_root.rglob('*') if path.is_file())
     manual_publish_commands = [
         f'git tag -a {RELEASE_TAG} -m "AI Project Operator {RELEASE_TAG}"',
-        'git push origin main',
+        f'git push origin HEAD:refs/heads/release/{RELEASE_TAG}',
         f'git push origin {RELEASE_TAG}',
     ]
     post_publish_checks = [
@@ -74,6 +74,8 @@ def build_package(project: Path) -> dict[str, Any]:
         'post_publish_checks': post_publish_checks,
         'manual_command_notice': [
             'These commands are manual.',
+            'This project does not assume a main branch.',
+            'If needed, change the GitHub default branch manually in Settings -> Branches.',
             'This tool did not push.',
             'This tool did not create a remote GitHub release.',
         ],

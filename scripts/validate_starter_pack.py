@@ -43,6 +43,9 @@ required.extend([
  '.github/ISSUE_TEMPLATE/bug_report.md','.github/ISSUE_TEMPLATE/feature_request.md','.github/ISSUE_TEMPLATE/first_run_feedback.md','.github/ISSUE_TEMPLATE/project_map_quality.md','.github/ISSUE_TEMPLATE/autopilot_session_feedback.md','.github/ISSUE_TEMPLATE/cockpit_feedback.md','.github/ISSUE_TEMPLATE/release_pr_workflow_feedback.md','.github/ISSUE_TEMPLATE/config.yml','.github/PULL_REQUEST_TEMPLATE.md',
  'scripts/public_launch_packager.py','scripts/public_launch_audit.py','scripts/feedback_template_validator.py','scripts/post_publish_smoke_test.py','scripts/first_user_flow_validator.py','scripts/community_copy_linter.py','scripts/launch_report_generator.py',
  'scripts/test_public_launch_ops.py','scripts/test_feedback_templates.py','scripts/test_post_publish_smoke.py',
+ 'PUBLISHING.md','BRANCHING.md','POST_LAUNCH_STATUS.md',
+ 'scripts/post_publish_remote_verifier.py','scripts/branch_hygiene_audit.py','scripts/publishing_command_linter.py','scripts/default_branch_advisor.py','scripts/post_launch_status_generator.py','scripts/post_publish_report_generator.py',
+ 'scripts/test_post_publish_remote_verification.py','scripts/test_branch_hygiene_publishing.py','scripts/test_publishing_docs_no_main_assumption.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

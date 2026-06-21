@@ -42,7 +42,7 @@ def preflight(project: Path) -> dict:
         'ready_to_tag': ready,
         'suggested_commands': [
             f'git tag -a {TAG} -m "AI Project Operator {TAG}"',
-            'git push origin main',
+            f'git push origin HEAD:refs/heads/release/{TAG}',
             f'git push origin {TAG}',
         ],
         'auto_tag_created': False,

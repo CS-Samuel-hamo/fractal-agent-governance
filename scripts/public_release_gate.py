@@ -63,6 +63,9 @@ ALLOWED_RELEASE_CHANGES = (
     'KNOWN_LIMITATIONS.md',
     'CONTRIBUTING.md',
     'SECURITY.md',
+    'PUBLISHING.md',
+    'BRANCHING.md',
+    'POST_LAUNCH_STATUS.md',
 )
 
 

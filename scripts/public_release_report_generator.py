@@ -45,7 +45,7 @@ def generate_report(project: Path, *, run_fresh_clone: bool = True, run_demo: bo
     status = final_status(gate, fresh, demo, package)
     suggested = tag.get('suggested_commands') or [
         f'git tag -a v{VERSION} -m "AI Project Operator v{VERSION}"',
-        'git push origin main',
+        f'git push origin HEAD:refs/heads/release/v{VERSION}',
         f'git push origin v{VERSION}',
     ]
     report = '\n'.join(
@@ -104,7 +104,7 @@ def generate_report(project: Path, *, run_fresh_clone: bool = True, run_demo: bo
             '',
             '- Local release and PR workflow only.',
             '- No remote GitHub PR creation.',
-            '- No GitHub API calls.',
+            '- Product release and PR workflows do not call the GitHub API.',
             '- No automatic push, merge, deployment, or remote release.',
             '- Human review remains required before publishing.',
             '',

@@ -10,6 +10,8 @@ This release packages Agent Runtime as a public alpha AI Project Operator.
 - GitHub release draft for manual publishing.
 - Public release checklist for safe manual release.
 - Public release gate, package manifest, fresh clone verifier, demo flow verifier, tag preflight, and release report generation.
+- Branch-aware publishing notes for the `release/v1.0.0-alpha.1` alpha branch.
+- Post-launch remote verification and branch hygiene reports.
 
 ### Confirmed
 
@@ -17,11 +19,13 @@ This release packages Agent Runtime as a public alpha AI Project Operator.
 - Core differentiation remains Project-level Autopilot, not task-level coding agent.
 - Public commands remain focused on task, session, Cockpit, release, and PR draft flows.
 - Release and PR workflow remains local draft generation only.
+- Published alpha content is verified by release branch, tag, tree equality, and empty file diff.
 
 ### Known Limitations
 
 - This release does not create remote GitHub PRs.
-- This release does not call GitHub APIs.
+- Product release and PR workflows do not call GitHub APIs.
+- The public alpha branch and tag were completed with a manual GitHub Git Data API fallback after Git HTTPS push reset; this does not mean a GitHub Release object was created.
 - This release does not push, merge, deploy, or create a remote release.
 - Claude/local actual execution is not claimed as fully supported unless real local adapters are detected.
 - Human review is required before publishing.

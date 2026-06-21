@@ -98,6 +98,12 @@ See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 See [PRIVACY.md](PRIVACY.md) and [SAFETY_MODEL.md](SAFETY_MODEL.md).
 
+## Publishing Status
+
+The public alpha is published on branch `release/v1.0.0-alpha.1` with tag `v1.0.0-alpha.1`.
+
+This repository does not assume a `main` branch. See [PUBLISHING.md](PUBLISHING.md), [BRANCHING.md](BRANCHING.md), and [POST_LAUNCH_STATUS.md](POST_LAUNCH_STATUS.md) before changing release branches or the GitHub default branch.
+
 ## Alpha Status
 
 This is `v1.0.0-alpha.1`, a public alpha. It is useful for local project operation and release preparation, but it does not create remote pull requests, push branches, deploy systems, or replace human review.

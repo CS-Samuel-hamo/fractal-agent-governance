@@ -30,11 +30,13 @@ Target version: `v1.0.0-alpha.1`
 ## Manual Publish Commands
 
 Review the generated preflight report before running any command.
+The project does not assume a `main` branch. Publish the alpha branch explicitly.
 
 ```bash
 git tag -a v1.0.0-alpha.1 -m "AI Project Operator v1.0.0-alpha.1"
-git push origin main
+git push origin HEAD:refs/heads/release/v1.0.0-alpha.1
 git push origin v1.0.0-alpha.1
 ```
 
 These commands are suggestions for the user to run manually. Agent Runtime does not run them automatically.
+Default branch changes are manual GitHub UI actions only: Settings -> Branches -> Default branch.

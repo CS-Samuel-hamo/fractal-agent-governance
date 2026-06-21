@@ -26,6 +26,7 @@ KNOWN_COMMANDS = {
     'pipeline',
     'pr',
     'publish',
+    'postlaunch',
     'release',
     'run',
     'session',
@@ -1342,6 +1343,57 @@ def launch_command(args) -> int:
     return 2
 
 
+def postlaunch_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'verify', False):
+        result = delegate_capture('post_publish_remote_verifier.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        mode = 'ready' if payload.get('remote_verification_passed') or payload.get('tree_equal') else 'blocked'
+        print_json(
+            {
+                'task': 'post-launch remote verification',
+                'mode': mode,
+                'result': 'Report: .zoo-agent/post_launch/remote_publish_verification.json',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'branch_audit', False):
+        result = delegate_capture('branch_hygiene_audit.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        recommendation = payload.get('recommendation') or 'unknown'
+        print_json(
+            {
+                'task': 'post-launch branch hygiene',
+                'mode': 'ready' if recommendation in {'pass', 'manual_action_needed'} else 'blocked',
+                'result': f'Branch report: .zoo-agent/post_launch/branch_hygiene_report.json; recommendation: {recommendation}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'report', False):
+        result = delegate_capture('post_publish_report_generator.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'post-launch report',
+                'mode': 'ready' if readiness == 'READY_FOR_POST_LAUNCH_FEEDBACK_TRIAGE' else 'blocked',
+                'result': f'Report: .zoo-agent/post_launch/post_publish_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    print_json({'task': 'post-launch', 'mode': 'blocked', 'result': 'unknown postlaunch command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -2214,6 +2266,14 @@ def main(argv: list[str] | None = None) -> int:
     launch_parser.add_argument('--smoke', action='store_true')
     launch_parser.add_argument('--debug', action='store_true')
     launch_parser.set_defaults(handler=launch_command)
+
+    postlaunch_parser = sub.add_parser('postlaunch', help=argparse.SUPPRESS)
+    postlaunch_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    postlaunch_parser.add_argument('--verify', action='store_true')
+    postlaunch_parser.add_argument('--branch-audit', dest='branch_audit', action='store_true')
+    postlaunch_parser.add_argument('--report', action='store_true')
+    postlaunch_parser.add_argument('--debug', action='store_true')
+    postlaunch_parser.set_defaults(handler=postlaunch_command)
 
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
