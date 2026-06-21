@@ -24,6 +24,7 @@ KNOWN_COMMANDS = {
     'continue',
     'pipeline',
     'run',
+    'session',
     'start',
     'status',
     'stop',
@@ -884,6 +885,27 @@ def cockpit_command(args) -> int:
     return 0
 
 
+def session_command(args) -> int:
+    project = project_root(args.workspace)
+    if not getattr(args, 'dogfood', False):
+        print_json({'task': 'session', 'mode': 'blocked', 'result': 'unknown session command'})
+        return 2
+    result = delegate_capture('session_dogfood_runner.py', ['--workspace', str(project)])
+    if getattr(args, 'debug', False):
+        print(str(result.get('stdout') or '').strip())
+        return int(result.get('returncode') or 0)
+    payload = parse_json_output(result)
+    readiness = ((payload.get('readiness') or {}).get('readiness')) or 'NOT_READY'
+    print_json(
+        {
+            'task': 'session dogfood',
+            'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+            'result': f'Report: .zoo-agent/session_dogfood/session_product_report.md; readiness: {readiness}',
+        }
+    )
+    return int(result.get('returncode') or 0)
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -1710,6 +1732,12 @@ def main(argv: list[str] | None = None) -> int:
     cockpit_parser.add_argument('--dogfood', action='store_true', help=argparse.SUPPRESS)
     cockpit_parser.add_argument('--debug', action='store_true')
     cockpit_parser.set_defaults(handler=cockpit_command)
+
+    session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
+    session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    session_parser.add_argument('--dogfood', action='store_true')
+    session_parser.add_argument('--debug', action='store_true')
+    session_parser.set_defaults(handler=session_command)
 
     undo_parser = sub.add_parser('undo', help=argparse.SUPPRESS)
     undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

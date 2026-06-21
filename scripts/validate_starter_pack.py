@@ -20,7 +20,7 @@ required.extend([
  'scripts/cockpit_schema.py','scripts/cockpit_data_builder.py','scripts/cockpit_html_template.py','scripts/cockpit_renderer.py',
  'scripts/test_project_cockpit_data.py','scripts/test_project_cockpit_render.py','scripts/test_project_cockpit_ux.py',
  'scripts/cockpit_demo_fixture_builder.py','scripts/cockpit_quality_gate.py','scripts/cockpit_dogfood_runner.py','scripts/cockpit_ux_report_generator.py','scripts/test_project_cockpit_dogfood.py',
- 'scripts/session_state_store.py','scripts/session_budget_manager.py','scripts/session_failure_policy.py','scripts/session_cockpit_sync.py','scripts/session_digest_generator.py','scripts/session_resume_engine.py','scripts/session_step_runner.py','scripts/session_runtime_engine.py','scripts/test_long_running_session_runtime.py','scripts/test_session_resume_and_recovery.py','scripts/test_session_cockpit_sync.py',
+ 'scripts/session_state_store.py','scripts/session_budget_manager.py','scripts/session_failure_policy.py','scripts/session_cockpit_sync.py','scripts/session_digest_generator.py','scripts/session_resume_engine.py','scripts/session_step_runner.py','scripts/session_runtime_engine.py','scripts/session_dogfood_runner.py','scripts/session_reliability_gate.py','scripts/session_trace_replayer.py','scripts/session_product_report_generator.py','scripts/test_long_running_session_runtime.py','scripts/test_session_resume_and_recovery.py','scripts/test_session_cockpit_sync.py','scripts/test_session_dogfood_reliability_gate.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:
