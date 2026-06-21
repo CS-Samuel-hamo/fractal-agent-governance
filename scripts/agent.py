@@ -909,6 +909,21 @@ def session_command(args) -> int:
 
 def workers_command(args) -> int:
     project = project_root(args.workspace)
+    if getattr(args, 'real_dogfood', False):
+        result = delegate_capture('real_worker_dogfood_runner.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        readiness = ((payload.get('readiness') or {}).get('readiness')) or 'NOT_READY'
+        print_json(
+            {
+                'task': 'real worker dogfood',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f'Report: .zoo-agent/real_worker_dogfood/project_operator_value_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
     if getattr(args, 'dogfood', False):
         result = delegate_capture('worker_router_dogfood_runner.py', ['--workspace', str(project)])
         if getattr(args, 'debug', False):
@@ -1798,6 +1813,7 @@ def main(argv: list[str] | None = None) -> int:
     workers_parser.add_argument('--list', action='store_true')
     workers_parser.add_argument('--route-demo', action='store_true')
     workers_parser.add_argument('--dogfood', action='store_true')
+    workers_parser.add_argument('--real-dogfood', dest='real_dogfood', action='store_true')
     workers_parser.add_argument('--debug', action='store_true')
     workers_parser.set_defaults(handler=workers_command)
 
