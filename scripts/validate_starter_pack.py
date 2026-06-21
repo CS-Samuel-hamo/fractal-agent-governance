@@ -22,7 +22,8 @@ required.extend([
  'scripts/cockpit_demo_fixture_builder.py','scripts/cockpit_quality_gate.py','scripts/cockpit_dogfood_runner.py','scripts/cockpit_ux_report_generator.py','scripts/test_project_cockpit_dogfood.py',
  'scripts/session_state_store.py','scripts/session_budget_manager.py','scripts/session_failure_policy.py','scripts/session_cockpit_sync.py','scripts/session_digest_generator.py','scripts/session_resume_engine.py','scripts/session_step_runner.py','scripts/session_runtime_engine.py','scripts/session_dogfood_runner.py','scripts/session_reliability_gate.py','scripts/session_trace_replayer.py','scripts/session_product_report_generator.py',
  'scripts/worker_interface.py','scripts/worker_registry.py','scripts/worker_capability_profile.py','scripts/worker_health_monitor.py','scripts/worker_router.py','scripts/worker_routing_policy.py','scripts/worker_fallback_engine.py','scripts/task_profile_classifier.py','scripts/worker_execution_adapter.py',
- 'scripts/test_long_running_session_runtime.py','scripts/test_session_resume_and_recovery.py','scripts/test_session_cockpit_sync.py','scripts/test_session_dogfood_reliability_gate.py','scripts/test_multi_backend_worker_router.py','scripts/test_worker_router_session_integration.py','scripts/test_worker_router_fallback.py',
+ 'scripts/worker_router_dogfood_runner.py','scripts/worker_router_value_gate.py','scripts/worker_router_trace_replayer.py','scripts/worker_router_product_report_generator.py',
+ 'scripts/test_long_running_session_runtime.py','scripts/test_session_resume_and_recovery.py','scripts/test_session_cockpit_sync.py','scripts/test_session_dogfood_reliability_gate.py','scripts/test_multi_backend_worker_router.py','scripts/test_worker_router_session_integration.py','scripts/test_worker_router_fallback.py','scripts/test_worker_router_dogfood_value_gate.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:
