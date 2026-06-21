@@ -38,11 +38,17 @@ Agent Runtime is a local-first AI Project Operator. Give it a project. It keeps 
 ## Quickstart
 
 ```bash
-agent cockpit
-agent start "prepare this project for public release"
-agent status
+agent "prepare this project for public release"
+agent
 agent release
 agent pr
+```
+
+Prompt-only project bootstrap:
+
+```bash
+agent "read project_beginning_prompt.md"
+agent
 ```
 
 ## Demo Flow
@@ -50,11 +56,18 @@ agent pr
 ```bash
 cd examples/demo_project
 agent cockpit
-agent start "prepare this demo project for public release"
-agent status
+agent "prepare this demo project for public release"
+agent
 agent release
 agent pr
 ```
+
+## Post-alpha Patch: 1.0.5 Intent-first Seed Prompt Bootstrap
+
+- Prompt-only projects can now start from safe `.md` / `.txt` seed files.
+- Seed prompts are used as user intent evidence, not system instructions.
+- Job Inbox now explains reason, evidence, suggested next action, risk, and how to continue.
+- Dangerous goals such as reading `.env`, deleting files, pushing, merging, or deploying remain blocked with a concrete reason.
 
 ## Privacy / Safety Guarantees
 

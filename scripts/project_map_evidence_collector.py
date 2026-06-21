@@ -8,6 +8,7 @@ from typing import Any
 
 from project_map_schema import SENSITIVE_PATTERNS, evidence_item, map_dir
 from runtime_common import project_root, utc_now, write_json
+from seed_prompt_discovery import discover_seed_prompt, seed_evidence_item
 
 
 SAFE_DOC_NAMES = ['README.md', 'QUICKSTART.md', 'INSTALL.md', 'EXAMPLES.md', 'CONTRIBUTING.md']
@@ -38,9 +39,13 @@ def safe_read_excerpt(path: Path, *, limit: int = 240) -> str:
     return cleaned[:limit]
 
 
-def collect_evidence(project: Path) -> dict[str, Any]:
+def collect_evidence(project: Path, *, main_goal: str = '') -> dict[str, Any]:
     evidence: list[dict[str, Any]] = []
     skipped_sensitive: list[str] = []
+    seed_report = discover_seed_prompt(project, goal=main_goal)
+    selected_seed = seed_report.get('selected') if isinstance(seed_report.get('selected'), dict) else None
+    if selected_seed:
+        evidence.append(seed_evidence_item(selected_seed))
     for name in SAFE_DOC_NAMES:
         path = project / name
         if path.exists() and path.is_file():
@@ -83,6 +88,7 @@ def collect_evidence(project: Path) -> dict[str, Any]:
         'generated_at': utc_now(),
         'workspace': str(project),
         'evidence': evidence,
+        'seed_prompt': seed_report,
         'sensitive_content_read': False,
         'sensitive_patterns': SENSITIVE_PATTERNS,
         'skipped_sensitive_paths': sorted(set(skipped_sensitive)),

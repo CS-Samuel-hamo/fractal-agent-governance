@@ -52,6 +52,7 @@ required.extend([
  'NEW_PROJECT_GUIDE.md',
  'scripts/job_state_store.py','scripts/job_controller.py','scripts/job_inbox_renderer.py','scripts/background_job_policy.py','scripts/command_ux_linter.py','scripts/first_run_guidance_engine.py',
  'scripts/test_background_job_mode.py','scripts/test_command_simplification_ux.py','scripts/test_first_run_job_guidance.py',
+ 'scripts/seed_prompt_discovery.py','scripts/test_intent_first_seed_bootstrap.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

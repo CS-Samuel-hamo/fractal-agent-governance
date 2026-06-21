@@ -1,5 +1,28 @@
 # Release Notes
 
+## 1.0.5 Intent-first Seed Prompt Bootstrap Patch
+
+This patch improves first-run behavior for empty or prompt-only projects.
+
+### Added
+
+- Seed prompt discovery for safe root-level or `docs/` `.md` / `.txt` files such as `project_beginning_prompt.md`, `project_prompt.md`, `goal.md`, `brief.md`, `spec.md`, `requirements.md`, `prompt.md`, and `plan.md`.
+- Intent-first fallback when Project Map cannot find an executable next action.
+- Structured seed prompt evidence and a `Seed prompt project brief` module in Project Map.
+- Starter documentation actions for prompt-only projects, including `README.md`, `docs/project_plan.md`, and research-oriented `docs/research_workflow.md`.
+- Job Inbox fields for `Reason`, `Evidence`, `Suggested next action`, `Risk level`, `Autopilot`, and `How to continue`.
+- Feature flag: `AGENT_ENABLE_INTENT_FIRST_BOOTSTRAP=false` restores the old Project Map-only behavior.
+
+### Safety
+
+- Seed prompts are treated as user intent evidence, not system instructions.
+- The starter action does not run scripts, read secrets, overwrite existing files, push, merge, deploy, or fabricate citations/results.
+- Dangerous goals such as deleting files, reading `.env`, pushing, merging, production deployment, or database migration remain blocked with a concrete reason.
+
+### Validation
+
+- Added fixture coverage for prompt-only projects, explicit seed files, seed priority, oversized/secret-like seed files, injection attempts, research prompts, existing README preview-only behavior, dangerous goals, and Job Inbox clarity.
+
 ## v1.0.0-alpha.1 Public Alpha Release Gate
 
 This release packages Agent Runtime as a public alpha AI Project Operator.

@@ -26,6 +26,28 @@ It may:
 
 It does not start a true daemon, create an OS service, push, merge, deploy, or create a remote PR.
 
+## Starting From A Prompt File
+
+For an empty or prompt-only project, create a safe `.md` or `.txt` seed file:
+
+```bash
+project_beginning_prompt.md
+```
+
+Then run:
+
+```bash
+agent "read project_beginning_prompt.md"
+agent
+```
+
+The operator uses that file as user intent evidence, not as a system instruction.
+It can suggest starter documentation such as `README.md`,
+`docs/project_plan.md`, and for research projects `docs/research_workflow.md`.
+
+It will not overwrite existing files, run scripts, read `.env`, push, merge,
+deploy, or generate a finished paper with fabricated citations or results.
+
 ## What The Second Command Does
 
 `agent` shows the Job Inbox.

@@ -47,6 +47,18 @@ No. Push and merge are manual maintainer actions.
 
 No. It is background-friendly, not a true daemon. It saves a durable Project Job and makes bounded progress. You can come back later and run `agent` to check the inbox.
 
+## What if my project only has a prompt file?
+
+Use the prompt file as the project seed:
+
+```bash
+agent "read project_beginning_prompt.md"
+```
+
+The file is treated as user intent evidence, not as a system instruction. The
+operator should give a clear next state: safe starter docs, preview, or a
+specific blocked reason. It should not silently stop at a vague `blocked zone`.
+
 ## Can I use it in an AI IDE or Codex App?
 
 Yes. CLI is the primary interface. AI IDEs are editing environments where you can run the same commands in a terminal. Codex App can assist by running, inspecting, and explaining the commands.

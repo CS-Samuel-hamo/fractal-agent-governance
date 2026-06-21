@@ -17,6 +17,8 @@ def _evidence_by_path(evidence: list[dict[str, Any]], path: str) -> list[dict[st
 
 def detect_project_type(evidence: list[dict[str, Any]]) -> str:
     paths = {str(item.get('path') or '') for item in evidence}
+    if any(item.get('kind') == 'seed_prompt' for item in evidence):
+        return 'seed_prompt_project'
     if 'package.json' in paths:
         return 'javascript_or_typescript'
     if {'pyproject.toml', 'requirements.txt'} & paths:
@@ -32,6 +34,19 @@ def build_modules(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     dirs = {str(item.get('path') or ''): item for item in evidence if item.get('kind') == 'directory'}
     docs_evidence = [item for item in evidence if item.get('kind') == 'documentation_surface']
+    seed_evidence = [item for item in evidence if item.get('kind') == 'seed_prompt']
+    if seed_evidence:
+        rows.append(
+            module_row(
+                'module-seed-prompt',
+                'Seed prompt project brief',
+                'User-provided project intent used to bootstrap a safe starter plan.',
+                [str(item.get('path')) for item in seed_evidence],
+                seed_evidence,
+                status='mapped',
+                confidence=0.72,
+            )
+        )
     if docs_evidence:
         rows.append(module_row('module-docs', 'Documentation', 'User-facing project documentation.', [str(item.get('path')) for item in docs_evidence], docs_evidence, confidence=0.8))
     for module_id, name, purpose, roots in [
@@ -50,7 +65,9 @@ def build_modules(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def build_capabilities(evidence: list[dict[str, Any]], modules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     module_ids = [str(item.get('module_id')) for item in modules]
     paths = {str(item.get('path') or '') for item in evidence}
+    seed_evidence = [item for item in evidence if item.get('kind') == 'seed_prompt']
     return [
+        capability_row('capability-seed-intent', 'Seed prompt intent', 'implemented' if seed_evidence else 'missing', seed_evidence, ['module-seed-prompt'] if 'module-seed-prompt' in module_ids else []),
         capability_row('capability-onboarding-docs', 'Onboarding documentation', 'implemented' if 'README.md' in paths else 'missing', _evidence_by_path(evidence, 'README.md'), ['module-docs'] if 'module-docs' in module_ids else []),
         capability_row('capability-test-surface', 'Test surface', 'partial' if {'tests', 'test'} & paths else 'missing', [item for item in evidence if item.get('path') in {'tests', 'test'}], ['module-tests'] if 'module-tests' in module_ids else []),
         capability_row('capability-local-automation', 'Local automation', 'partial' if 'scripts' in paths else 'missing', _evidence_by_path(evidence, 'scripts'), ['module-scripts'] if 'module-scripts' in module_ids else []),
@@ -76,6 +93,36 @@ def build_risks(evidence_payload: dict[str, Any]) -> list[dict[str, Any]]:
 def build_next_actions(evidence: list[dict[str, Any]], capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:
     paths = {str(item.get('path') or '') for item in evidence}
     actions: list[dict[str, Any]] = []
+    seed_evidence = [item for item in evidence if item.get('kind') == 'seed_prompt']
+    if seed_evidence:
+        seed = seed_evidence[0]
+        research_seed = bool(seed.get('research_seed'))
+        targets = ['README.md', 'docs/project_plan.md']
+        if research_seed:
+            targets.append('docs/research_workflow.md')
+        action = action_row(
+            'action-seed-docs-bootstrap',
+            'Create starter project documents from seed prompt',
+            f"{seed.get('path')} is a safe seed prompt and the project needs a visible starting point.",
+            'Turns the seed prompt into trusted documentation without running scripts or generating final paper content.',
+            'low',
+            targets,
+            seed_evidence,
+        )
+        existing_targets = [target for target in targets if Path(target).as_posix() in paths]
+        action.update(
+            {
+                'source': 'seed_prompt',
+                'source_file': seed.get('path', ''),
+                'action_type': 'create_or_preview_docs',
+                'constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_overwrite'],
+                'safety_constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_external_network', 'no_fake_citations', 'no_final_paper_generation'],
+                'preview_only': bool(existing_targets),
+                'preview_reason': 'target file already exists; no overwrite' if existing_targets else '',
+                'fallback_behavior': {'if_target_exists': 'preview_only', 'if_ambiguous_intent': 'present_options'},
+            }
+        )
+        actions.append(action)
     if 'README.md' in paths:
         actions.append(
             action_row(
@@ -139,7 +186,7 @@ def render_markdown(project_map: dict[str, Any]) -> str:
 
 
 def build_project_map(project: Path, *, main_goal: str = '') -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    evidence_payload = collect_evidence(project)
+    evidence_payload = collect_evidence(project, main_goal=main_goal)
     evidence = list(evidence_payload.get('evidence') or [])
     goal = main_goal or str((latest_goal(project) or {}).get('goal') or '')
     project_map = default_project_map(project, main_goal=goal)

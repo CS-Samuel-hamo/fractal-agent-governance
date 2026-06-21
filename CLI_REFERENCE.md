@@ -18,6 +18,17 @@ agent "prepare this project for public release"
 
 Without `--preview` or `--apply`, a natural-language command is treated as a project job. The job reuses the existing session runtime, project map, worker router, checkpoints, and Cockpit sync.
 
+For prompt-only projects, this also supports safe seed prompt bootstrap:
+
+```bash
+agent "read project_beginning_prompt.md"
+```
+
+Safe root-level or `docs/` `.md` / `.txt` seed files are used as intent
+evidence. The operator may create or preview starter documentation, but it will
+not run scripts, read secrets, overwrite existing files, push, merge, deploy, or
+fabricate research claims.
+
 ### `agent`
 
 Show the Job Inbox.

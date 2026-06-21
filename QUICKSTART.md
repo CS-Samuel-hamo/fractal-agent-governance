@@ -19,6 +19,17 @@ agent "prepare this project for public release"
 
 This creates a durable job backed by the existing session runtime. It does not start a true daemon or OS service. It makes one safe bounded step, saves state, and lets you come back later.
 
+If the project starts from a single prompt file, use the same command style:
+
+```bash
+agent "read project_beginning_prompt.md"
+```
+
+Safe root-level or `docs/` `.md` / `.txt` files are treated as seed intent
+evidence. The operator should produce a clear next state: a starter docs action,
+a preview, or a specific blocked reason. It should not show a vague `blocked
+zone` with no explanation.
+
 ## 2. Check Later
 
 ```bash

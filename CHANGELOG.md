@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.5-intent-first-seed-bootstrap
+
+- Added safe seed prompt discovery for prompt-only projects.
+- Added intent-first fallback when Project Map has no executable next action.
+- Added seed prompt evidence and seed prompt project module support.
+- Added starter docs actions for `README.md`, `docs/project_plan.md`, and research-oriented `docs/research_workflow.md`.
+- Improved Job Inbox clarity so `blocked zone` is always accompanied by reason, evidence, risk, and next-step guidance.
+- Added fixture tests for seed prompt bootstrap, safety filtering, dangerous goals, and preview-only existing-file behavior.
+
 ## 0.8.3-alpha
 
 - Added product-facing CLI UX for goal -> run -> result.

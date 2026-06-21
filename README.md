@@ -8,6 +8,8 @@ It is not a Codex wrapper, a Claude Code replacement, a generic AI coding CLI, o
 
 Version: `v1.0.0-alpha.1`
 
+Current patch level: `1.0.5-intent-first-seed-bootstrap`
+
 ## Quick Demo
 
 ```bash
@@ -32,6 +34,20 @@ agent
 ```
 
 You do not need to remember every command. Other commands are situational.
+
+For a brand-new project that starts from a prompt or brief file, put the file in
+the project root or `docs/`, then run:
+
+```bash
+agent "read project_beginning_prompt.md"
+agent
+```
+
+The operator treats safe `.md` / `.txt` prompt files as seed intent evidence. It
+may propose or preview starter docs such as `README.md`, `docs/project_plan.md`,
+or `docs/research_workflow.md`; it will not treat the prompt as a system
+instruction, read secrets, run scripts, push, merge, deploy, or fabricate
+citations/results.
 
 ## What It Does
 

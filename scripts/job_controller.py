@@ -16,7 +16,7 @@ from job_state_store import (
     sync_job_from_session,
     write_job_digest,
 )
-from runtime_common import project_root
+from runtime_common import load_json, project_root
 from session_runtime_engine import continue_session, start_session, stop_session, undo_session
 
 
@@ -34,8 +34,50 @@ def _same_goal(left: str, right: str) -> bool:
     return len(left_tokens & right_tokens) / max(len(left_tokens | right_tokens), 1) >= 0.6
 
 
+def _action_display_status(job: dict[str, Any], action: dict[str, Any]) -> str:
+    if action.get('execution_mode') == 'needs_attention' or action.get('trust_zone') == 'blocked':
+        return 'Blocked with reason'
+    if action.get('preview_only') or action.get('execution_mode') == 'preview':
+        return 'Preview recommended'
+    if action.get('source') in {'seed_prompt', 'user_goal'} or action.get('action_source') in {'seed_prompt', 'user_goal'}:
+        return 'Ready for starter action'
+    return str(job.get('status') or 'updated')
+
+
+def _action_evidence_lines(action: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for item in action.get('evidence') or []:
+        if not isinstance(item, dict):
+            continue
+        kind = item.get('evidence_type') or item.get('kind') or 'evidence'
+        path = item.get('path') or 'available'
+        if kind == 'seed_prompt':
+            lines.append(f'- Found seed prompt: {path}')
+        elif kind == 'user_goal_intent':
+            lines.append('- Using the user goal as starter intent evidence')
+        else:
+            lines.append(f'- {kind}: {path}')
+    return lines or ['- not available']
+
+
+def _autopilot_line(action: dict[str, Any]) -> str:
+    if action.get('execution_mode') == 'needs_attention':
+        return '- Not eligible until the reason is reviewed.'
+    if action.get('preview_only') or action.get('execution_mode') == 'preview':
+        return '- Preview only. Existing files will not be overwritten.'
+    if action.get('autopilot_eligible'):
+        return '- Eligible. Only trusted docs are targeted; no scripts will run.'
+    return '- Not eligible.'
+
+
 def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint: str = '') -> str:
-    if job.get('status') == 'needs_attention':
+    action = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
+    display_status = _action_display_status(job, action)
+    if display_status == 'Ready for starter action':
+        prefix = 'Ready for starter action.\nProject job saved.'
+    elif display_status == 'Preview recommended':
+        prefix = 'Preview ready.\nProject job saved.'
+    elif job.get('status') == 'needs_attention':
         prefix = 'Needs attention.\nProject job saved.'
     else:
         prefix = 'Done.\nStarted project job.' if started else 'Done.\nProject job updated.'
@@ -44,6 +86,25 @@ def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint:
         '',
         'Goal:',
         str(job.get('goal') or 'not available'),
+        '',
+        'Status:',
+        display_status,
+        '',
+        'Reason:',
+        f'- {action.get("reason") or action.get("blocked_reason") or job.get("attention_reason") or "Project job updated."}',
+        '',
+        'Evidence:',
+        *_action_evidence_lines(action),
+        '',
+        'Suggested next action:',
+        f'- {action.get("title") or job.get("next_action") or "not available"}',
+        *[f'  - {target}' for target in (action.get('target_files') or [])],
+        '',
+        'Risk level:',
+        f'- {action.get("risk_level") or "unknown"}',
+        '',
+        'Autopilot:',
+        _autopilot_line(action),
         '',
         'Working mode:',
         'Project Map-backed Autopilot',
