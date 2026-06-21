@@ -276,6 +276,41 @@ def build_worker_readiness(project: Path) -> dict[str, Any]:
     }
 
 
+def product_learning_type(value: str) -> str:
+    return {
+        'next_action_boost': 'Suggested next action',
+        'next_action_warning': 'Common blocker warning',
+        'worker_preference': 'Worker preference',
+        'readiness_template': 'Release readiness path',
+        'failure_warning': 'Failure warning',
+    }.get(value, 'Learning insight')
+
+
+def build_learning_summary(project: Path) -> dict[str, Any]:
+    insights_payload = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_insights.json')
+    feedback_payload = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_feedback_applied.json')
+    rows = []
+    for item in insights_payload.get('insights') or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                'label': product_learning_type(str(item.get('type') or '')),
+                'message': clean_text(item.get('message') or 'Similar project signal is available.'),
+                'confidence': item.get('confidence', 0),
+                'effect': clean_text(item.get('recommended_effect') or 'suggestion'),
+                'evidence_count': len([entry for entry in item.get('evidence') or [] if isinstance(entry, dict)]),
+            }
+        )
+        if len(rows) >= 6:
+            break
+    return {
+        'available': bool(rows),
+        'items': rows,
+        'feedback_count': len([item for item in feedback_payload.get('applied') or [] if isinstance(item, dict)]),
+    }
+
+
 def build_cockpit_data(project: Path) -> dict[str, Any]:
     data = default_cockpit_data(project)
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
@@ -324,6 +359,7 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['readiness'] = readiness
     data['worker'] = build_worker_summary(project)
     data['worker_readiness'] = build_worker_readiness(project)
+    data['learning'] = build_learning_summary(project)
     return data
 
 

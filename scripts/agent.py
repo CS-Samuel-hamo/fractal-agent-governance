@@ -44,6 +44,7 @@ KNOWN_COMMANDS = {
     'integration-check',
     'goal-loop',
     'global-loop',
+    'learning',
 }
 COMMAND_TYPO_SUGGESTIONS = {
     'rum': '"your task" --preview',
@@ -974,6 +975,93 @@ def workers_command(args) -> int:
     return 2
 
 
+def learning_command(args) -> int:
+    project = project_root(args.workspace)
+    common = ['--workspace', str(project)]
+    if getattr(args, 'import_artifacts', False):
+        command = [*common]
+        if getattr(args, 'source', ''):
+            command.extend(['--source', str(project_root(args.source))])
+        result = delegate_capture('learning_artifact_importer.py', command)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'local learning import',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': 'Import report: .zoo-agent/learning/cross_project/import_report.json',
+            }
+        )
+        return int(result.get('returncode') or 0)
+
+    if getattr(args, 'build', False):
+        steps = [
+            ('learning_artifact_importer.py', common),
+            ('next_action_pattern_miner.py', common),
+            ('release_readiness_template_builder.py', common),
+            ('worker_performance_memory.py', common),
+            ('failure_taxonomy_builder.py', common),
+            ('cross_project_insight_engine.py', common),
+            ('learning_feedback_applier.py', common),
+            ('cross_project_learning_report_generator.py', common),
+        ]
+        final_payload = {}
+        for script, command in steps:
+            result = delegate_capture(script, command)
+            if getattr(args, 'debug', False):
+                print(str(result.get('stdout') or '').strip())
+            if result.get('returncode') != 0:
+                print_json({'task': 'local learning build', 'mode': 'blocked', 'result': f'{script} failed'})
+                return int(result.get('returncode') or 1)
+            if script == 'cross_project_learning_report_generator.py':
+                final_payload = parse_json_output(result)
+        status_value = str(final_payload.get('status') or 'PARTIALLY_READY')
+        print_json(
+            {
+                'task': 'local learning build',
+                'mode': 'ready' if status_value == 'CROSS_PROJECT_LEARNING_097_READY' else 'partial',
+                'result': f'Report: .zoo-agent/learning/cross_project/cross_project_learning_report.md; status: {status_value}',
+            }
+        )
+        return 0
+
+    if getattr(args, 'report', False):
+        result = delegate_capture('cross_project_learning_report_generator.py', common)
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'local learning report',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f"Report: .zoo-agent/learning/cross_project/cross_project_learning_report.md; status: {payload.get('status') or 'unknown'}",
+            }
+        )
+        return int(result.get('returncode') or 0)
+
+    if getattr(args, 'doctor', False):
+        init = delegate_capture('cross_project_store.py', common)
+        report = delegate_capture('cross_project_learning_report_generator.py', common)
+        payload = parse_json_output(report)
+        if getattr(args, 'debug', False):
+            print(str(init.get('stdout') or '').strip())
+            print(str(report.get('stdout') or '').strip())
+            return int(report.get('returncode') or init.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'local learning doctor',
+                'mode': 'ready' if report.get('returncode') == 0 else 'blocked',
+                'result': f"Store: .zoo-agent/learning/cross_project; status: {payload.get('status') or 'unknown'}",
+            }
+        )
+        return int(report.get('returncode') or init.get('returncode') or 0)
+
+    print_json({'task': 'local learning', 'mode': 'blocked', 'result': 'unknown learning command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -1816,6 +1904,16 @@ def main(argv: list[str] | None = None) -> int:
     workers_parser.add_argument('--real-dogfood', dest='real_dogfood', action='store_true')
     workers_parser.add_argument('--debug', action='store_true')
     workers_parser.set_defaults(handler=workers_command)
+
+    learning_parser = sub.add_parser('learning', help=argparse.SUPPRESS)
+    learning_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    learning_parser.add_argument('--import', dest='import_artifacts', action='store_true')
+    learning_parser.add_argument('--build', action='store_true')
+    learning_parser.add_argument('--report', action='store_true')
+    learning_parser.add_argument('--doctor', action='store_true')
+    learning_parser.add_argument('--source', default='')
+    learning_parser.add_argument('--debug', action='store_true')
+    learning_parser.set_defaults(handler=learning_command)
 
     undo_parser = sub.add_parser('undo', help=argparse.SUPPRESS)
     undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

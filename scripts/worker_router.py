@@ -48,6 +48,38 @@ def product_worker_type(worker_type: str) -> str:
     }.get(worker_type, 'Worker')
 
 
+def learning_worker_bonus(project: Path, worker: dict[str, Any], task_profile: dict[str, Any]) -> float:
+    insights = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_insights.json').get('insights') or []
+    task_type = str(task_profile.get('task_type') or '').lower()
+    preferred_type = str(task_profile.get('preferred_worker_type') or '').lower()
+    worker_tokens = {
+        str(worker.get('worker_name') or '').lower(),
+        str(worker.get('provider') or '').lower(),
+        str(worker.get('worker_type') or '').lower(),
+        product_worker_type(str(worker.get('worker_type') or '')).lower(),
+    }
+    bonus = 0.0
+    for item in insights:
+        if not isinstance(item, dict):
+            continue
+        if item.get('type') != 'worker_preference' or item.get('recommended_effect') != 'prefer_worker':
+            continue
+        confidence = float(item.get('confidence') or 0.0)
+        if confidence < 0.5:
+            continue
+        applies_to = str(item.get('applies_to') or '').lower()
+        message = str(item.get('message') or '').lower()
+        applies = applies_to in {task_type, preferred_type, 'worker_router'} or (applies_to and applies_to in task_type)
+        mentions_worker = any(token and token in message for token in worker_tokens)
+        if applies and mentions_worker:
+            bonus += min(1.5, confidence)
+    return bonus
+
+
+def candidate_score(project: Path, worker: dict[str, Any], task_profile: dict[str, Any], *, mode: str) -> float:
+    return worker_score(worker, task_profile, mode=mode) + learning_worker_bonus(project, worker, task_profile)
+
+
 def route_worker(
     project: Path,
     *,
@@ -78,6 +110,7 @@ def route_worker(
             'execution_allowed': False,
             'execution_mode': 'needs_attention',
             'blocked_reason': 'blocked zone' if task_profile.get('trust_zone') == 'blocked' else 'attention required',
+            'learning_feedback_ref': '.zoo-agent/learning/cross_project/learning_insights.json',
         }
         write_json(workers_dir(project) / 'routing_decision.json', decision)
         write_fallback_trace(project, fallback_trace(original_worker='', final_worker='', final_mode='needs_attention', reason=decision['blocked_reason'], safe=True))
@@ -106,7 +139,7 @@ def route_worker(
                 route_reason = f'requested_worker_fallback:{reason}'
 
     if selected is None and candidates:
-        selected = sorted(candidates, key=lambda worker: worker_score(worker, task_profile, mode=mode), reverse=True)[0]
+        selected = sorted(candidates, key=lambda worker: candidate_score(project, worker, task_profile, mode=mode), reverse=True)[0]
 
     if selected is None:
         preview_candidates = []
@@ -135,6 +168,7 @@ def route_worker(
                 'blocked_reason': 'no safe worker available',
                 'rejected_workers': rejected,
                 'worker_unavailable_reasons': {item['worker']: item.get('detail', item.get('reason', '')) for item in rejected if item.get('reason') in {'worker_unavailable', 'worker_unhealthy'}},
+                'learning_feedback_ref': '.zoo-agent/learning/cross_project/learning_insights.json',
             }
             write_json(workers_dir(project) / 'routing_decision.json', decision)
             write_fallback_trace(project, fallback_trace(original_worker=requested, final_worker='', final_mode='needs_attention', reason='no_safe_worker_available', safe=True))
@@ -142,7 +176,7 @@ def route_worker(
 
     fallback_workers = [
         str(worker.get('worker_name') or '')
-        for worker in sorted(candidates, key=lambda item: worker_score(item, task_profile, mode=mode), reverse=True)
+        for worker in sorted(candidates, key=lambda item: candidate_score(project, item, task_profile, mode=mode), reverse=True)
         if worker.get('worker_name') != selected.get('worker_name')
     ]
     if mode == 'auto' and 'dry_run_worker' not in fallback_workers:
@@ -164,6 +198,7 @@ def route_worker(
         'rejected_workers': rejected,
         'worker_unavailable_reasons': {item['worker']: item.get('detail', item.get('reason', '')) for item in rejected if item.get('reason') in {'worker_unavailable', 'worker_unhealthy'}},
         'registry_ref': '.zoo-agent/workers/worker_registry.json',
+        'learning_feedback_ref': '.zoo-agent/learning/cross_project/learning_insights.json',
     }
     write_json(workers_dir(project) / 'routing_decision.json', decision)
     write_fallback_trace(

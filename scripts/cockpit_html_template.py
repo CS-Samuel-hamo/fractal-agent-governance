@@ -167,6 +167,22 @@ def worker_readiness_panel(readiness: dict[str, Any]) -> str:
 {''.join(rows)}'''
 
 
+def learning_panel(learning: dict[str, Any]) -> str:
+    items = learning.get('items') or []
+    if not learning.get('available') or not items:
+        return '<div class="empty">No cross-project learning yet. Run more sessions to build local patterns.</div>'
+    rows = []
+    for item in items:
+        rows.append(
+            f'''<article class="item">
+  <div class="item-head"><strong>{esc(item.get('label') or 'Learning insight')}</strong>{badge(item.get('effect') or 'suggestion')}</div>
+  <p>{esc(item.get('message') or 'Similar project signal is available.')}</p>
+  <div class="meta">confidence {esc(item.get('confidence'))} | evidence {esc(item.get('evidence_count'))}</div>
+</article>'''
+        )
+    return ''.join(rows)
+
+
 def render_cockpit_html(data: dict[str, Any]) -> str:
     project = data.get('project') or {}
     session = data.get('session') or {}
@@ -177,6 +193,7 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     readiness = data.get('readiness') or {}
     worker = data.get('worker') or {}
     worker_readiness = data.get('worker_readiness') or {}
+    learning = data.get('learning') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
     return f'''<!doctype html>
@@ -296,6 +313,12 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
     <section class="card span-8">
       <h2>Worker Readiness</h2>
       {worker_readiness_panel(worker_readiness)}
+    </section>
+
+    <section class="card span-12">
+      <h2>Cross-project Learning</h2>
+      <p>Learned from similar local project sessions.</p>
+      {learning_panel(learning)}
     </section>
 
     <section class="card span-8">

@@ -38,6 +38,24 @@ def _score(action: dict[str, Any], seen: set[str], seen_files: set[str]) -> floa
     return score
 
 
+def learning_score(project: Path, action: dict[str, Any]) -> float:
+    insights = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_insights.json').get('insights') or []
+    title = str(action.get('title') or '').lower()
+    boost = 0.0
+    for item in insights:
+        if not isinstance(item, dict):
+            continue
+        effect = str(item.get('recommended_effect') or '')
+        confidence = float(item.get('confidence') or 0.0)
+        applies_to = str(item.get('applies_to') or '').lower()
+        message = str(item.get('message') or '').lower()
+        if effect == 'boost' and confidence >= 0.5 and (applies_to in title or any(word in title for word in ['docs', 'readme', 'test', 'scan', 'release'] if word in message)):
+            boost += min(1.5, confidence)
+        if effect in {'warn', 'deprioritize'} and applies_to and applies_to in title:
+            boost -= min(1.0, max(0.2, confidence))
+    return boost
+
+
 def action_is_autopilot_ready(action: dict[str, Any]) -> bool:
     return bool(
         action.get('autopilot_eligible')
@@ -78,7 +96,7 @@ def select_next_action(project: Path, *, mode: str = 'standard') -> dict[str, An
         write_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json', payload)
         return payload
 
-    selected = sorted(ready_actions, key=lambda item: _score(item, seen, seen_files), reverse=True)[0]
+    selected = sorted(ready_actions, key=lambda item: _score(item, seen, seen_files) + learning_score(project, item), reverse=True)[0]
     trust = classify_trust_zone(title=str(selected.get('title') or ''), target_files=[str(item) for item in selected.get('target_files') or []], risk_level=str(selected.get('risk_level') or 'unknown'))
     if mode == 'preview':
         execution_mode = 'preview'
@@ -101,6 +119,7 @@ def select_next_action(project: Path, *, mode: str = 'standard') -> dict[str, An
         'trust_zone_reasons': trust.get('reasons') or [],
         'source': 'project_map.next_actions',
         'project_map_ref': str(map_path),
+        'learning_feedback_ref': '.zoo-agent/learning/cross_project/learning_insights.json',
     }
     write_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json', payload)
     return payload
