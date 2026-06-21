@@ -81,7 +81,7 @@ def start_session(project: Path, *, goal: str, mode: str = 'standard', max_steps
         return {'status': 'blocked', 'state': existing, 'message': 'A session is already available. Run agent continue or agent stop.'}
     total_budget = max_steps or DEFAULT_BUDGET['max_steps']
     state = default_session_state(project, goal=goal, max_steps=total_budget)
-    state.update({'status': 'active', 'created_at': utc_now(), 'updated_at': utc_now(), 'mode': mode, 'backend': backend or read_backend_selection(project)})
+    state.update({'status': 'active', 'created_at': utc_now(), 'updated_at': utc_now(), 'mode': mode, 'backend': backend or read_backend_selection(project, default='auto')})
     set_active_goal(project, goal, source='session_runtime_engine.py')
     ensure_project_map(project, goal)
     save_session_state(project, state)
@@ -100,7 +100,7 @@ def start_session(project: Path, *, goal: str, mode: str = 'standard', max_steps
             current, _ = load_session_state(project)
             if current.get('status') in {'stopped', 'completed', 'failed'}:
                 break
-            result = run_session_step(project, state=current, mode=mode, backend=state['backend'], budget={'max_steps': total_budget})
+            result = run_session_step(project, state=current, mode=mode, backend=str(state.get('backend') or 'auto'), budget={'max_steps': total_budget})
             state = result['state']
             if state.get('status') != 'active':
                 break
@@ -136,7 +136,7 @@ def continue_session(project: Path, *, mode: str = 'standard', steps: int = 1, b
             if current.get('status') in {'stopped', 'completed', 'failed'}:
                 break
             current.update({'status': 'active', 'attention_required': False, 'pause_reason': ''})
-            result = run_session_step(project, state=current, mode=mode or str(current.get('mode') or 'standard'), backend=backend or str(current.get('backend') or read_backend_selection(project)), budget={'max_steps': int(current.get('max_steps') or DEFAULT_BUDGET['max_steps'])})
+            result = run_session_step(project, state=current, mode=mode or str(current.get('mode') or 'standard'), backend=backend or str(current.get('backend') or read_backend_selection(project, default='auto')), budget={'max_steps': int(current.get('max_steps') or DEFAULT_BUDGET['max_steps'])})
             if result['state'].get('status') != 'active':
                 break
     finally:

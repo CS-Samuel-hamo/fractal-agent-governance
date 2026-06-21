@@ -126,6 +126,24 @@ def attention_panel(attention: dict[str, Any]) -> str:
     return ''.join(rows)
 
 
+def worker_panel(worker: dict[str, Any]) -> str:
+    details = worker.get('developer_details') if isinstance(worker.get('developer_details'), dict) else {}
+    provider = details.get('provider') or ''
+    worker_name = details.get('worker_name') or ''
+    developer = ''
+    if provider or worker_name:
+        developer = (
+            '<details class="dev-details"><summary>Developer details</summary>'
+            f'<p>Provider: {esc(provider or "not available")} | Worker: {esc(worker_name or "not available")}</p>'
+            '</details>'
+        )
+    return f'''<p>{badge(worker.get('role') or 'Worker')}</p>
+<p><b>Status:</b> {esc(worker.get('status') or 'not available')}</p>
+<p><b>Routing mode:</b> {esc(worker.get('routing_mode') or 'not available')}</p>
+<p><b>Why this worker:</b> {esc(worker.get('reason') or 'not available')}</p>
+{developer}'''
+
+
 def render_cockpit_html(data: dict[str, Any]) -> str:
     project = data.get('project') or {}
     session = data.get('session') or {}
@@ -134,6 +152,7 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     attention = data.get('attention') or {}
     safety = data.get('safety') or {}
     readiness = data.get('readiness') or {}
+    worker = data.get('worker') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
     return f'''<!doctype html>
@@ -202,6 +221,8 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
 .bad-dot {{ background: var(--bad); }}
 .empty {{ color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 16px; background: #fbfcfe; }}
 .muted {{ color: var(--muted); }}
+.dev-details {{ margin-top: 10px; color: var(--muted); }}
+.dev-details summary {{ cursor: pointer; font-size: 13px; }}
 @media (max-width: 900px) {{ .span-4, .span-6, .span-8, .span-12 {{ grid-column: span 12; }} .stats {{ grid-template-columns: 1fr 1fr; }} }}
 </style>
 </head>
@@ -241,6 +262,11 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
       <p><b>Last checkpoint:</b> {esc(safety.get('last_checkpoint') or 'not available')}</p>
       <p><b>Recent changes:</b></p>
       {list_items(recent_changes, empty='No file changes recorded yet.')}
+    </section>
+
+    <section class="card span-4">
+      <h2>Worker</h2>
+      {worker_panel(worker)}
     </section>
 
     <section class="card span-8">

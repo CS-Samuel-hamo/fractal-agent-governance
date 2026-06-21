@@ -207,6 +207,26 @@ def build_readiness(project: Path) -> dict[str, Any]:
     }
 
 
+def build_worker_summary(project: Path) -> dict[str, Any]:
+    routing = load_json(project / '.zoo-agent' / 'workers' / 'routing_decision.json')
+    registry = load_json(project / '.zoo-agent' / 'workers' / 'worker_registry.json')
+    workers = [item for item in registry.get('workers') or [] if isinstance(item, dict)]
+    selected = str(routing.get('selected_worker') or '')
+    selected_row = next((item for item in workers if item.get('name') == selected), {})
+    role = clean_text(routing.get('worker_role') or selected_row.get('worker_type') or 'not available')
+    status = clean_text(selected_row.get('health') or ('available' if selected_row.get('available') else 'not available'))
+    return {
+        'role': role,
+        'status': status,
+        'routing_mode': clean_text(routing.get('execution_mode') or 'not available'),
+        'reason': clean_text(routing.get('routing_reason') or 'not available'),
+        'developer_details': {
+            'provider': clean_text(routing.get('selected_provider') or selected_row.get('provider') or ''),
+            'worker_name': clean_text(selected),
+        },
+    }
+
+
 def build_cockpit_data(project: Path) -> dict[str, Any]:
     data = default_cockpit_data(project)
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
@@ -253,6 +273,7 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['attention'] = build_attention(attention)
     data['safety'] = build_safety(checkpoints)
     data['readiness'] = readiness
+    data['worker'] = build_worker_summary(project)
     return data
 
 

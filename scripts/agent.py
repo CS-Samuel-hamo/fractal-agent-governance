@@ -33,6 +33,7 @@ KNOWN_COMMANDS = {
     'reroute',
     'map',
     'standards',
+    'workers',
     'review',
     'codex-health',
     'goal',
@@ -906,6 +907,50 @@ def session_command(args) -> int:
     return int(result.get('returncode') or 0)
 
 
+def workers_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'doctor', False):
+        result = delegate_capture('worker_registry.py', ['--workspace', str(project), '--doctor'])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        print_json(
+            {
+                'task': 'workers doctor',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f"Registry: .zoo-agent/workers/worker_registry.json; available workers: {payload.get('available_workers', 0)}",
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'list', False):
+        result = delegate_capture('worker_registry.py', ['--workspace', str(project), '--list'])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        workers = [item for item in payload.get('workers') or [] if item.get('available')]
+        labels = ', '.join(str(item.get('worker_type') or item.get('name') or 'worker') for item in workers) or 'none available'
+        print_json({'task': 'workers list', 'mode': 'ready', 'result': f'Available worker roles: {labels}'})
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'route_demo', False):
+        result = delegate_capture('worker_router.py', ['--workspace', str(project), '--route-demo'])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        print_json(
+            {
+                'task': 'workers route demo',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f"Selected: {payload.get('worker_role') or 'Worker'}; routing: .zoo-agent/workers/routing_decision.json",
+            }
+        )
+        return int(result.get('returncode') or 0)
+    print_json({'task': 'workers', 'mode': 'blocked', 'result': 'unknown workers command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -1738,6 +1783,14 @@ def main(argv: list[str] | None = None) -> int:
     session_parser.add_argument('--dogfood', action='store_true')
     session_parser.add_argument('--debug', action='store_true')
     session_parser.set_defaults(handler=session_command)
+
+    workers_parser = sub.add_parser('workers', help=argparse.SUPPRESS)
+    workers_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    workers_parser.add_argument('--doctor', action='store_true')
+    workers_parser.add_argument('--list', action='store_true')
+    workers_parser.add_argument('--route-demo', action='store_true')
+    workers_parser.add_argument('--debug', action='store_true')
+    workers_parser.set_defaults(handler=workers_command)
 
     undo_parser = sub.add_parser('undo', help=argparse.SUPPRESS)
     undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

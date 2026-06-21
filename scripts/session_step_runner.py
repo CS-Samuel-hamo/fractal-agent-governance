@@ -25,6 +25,9 @@ from session_cockpit_sync import sync_cockpit  # noqa: E402
 from session_digest_generator import generate_digest  # noqa: E402
 from session_failure_policy import classify_step_result  # noqa: E402
 from session_state_store import append_session_event, append_session_history, load_session_history, save_session_state  # noqa: E402
+from task_profile_classifier import classify_task_profile  # noqa: E402
+from worker_execution_adapter import execute_routed_worker  # noqa: E402
+from worker_router import route_worker  # noqa: E402
 
 
 def ensure_project_map(project: Path, goal: str) -> None:
@@ -116,8 +119,12 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
     state.update({'current_action_id': action_id, 'next_action_id': action_id, 'status': 'active', 'attention_required': False, 'pause_reason': ''})
     save_session_state(project, state)
     append_session_event(project, 'step_selected', {'action_id': action_id, 'source': selected.get('source', '')})
-    if selected.get('execution_mode') == 'needs_attention':
-        return mark_state_attention(project, state, reason=str(selected.get('reason') or 'selected action needs attention'), action=selected)
+    task_profile = classify_task_profile(selected, session_state=state)
+    routing = route_worker(project, task_profile=task_profile, requested_worker=backend or 'auto', execution_mode=str(selected.get('execution_mode') or ''))
+    append_session_event(project, 'worker_routed', {'action_id': action_id, 'worker': routing.get('selected_worker', ''), 'mode': routing.get('execution_mode', '')})
+    if selected.get('execution_mode') == 'needs_attention' or not routing.get('execution_allowed'):
+        reason = str(routing.get('blocked_reason') or selected.get('reason') or 'selected action needs attention')
+        return mark_state_attention(project, state, reason=reason, action={**selected, 'routing_decision': routing})
 
     checkpoint = create_checkpoint(project, action_id=action_id, title=str(selected.get('title') or action_id))
     state.update({'last_checkpoint_id': checkpoint.get('checkpoint_id', '')})
@@ -125,7 +132,7 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
     append_session_event(project, 'checkpoint_created', {'checkpoint_id': checkpoint.get('checkpoint_id', ''), 'action_id': action_id})
 
     step_number = int(state.get('current_step') or 0) + 1
-    result = execute_action(project, action=selected, backend=backend, step_number=step_number)
+    result = execute_routed_worker(project, action=selected, routing_decision=routing, step_number=step_number)
     final_result = result['final_result']
     execution = result['execution']
     update = update_project_map(project, run_id=result['run_id'], action=selected, execution_result=execution, final_result=final_result)
@@ -141,6 +148,9 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
         'source': selected.get('source', ''),
         'trust_zone': selected.get('trust_zone', ''),
         'execution_mode': selected.get('execution_mode', ''),
+        'worker_role': routing.get('worker_role', ''),
+        'selected_worker': routing.get('selected_worker', ''),
+        'routing_mode': routing.get('execution_mode', ''),
         'run_id': result['run_id'],
         'checkpoint_id': checkpoint.get('checkpoint_id', ''),
         'outcome': classification.get('outcome', ''),
@@ -156,6 +166,8 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
             'title': selected.get('title', ''),
             'target_files': selected.get('target_files') or [],
             'execution_mode': selected.get('execution_mode', ''),
+            'worker_role': routing.get('worker_role', ''),
+            'routing_mode': routing.get('execution_mode', ''),
             'changed_files': changed_files,
             'run_id': result['run_id'],
             'result': summary.get('result'),
