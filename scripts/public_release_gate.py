@@ -53,6 +53,16 @@ ALLOWED_RELEASE_CHANGES = (
     'PUBLIC_ALPHA_REPORT.md',
     'scripts/',
     'examples/demo_project/',
+    '.github/',
+    'FEEDBACK.md',
+    'LAUNCH.md',
+    'FIRST_USER_TEST_PLAN.md',
+    'POST_RELEASE_SMOKE_TEST.md',
+    'COMMUNITY_POSTS.md',
+    'FAQ.md',
+    'KNOWN_LIMITATIONS.md',
+    'CONTRIBUTING.md',
+    'SECURITY.md',
 )
 
 

@@ -49,6 +49,7 @@ KNOWN_COMMANDS = {
     'goal-loop',
     'global-loop',
     'learning',
+    'launch',
 }
 COMMAND_TYPO_SUGGESTIONS = {
     'rum': '"your task" --preview',
@@ -1279,6 +1280,68 @@ def publish_command(args) -> int:
     return 2
 
 
+def launch_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'package', False):
+        result = delegate_capture('public_launch_packager.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public launch package',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': 'Package: .zoo-agent/public_launch/public_launch_package.json',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'smoke', False):
+        result = delegate_capture('post_publish_smoke_test.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public launch smoke',
+                'mode': 'ready' if payload.get('post_publish_smoke_passed') else 'blocked',
+                'result': 'Smoke report: .zoo-agent/public_launch/post_publish_smoke_report.json',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'audit', False):
+        result = delegate_capture('public_launch_audit.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public launch audit',
+                'mode': 'ready' if payload.get('recommendation') == 'pass' else 'blocked',
+                'result': f"Audit: .zoo-agent/public_launch/public_launch_audit.json; recommendation: {payload.get('recommendation') or 'unknown'}",
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'report', False):
+        result = delegate_capture('launch_report_generator.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public launch report',
+                'mode': 'ready' if readiness == 'READY_FOR_MANUAL_GITHUB_PUBLISH' else 'blocked',
+                'result': f'Report: .zoo-agent/public_launch/public_launch_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    print_json({'task': 'public launch', 'mode': 'blocked', 'result': 'unknown launch command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -2142,6 +2205,15 @@ def main(argv: list[str] | None = None) -> int:
     publish_parser.add_argument('--report', action='store_true')
     publish_parser.add_argument('--debug', action='store_true')
     publish_parser.set_defaults(handler=publish_command)
+
+    launch_parser = sub.add_parser('launch', help=argparse.SUPPRESS)
+    launch_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    launch_parser.add_argument('--package', action='store_true')
+    launch_parser.add_argument('--audit', action='store_true')
+    launch_parser.add_argument('--report', action='store_true')
+    launch_parser.add_argument('--smoke', action='store_true')
+    launch_parser.add_argument('--debug', action='store_true')
+    launch_parser.set_defaults(handler=launch_command)
 
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

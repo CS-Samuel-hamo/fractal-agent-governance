@@ -1,29 +1,42 @@
 # Contributing
 
-This repository is currently `0.4.0-local-alpha`.
+Thanks for helping test Agent Runtime, the AI Project Operator.
 
-## Development Rules
+## Product Positioning
 
-- Use temporary projects for tests.
-- Keep changes reviewable and rollback-friendly.
-- Do not commit `.codex`, `CODEX_HOME`, caches, temporary smoke repos, or secrets.
-- Do not add product-document workflows, dashboards, or new runtime roles unless a design issue explicitly approves them.
+Please keep the public positioning consistent:
 
-## Test Commands
+- AI Project Operator
+- Give it a project. It keeps moving it forward.
+- Project-level Autopilot, not task-level coding agent.
 
-```powershell
-python -m py_compile scripts\*.py
-python scripts\validate_starter_pack.py
-python scripts\test_cli_runtime_paths.py
-python scripts\test_cli_local_alpha.py
-python scripts\smoke_test.py
+Codex, Claude Code, and local tools are workers. The product is the project operator.
+
+## Good Contributions
+
+- Clear bug reports from first runs.
+- Project Map quality feedback.
+- Autopilot session feedback.
+- Cockpit readability feedback.
+- Release / PR workflow feedback.
+- Documentation fixes.
+- Safe local test fixtures.
+
+## Before Opening A PR
+
+- Do not include `.zoo-agent/` runtime artifacts.
+- Do not include secrets, API keys, tokens, raw logs, or local absolute paths.
+- Do not claim cloud sync, remote PR creation, or GitHub API automation.
+- Do not describe this as a Codex wrapper or Claude Code replacement.
+
+## Local Checks
+
+```bash
+python scripts/validate_starter_pack.py
+python scripts/test_public_release_gate.py
+python scripts/test_public_launch_ops.py
 ```
 
-## Pull Request Checklist
+## Pull Requests
 
-- CLI entrypoints still work.
-- Bootstrap remains idempotent.
-- Fast path skips heavy governance.
-- Parallel path denies unknown independence.
-- Rollback defaults to dry-run.
-- Public docs contain no personal absolute paths or secrets.
+Use `.github/PULL_REQUEST_TEMPLATE.md`. Keep the change focused and explain how it supports the AI Project Operator path.

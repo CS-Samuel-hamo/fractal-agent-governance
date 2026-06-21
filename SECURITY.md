@@ -1,21 +1,33 @@
 # Security
 
-This project is local-alpha software. Do not use it as a production deployment, release, or secrets-management system.
+Agent Runtime is local-first.
 
-## Boundaries
+## Public Alpha Safety Boundaries
 
-- Do not read or print `.env`, credentials, API keys, tokens, private keys, provider profiles, or secret stores.
-- Do not run automatic merge, push, deploy, release, or production database migration.
-- Do not run `git reset --hard`, destructive clean commands, or unreviewed worktree deletion.
-- Keep `CODEX_HOME` outside business project source and outside commits.
+- No GitHub API calls.
+- No automatic push.
+- No automatic merge.
+- No remote PR creation.
+- No remote GitHub release creation.
+- No production deployment.
+- No `.env` content reading.
+- No API key or token reading.
+- No raw backend log publishing.
 
-## Reporting
+## Reporting Security Issues
 
-Open a private security report with:
+Please do not open public issues containing secrets, tokens, credentials, private keys, or proprietary source. Open a minimal report that describes:
 
-- affected command or script
-- reproduction steps using a temporary project
-- expected safe behavior
-- observed unsafe behavior
+- affected command
+- expected behavior
+- actual behavior
+- whether secrets/logs were removed
+- sanitized environment details
 
-Do not include real secrets in reports.
+## Safe Sharing
+
+`.zoo-agent/` artifacts are local runtime artifacts. Share them only after review and sanitization.
+
+## Scope
+
+This alpha does not provide enterprise governance, hosted telemetry, cloud sync, account management, or remote execution policy controls.

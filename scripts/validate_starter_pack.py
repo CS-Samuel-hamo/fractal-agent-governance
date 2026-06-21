@@ -39,6 +39,10 @@ required.extend([
  'VERSION','GITHUB_RELEASE_DRAFT.md','PUBLIC_RELEASE_CHECKLIST.md',
  'scripts/public_release_gate.py','scripts/public_release_packager.py','scripts/fresh_clone_verifier.py','scripts/demo_flow_verifier.py','scripts/github_release_draft_generator.py','scripts/release_tag_preflight.py','scripts/public_release_report_generator.py',
  'scripts/test_public_release_gate.py','scripts/test_fresh_clone_public_alpha.py','scripts/test_github_release_draft.py',
+ 'FEEDBACK.md','LAUNCH.md','FIRST_USER_TEST_PLAN.md','POST_RELEASE_SMOKE_TEST.md','COMMUNITY_POSTS.md','FAQ.md','KNOWN_LIMITATIONS.md',
+ '.github/ISSUE_TEMPLATE/bug_report.md','.github/ISSUE_TEMPLATE/feature_request.md','.github/ISSUE_TEMPLATE/first_run_feedback.md','.github/ISSUE_TEMPLATE/project_map_quality.md','.github/ISSUE_TEMPLATE/autopilot_session_feedback.md','.github/ISSUE_TEMPLATE/cockpit_feedback.md','.github/ISSUE_TEMPLATE/release_pr_workflow_feedback.md','.github/ISSUE_TEMPLATE/config.yml','.github/PULL_REQUEST_TEMPLATE.md',
+ 'scripts/public_launch_packager.py','scripts/public_launch_audit.py','scripts/feedback_template_validator.py','scripts/post_publish_smoke_test.py','scripts/first_user_flow_validator.py','scripts/community_copy_linter.py','scripts/launch_report_generator.py',
+ 'scripts/test_public_launch_ops.py','scripts/test_feedback_templates.py','scripts/test_post_publish_smoke.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:
