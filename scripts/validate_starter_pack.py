@@ -28,6 +28,7 @@ required.extend([
  'scripts/test_long_running_session_runtime.py','scripts/test_session_resume_and_recovery.py','scripts/test_session_cockpit_sync.py','scripts/test_session_dogfood_reliability_gate.py','scripts/test_multi_backend_worker_router.py','scripts/test_worker_router_session_integration.py','scripts/test_worker_router_fallback.py','scripts/test_worker_router_dogfood_value_gate.py','scripts/test_real_worker_adapter_hardening.py','scripts/test_worker_doctor.py','scripts/test_local_scanner_worker.py','scripts/test_real_worker_adapter_dogfood.py',
  'scripts/cross_project_store.py','scripts/cross_project_privacy_filter.py','scripts/project_fingerprint.py','scripts/learning_artifact_importer.py','scripts/next_action_pattern_miner.py','scripts/release_readiness_template_builder.py','scripts/worker_performance_memory.py','scripts/failure_taxonomy_builder.py','scripts/cross_project_insight_engine.py','scripts/learning_feedback_applier.py','scripts/cross_project_learning_report_generator.py',
  'scripts/test_cross_project_learning_kernel.py','scripts/test_cross_project_privacy_filter.py','scripts/test_learning_feedback_integration.py',
+ 'scripts/cross_project_learning_dogfood_runner.py','scripts/learning_lift_evaluator.py','scripts/learning_baseline_comparator.py','scripts/learning_trace_replayer.py','scripts/learning_product_report_generator.py','scripts/test_cross_project_learning_dogfood.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

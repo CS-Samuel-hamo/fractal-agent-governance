@@ -1058,6 +1058,22 @@ def learning_command(args) -> int:
         )
         return int(report.get('returncode') or init.get('returncode') or 0)
 
+    if getattr(args, 'dogfood', False):
+        result = delegate_capture('cross_project_learning_dogfood_runner.py', common)
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        readiness = str(payload.get('readiness_value') or 'NOT_READY')
+        print_json(
+            {
+                'task': 'local learning dogfood',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f'Report: .zoo-agent/learning_dogfood/learning_product_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+
     print_json({'task': 'local learning', 'mode': 'blocked', 'result': 'unknown learning command'})
     return 2
 
@@ -1911,6 +1927,7 @@ def main(argv: list[str] | None = None) -> int:
     learning_parser.add_argument('--build', action='store_true')
     learning_parser.add_argument('--report', action='store_true')
     learning_parser.add_argument('--doctor', action='store_true')
+    learning_parser.add_argument('--dogfood', action='store_true')
     learning_parser.add_argument('--source', default='')
     learning_parser.add_argument('--debug', action='store_true')
     learning_parser.set_defaults(handler=learning_command)
