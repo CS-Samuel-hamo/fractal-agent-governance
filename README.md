@@ -6,6 +6,8 @@ Agent Runtime is a local-first AI Project Operator. It builds a project map, sta
 
 It is not a Codex wrapper, a Claude Code replacement, a generic AI coding CLI, or a GitHub bot. Codex, Claude Code, local scanner, mock, and dry-run modes are workers. The product is the project operator layer that keeps the project moving.
 
+Version: `v1.0.0-alpha.1`
+
 ## Quick Demo
 
 ```bash
@@ -98,6 +100,6 @@ See [PRIVACY.md](PRIVACY.md) and [SAFETY_MODEL.md](SAFETY_MODEL.md).
 
 ## Alpha Status
 
-This is a public alpha. It is useful for local project operation and release preparation, but it does not create remote pull requests, push branches, deploy systems, or replace human review.
+This is `v1.0.0-alpha.1`, a public alpha. It is useful for local project operation and release preparation, but it does not create remote pull requests, push branches, deploy systems, or replace human review.
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) and [ROADMAP.md](ROADMAP.md).

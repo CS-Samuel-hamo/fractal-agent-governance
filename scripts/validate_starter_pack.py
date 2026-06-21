@@ -36,6 +36,9 @@ required.extend([
  'scripts/public_alpha_packager.py','scripts/public_alpha_audit.py','scripts/public_positioning_linter.py','scripts/public_docs_leakage_scanner.py','scripts/demo_fixture_packager.py','scripts/public_alpha_report_generator.py',
  'scripts/test_public_alpha_packaging.py','scripts/test_public_positioning.py','scripts/test_public_docs_safety.py',
  'examples/demo_project/README.md','examples/demo_project/DEMO_STEPS.md','examples/demo_project/docs/overview.md','examples/demo_project/src/sample_app.py','examples/demo_project/tests/test_sample_app.py','examples/demo_project/demo_artifacts/project_map_snapshot.json','examples/demo_project/demo_artifacts/cockpit_summary.json',
+ 'VERSION','GITHUB_RELEASE_DRAFT.md','PUBLIC_RELEASE_CHECKLIST.md',
+ 'scripts/public_release_gate.py','scripts/public_release_packager.py','scripts/fresh_clone_verifier.py','scripts/demo_flow_verifier.py','scripts/github_release_draft_generator.py','scripts/release_tag_preflight.py','scripts/public_release_report_generator.py',
+ 'scripts/test_public_release_gate.py','scripts/test_fresh_clone_public_alpha.py','scripts/test_github_release_draft.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

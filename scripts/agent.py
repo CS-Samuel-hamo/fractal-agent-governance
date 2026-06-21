@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-VERSION = '0.9.3-alpha'
+VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip() if (ROOT / 'VERSION').exists() else '1.0.0-alpha.1'
 
 KNOWN_COMMANDS = {
     'alpha',
@@ -25,6 +25,7 @@ KNOWN_COMMANDS = {
     'continue',
     'pipeline',
     'pr',
+    'publish',
     'release',
     'run',
     'session',
@@ -1225,6 +1226,59 @@ def alpha_command(args) -> int:
     return 2
 
 
+def publish_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'package', False):
+        result = delegate_capture('public_release_packager.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public release package',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': 'Manifest: .zoo-agent/public_release/public_release_package_manifest.json',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'preflight', False):
+        result = delegate_capture('public_release_gate.py', ['--workspace', str(project)])
+        if result.get('returncode') == 0:
+            preflight = delegate_capture('release_tag_preflight.py', ['--workspace', str(project)])
+        else:
+            preflight = {'returncode': 0, 'stdout': '{}'}
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            print(str(preflight.get('stdout') or '').strip())
+            return int(result.get('returncode') or preflight.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public release preflight',
+                'mode': 'ready' if payload.get('recommendation') == 'pass' else 'blocked',
+                'result': f"Gate: .zoo-agent/public_release/public_release_gate.json; recommendation: {payload.get('recommendation') or 'unknown'}",
+            }
+        )
+        return int(result.get('returncode') or preflight.get('returncode') or 0)
+    if getattr(args, 'report', False):
+        result = delegate_capture('public_release_report_generator.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public release report',
+                'mode': 'ready' if readiness == 'READY_TO_PUBLISH_GITHUB_ALPHA' else 'blocked',
+                'result': f'Report: .zoo-agent/public_release/public_release_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    print_json({'task': 'public release', 'mode': 'blocked', 'result': 'unknown publish command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -2080,6 +2134,14 @@ def main(argv: list[str] | None = None) -> int:
     alpha_parser.add_argument('--report', action='store_true')
     alpha_parser.add_argument('--debug', action='store_true')
     alpha_parser.set_defaults(handler=alpha_command)
+
+    publish_parser = sub.add_parser('publish', help=argparse.SUPPRESS)
+    publish_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    publish_parser.add_argument('--preflight', action='store_true')
+    publish_parser.add_argument('--package', action='store_true')
+    publish_parser.add_argument('--report', action='store_true')
+    publish_parser.add_argument('--debug', action='store_true')
+    publish_parser.set_defaults(handler=publish_command)
 
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

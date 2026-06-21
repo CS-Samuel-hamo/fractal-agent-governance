@@ -12,13 +12,15 @@ Current focus:
 
 ## 1.0 Public Release
 
-Planned focus:
+Current public alpha focus:
 
 - stronger install experience
 - stable public command behavior
 - clearer release readiness defaults
 - more robust local Cockpit examples
 - broader fixture coverage
+
+Current tag target: `v1.0.0-alpha.1`.
 
 ## 1.1 Stronger Sessions And Cockpit
 

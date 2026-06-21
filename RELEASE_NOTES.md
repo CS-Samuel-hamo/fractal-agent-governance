@@ -1,5 +1,31 @@
 # Release Notes
 
+## v1.0.0-alpha.1 Public Alpha Release Gate
+
+This release packages Agent Runtime as a public alpha AI Project Operator.
+
+### Added
+
+- VERSION file set to `1.0.0-alpha.1`.
+- GitHub release draft for manual publishing.
+- Public release checklist for safe manual release.
+- Public release gate, package manifest, fresh clone verifier, demo flow verifier, tag preflight, and release report generation.
+
+### Confirmed
+
+- Public positioning remains AI Project Operator.
+- Core differentiation remains Project-level Autopilot, not task-level coding agent.
+- Public commands remain focused on task, session, Cockpit, release, and PR draft flows.
+- Release and PR workflow remains local draft generation only.
+
+### Known Limitations
+
+- This release does not create remote GitHub PRs.
+- This release does not call GitHub APIs.
+- This release does not push, merge, deploy, or create a remote release.
+- Claude/local actual execution is not claimed as fully supported unless real local adapters are detected.
+- Human review is required before publishing.
+
 ## 0.99 Public Alpha Packaging
 
 This alpha packages Agent Runtime as an AI Project Operator.

@@ -1,0 +1,88 @@
+# AI Project Operator v1.0.0-alpha.1
+
+Tag: `v1.0.0-alpha.1`
+
+## Summary
+
+Project Map-backed Autopilot for AI-heavy developers.
+
+Agent Runtime is a local-first AI Project Operator. Give it a project. It keeps moving it forward.
+
+## What This Is
+
+- Project-level Autopilot, not task-level coding agent.
+- A local Project Map that tracks modules, capabilities, risks, and next actions.
+- A long-running session runtime for project goals.
+- A static local Cockpit for project progress.
+- A worker-agnostic operator layer where coding tools are workers.
+- Local release and PR draft generation.
+
+## What This Is Not
+
+- Not a Codex wrapper.
+- Not a Claude Code replacement.
+- Not a GitHub PR bot.
+- Not a cloud service.
+- Not an account system.
+- Not a plugin marketplace.
+
+## Core Capabilities
+
+- Map a project locally.
+- Start and continue a project session.
+- Inspect project progress in Cockpit.
+- Stop or inspect undo recovery points.
+- Generate local release readiness reports.
+- Generate local PR drafts, release notes drafts, and changelog drafts.
+
+## Quickstart
+
+```bash
+agent cockpit
+agent start "prepare this project for public release"
+agent status
+agent release
+agent pr
+```
+
+## Demo Flow
+
+```bash
+cd examples/demo_project
+agent cockpit
+agent start "prepare this demo project for public release"
+agent status
+agent release
+agent pr
+```
+
+## Privacy / Safety Guarantees
+
+- No GitHub API calls.
+- No automatic push or merge.
+- No remote GitHub PR creation.
+- No remote GitHub release creation.
+- No cloud sync or telemetry.
+- No `.env` content or API key reading.
+- Release / PR workflow is local draft generation only.
+
+## Known Limitations
+
+- This release does not create remote GitHub PRs.
+- It does not publish releases or upload artifacts.
+- Claude/local actual execution is not claimed as fully supported unless a real local adapter is detected.
+- Human review remains required before publishing, pushing, merging, or deploying.
+
+## Roadmap
+
+- 1.0 public alpha: stable local Project Operator path.
+- 1.1: stronger session recovery and Cockpit clarity.
+- 1.2: optional explicit GitHub integration with user confirmation.
+- Later: team and enterprise workflows.
+
+## Feedback Requested
+
+- Does the Project Map help you understand project state?
+- Does the session flow feel useful for real project progress?
+- Does the Cockpit make next actions clear?
+- Are release and PR drafts useful before manual publishing?
