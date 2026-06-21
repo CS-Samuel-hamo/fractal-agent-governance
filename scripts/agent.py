@@ -45,6 +45,7 @@ KNOWN_COMMANDS = {
     'loop',
     'plan-big',
     'decompose',
+    'feedback',
     'aggregate',
     'integration-check',
     'goal-loop',
@@ -1394,6 +1395,56 @@ def postlaunch_command(args) -> int:
     return 2
 
 
+def feedback_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'triage', False):
+        result = delegate_capture('feedback_triage_engine.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        recommendation = payload.get('recommendation') or 'unknown'
+        print_json(
+            {
+                'task': 'feedback triage',
+                'mode': 'ready' if recommendation != 'fix_feedback_pipeline' else 'blocked',
+                'result': f'Triage report: .zoo-agent/feedback/feedback_triage_report.json; recommendation: {recommendation}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'signals', False):
+        result = delegate_capture('feedback_signal_classifier.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'feedback signals',
+                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
+                'result': f"Signals: .zoo-agent/feedback/feedback_signal_report.json; count: {len(payload.get('signals') or [])}",
+            }
+        )
+        return int(result.get('returncode') or 0)
+    if getattr(args, 'report', False):
+        result = delegate_capture('post_launch_feedback_report_generator.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'feedback report',
+                'mode': 'ready' if readiness in {'READY_FOR_104_PATCH_PLANNING', 'COLLECT_MORE_FEEDBACK_FIRST'} else 'blocked',
+                'result': f'Report: .zoo-agent/feedback/post_launch_feedback_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    print_json({'task': 'feedback', 'mode': 'blocked', 'result': 'unknown feedback command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -2274,6 +2325,14 @@ def main(argv: list[str] | None = None) -> int:
     postlaunch_parser.add_argument('--report', action='store_true')
     postlaunch_parser.add_argument('--debug', action='store_true')
     postlaunch_parser.set_defaults(handler=postlaunch_command)
+
+    feedback_parser = sub.add_parser('feedback', help=argparse.SUPPRESS)
+    feedback_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    feedback_parser.add_argument('--triage', action='store_true')
+    feedback_parser.add_argument('--report', action='store_true')
+    feedback_parser.add_argument('--signals', action='store_true')
+    feedback_parser.add_argument('--debug', action='store_true')
+    feedback_parser.set_defaults(handler=feedback_command)
 
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

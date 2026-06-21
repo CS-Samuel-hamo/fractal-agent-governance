@@ -46,6 +46,9 @@ required.extend([
  'PUBLISHING.md','BRANCHING.md','POST_LAUNCH_STATUS.md',
  'scripts/post_publish_remote_verifier.py','scripts/branch_hygiene_audit.py','scripts/publishing_command_linter.py','scripts/default_branch_advisor.py','scripts/post_launch_status_generator.py','scripts/post_publish_report_generator.py',
  'scripts/test_post_publish_remote_verification.py','scripts/test_branch_hygiene_publishing.py','scripts/test_publishing_docs_no_main_assumption.py',
+ 'POST_LAUNCH_FEEDBACK_TRIAGE.md','USER_FEEDBACK_LOG.md','FIRST_10_USERS_PLAN.md','ALPHA_FEEDBACK_SUMMARY.md','PRODUCT_ITERATION_PLAN.md','V1_0_4_PATCH_PLAN.md','V1_1_ROADMAP_CANDIDATES.md','POSITIONING_FEEDBACK_NOTES.md',
+ 'scripts/public_branch_sync_preflight.py','scripts/feedback_intake_schema.py','scripts/feedback_triage_engine.py','scripts/feedback_signal_classifier.py','scripts/feedback_priority_ranker.py','scripts/feedback_iteration_planner.py','scripts/positioning_feedback_analyzer.py','scripts/post_launch_feedback_report_generator.py',
+ 'scripts/test_post_launch_feedback_triage.py','scripts/test_feedback_signal_classifier.py','scripts/test_public_branch_sync_preflight.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:
