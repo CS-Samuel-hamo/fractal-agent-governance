@@ -1,0 +1,15 @@
+{
+  "project": {
+    "name": "Demo Project",
+    "state": "ready_for_demo"
+  },
+  "session": {
+    "status": "not_started",
+    "goal": "prepare this demo project for public release"
+  },
+  "safety": {
+    "network_required": false,
+    "push_or_merge": false,
+    "secrets_required": false
+  }
+}

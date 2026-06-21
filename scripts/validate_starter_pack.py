@@ -32,6 +32,10 @@ required.extend([
  'scripts/git_context_detector.py','scripts/github_readiness_detector.py','scripts/release_readiness_evaluator.py','scripts/pr_plan_generator.py','scripts/pr_draft_generator.py','scripts/release_notes_generator.py','scripts/changelog_draft_generator.py','scripts/release_action_plan_generator.py','scripts/release_workflow_report_generator.py','scripts/github_workflow_safety_gate.py',
  'scripts/test_github_pr_release_workflow.py','scripts/test_release_readiness_workflow.py','scripts/test_pr_draft_safety.py',
  'scripts/release_workflow_dogfood_runner.py','scripts/release_artifact_quality_gate.py','scripts/pr_draft_quality_gate.py','scripts/release_workflow_trace_replayer.py','scripts/release_product_report_generator.py','scripts/test_release_workflow_dogfood.py',
+ 'PRODUCT_POSITIONING.md','ROADMAP.md','PRIVACY.md','SAFETY_MODEL.md','DEMO.md','RELEASE_NOTES.md','ALPHA_RELEASE_CHECKLIST.md','PUBLIC_ALPHA_REPORT.md',
+ 'scripts/public_alpha_packager.py','scripts/public_alpha_audit.py','scripts/public_positioning_linter.py','scripts/public_docs_leakage_scanner.py','scripts/demo_fixture_packager.py','scripts/public_alpha_report_generator.py',
+ 'scripts/test_public_alpha_packaging.py','scripts/test_public_positioning.py','scripts/test_public_docs_safety.py',
+ 'examples/demo_project/README.md','examples/demo_project/DEMO_STEPS.md','examples/demo_project/docs/overview.md','examples/demo_project/src/sample_app.py','examples/demo_project/tests/test_sample_app.py','examples/demo_project/demo_artifacts/project_map_snapshot.json','examples/demo_project/demo_artifacts/cockpit_summary.json',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

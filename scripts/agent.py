@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 VERSION = '0.9.3-alpha'
 
 KNOWN_COMMANDS = {
+    'alpha',
     'bootstrap',
     'ask',
     'backend',
@@ -1188,6 +1189,42 @@ def pr_command(args) -> int:
     return code
 
 
+def alpha_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'package', False):
+        demo = delegate_capture('demo_fixture_packager.py', ['--workspace', str(project)])
+        result = delegate_capture('public_alpha_packager.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(demo.get('stdout') or '').strip())
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or demo.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public alpha package',
+                'mode': 'ready' if result.get('returncode') == 0 and demo.get('returncode') == 0 else 'blocked',
+                'result': 'Manifest: .zoo-agent/public_alpha/public_alpha_package_manifest.json',
+            }
+        )
+        return int(result.get('returncode') or demo.get('returncode') or 0)
+    if getattr(args, 'audit', False) or getattr(args, 'report', False):
+        result = delegate_capture('public_alpha_report_generator.py', ['--workspace', str(project)])
+        payload = parse_json_output(result)
+        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        print_json(
+            {
+                'task': 'public alpha audit',
+                'mode': 'ready' if readiness == 'READY_FOR_100_PUBLIC_ALPHA_RELEASE' else 'blocked',
+                'result': f'Report: .zoo-agent/public_alpha/public_alpha_report.md; readiness: {readiness}',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    print_json({'task': 'public alpha', 'mode': 'blocked', 'result': 'unknown alpha command'})
+    return 2
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -2035,6 +2072,14 @@ def main(argv: list[str] | None = None) -> int:
     pr_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     pr_parser.add_argument('--debug', action='store_true')
     pr_parser.set_defaults(handler=pr_command)
+
+    alpha_parser = sub.add_parser('alpha', help=argparse.SUPPRESS)
+    alpha_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    alpha_parser.add_argument('--audit', action='store_true')
+    alpha_parser.add_argument('--package', action='store_true')
+    alpha_parser.add_argument('--report', action='store_true')
+    alpha_parser.add_argument('--debug', action='store_true')
+    alpha_parser.set_defaults(handler=alpha_command)
 
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

@@ -1,31 +1,55 @@
 # Examples
 
-## Documentation Preview
+## Preview A Small Task
 
-```powershell
-agent "add a README troubleshooting note"
+```bash
+agent "fix README typo"
 ```
 
-## Documentation Apply
+## Apply A Scoped Task
 
-```powershell
+```bash
 agent "fix README typo" -f README.md --apply
 ```
 
-## Small Code Preview
+## Start A Release Readiness Session
 
-```powershell
-agent "add one unit test for the local utility module"
-```
-
-## Check Status
-
-```powershell
+```bash
+agent start "prepare this project for public release"
 agent status
+agent continue
 ```
 
-## Preview Undo
+## Open The Cockpit
 
-```powershell
-agent undo
+```bash
+agent cockpit
+```
+
+Open the printed local HTML file.
+
+## Generate Release Artifacts
+
+```bash
+agent release
+```
+
+Outputs are local drafts and reports.
+
+## Generate A PR Draft
+
+```bash
+agent pr
+```
+
+The command creates a local PR draft. It does not create a remote PR.
+
+## Demo Project
+
+```bash
+cd examples/demo_project
+agent cockpit
+agent start "prepare this demo project for public release"
+agent release
+agent pr
 ```

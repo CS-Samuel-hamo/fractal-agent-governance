@@ -1,55 +1,117 @@
 # CLI Reference
 
-## Version
+The normal user model is:
 
-```powershell
-agent --version
+```text
+ask -> preview -> apply
+project goal -> session -> progress -> release pack
 ```
 
-## Ask
+## Public Commands
 
-```powershell
-agent "<task>"
-agent "<task>" --preview
-agent "<task>" -f <file> --apply
+### `agent "<task>"`
+
+Preview a one-off task.
+
+```bash
+agent "fix README typo"
 ```
 
-Default mode is preview. Use `--apply` to allow changes.
+### `agent "<task>" --preview`
 
-Use `-f` when you want to limit the task to one file:
+Explicit preview mode. This is equivalent to the default one-off task mode.
 
-```powershell
+```bash
+agent "add a quickstart note" --preview
+```
+
+### `agent "<task>" --apply`
+
+Apply a bounded one-off task.
+
+```bash
 agent "fix README typo" -f README.md --apply
 ```
 
-## Status
+Use `-f` to keep the task scoped to a specific file.
 
-```powershell
+### `agent start "<project goal>"`
+
+Start a durable project session.
+
+```bash
+agent start "prepare this project for public release"
+```
+
+### `agent status`
+
+Show the current project session state and useful next command.
+
+```bash
 agent status
 ```
 
-Shows the current task summary.
+### `agent continue`
 
-## Project Cockpit
+Continue the current session.
 
-```powershell
-agent cockpit
+```bash
+agent continue
 ```
 
-Generates a local Project Cockpit at `.zoo-agent/cockpit/index.html`.
+### `agent stop`
 
-## Undo
+Safely stop the current session without deleting artifacts.
 
-```powershell
+```bash
+agent stop
+```
+
+### `agent undo`
+
+Inspect the latest recovery point.
+
+```bash
 agent undo
 ```
 
-Previews the latest undo plan.
+### `agent cockpit`
 
-## Help
+Generate or refresh the local Project Cockpit.
 
-```powershell
-agent --help
-agent status --help
-agent undo --help
+```bash
+agent cockpit
 ```
+
+### `agent release`
+
+Generate a local release workflow pack.
+
+```bash
+agent release
+```
+
+This does not push, merge, deploy, or call GitHub.
+
+### `agent pr`
+
+Generate a local PR plan and PR draft.
+
+```bash
+agent pr
+```
+
+This does not create a remote PR.
+
+## Developer Diagnostics
+
+The alpha also includes hidden diagnostics for maintainers. They do not appear in normal help and are not part of the public user path.
+
+```bash
+agent workers --doctor
+agent learning --build
+agent release --safety-check
+agent alpha --audit
+```
+
+Use these for local validation, not for normal project operation.

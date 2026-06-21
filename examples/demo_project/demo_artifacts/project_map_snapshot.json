@@ -1,0 +1,39 @@
+{
+  "project_name": "Demo Project",
+  "project_type": "python_cli_sample",
+  "main_goal": "prepare this demo project for public release",
+  "modules": [
+    {
+      "name": "sample_app",
+      "status": "mapped",
+      "confidence": 0.9,
+      "key_files": [
+        "src/sample_app.py"
+      ],
+      "evidence_count": 1
+    },
+    {
+      "name": "tests",
+      "status": "mapped",
+      "confidence": 0.9,
+      "key_files": [
+        "tests/test_sample_app.py"
+      ],
+      "evidence_count": 1
+    }
+  ],
+  "next_actions": [
+    {
+      "title": "Refresh the local Cockpit",
+      "why_now": "The demo should show project state before release artifacts.",
+      "risk_level": "low",
+      "target_files": []
+    },
+    {
+      "title": "Generate release and PR drafts",
+      "why_now": "The demo should show the public alpha release workflow pack.",
+      "risk_level": "low",
+      "target_files": []
+    }
+  ]
+}
