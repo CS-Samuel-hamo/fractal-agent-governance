@@ -183,6 +183,34 @@ def learning_panel(learning: dict[str, Any]) -> str:
     return ''.join(rows)
 
 
+def release_panel(release: dict[str, Any]) -> str:
+    if not release.get('available'):
+        return '<div class="empty">Run <code>agent release</code> to generate a local release workflow pack.</div>'
+    blockers = release.get('blockers') or []
+    path_items = [
+        release.get('pr_draft_path') and f"PR draft: {release.get('pr_draft_path')}",
+        release.get('release_notes_path') and f"Release notes: {release.get('release_notes_path')}",
+        release.get('changelog_path') and f"Changelog: {release.get('changelog_path')}",
+        release.get('report_path') and f"Workflow report: {release.get('report_path')}",
+    ]
+    learning_path = release.get('learning_informed_path') or []
+    return f'''<div class="stats">
+  <div class="stat"><span class="muted">Git status</span><b>{esc(release.get('git_status') or 'n/a')}</b></div>
+  <div class="stat"><span class="muted">GitHub ready</span><b>{esc(str(bool(release.get('github_ready'))).lower())}</b></div>
+  <div class="stat"><span class="muted">PR ready</span><b>{esc(str(bool(release.get('pr_ready'))).lower())}</b></div>
+  <div class="stat"><span class="muted">Release score</span><b>{esc(release.get('release_score') if release.get('release_score') is not None else 'n/a')}</b></div>
+</div>
+<p>{badge(release.get('release_stage') or 'not available')} {badge('safety ' + str(release.get('safety') or 'unknown'))}</p>
+<p><b>PR draft:</b> {esc(release.get('pr_title') or 'not available')}</p>
+<p><b>Suggested command:</b> <code>{esc(release.get('suggested_next_command') or 'agent release')}</code></p>
+<h3>Local artifacts</h3>
+{list_items([item for item in path_items if item], empty='No release artifacts available yet.')}
+<h3>Release blockers</h3>
+{list_items(blockers, empty='No release blocker recorded.')}
+<h3>Learning-informed release path</h3>
+{list_items(learning_path, empty='No local learning path available yet.')}'''
+
+
 def render_cockpit_html(data: dict[str, Any]) -> str:
     project = data.get('project') or {}
     session = data.get('session') or {}
@@ -194,6 +222,7 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     worker = data.get('worker') or {}
     worker_readiness = data.get('worker_readiness') or {}
     learning = data.get('learning') or {}
+    release = data.get('release') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
     return f'''<!doctype html>
@@ -319,6 +348,12 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
       <h2>Cross-project Learning</h2>
       <p>Learned from similar local project sessions.</p>
       {learning_panel(learning)}
+    </section>
+
+    <section class="card span-12">
+      <h2>Release / PR</h2>
+      <p>Local release workflow pack for review-ready handoff.</p>
+      {release_panel(release)}
     </section>
 
     <section class="card span-8">

@@ -29,6 +29,8 @@ required.extend([
  'scripts/cross_project_store.py','scripts/cross_project_privacy_filter.py','scripts/project_fingerprint.py','scripts/learning_artifact_importer.py','scripts/next_action_pattern_miner.py','scripts/release_readiness_template_builder.py','scripts/worker_performance_memory.py','scripts/failure_taxonomy_builder.py','scripts/cross_project_insight_engine.py','scripts/learning_feedback_applier.py','scripts/cross_project_learning_report_generator.py',
  'scripts/test_cross_project_learning_kernel.py','scripts/test_cross_project_privacy_filter.py','scripts/test_learning_feedback_integration.py',
  'scripts/cross_project_learning_dogfood_runner.py','scripts/learning_lift_evaluator.py','scripts/learning_baseline_comparator.py','scripts/learning_trace_replayer.py','scripts/learning_product_report_generator.py','scripts/test_cross_project_learning_dogfood.py',
+ 'scripts/git_context_detector.py','scripts/github_readiness_detector.py','scripts/release_readiness_evaluator.py','scripts/pr_plan_generator.py','scripts/pr_draft_generator.py','scripts/release_notes_generator.py','scripts/changelog_draft_generator.py','scripts/release_action_plan_generator.py','scripts/release_workflow_report_generator.py','scripts/github_workflow_safety_gate.py',
+ 'scripts/test_github_pr_release_workflow.py','scripts/test_release_readiness_workflow.py','scripts/test_pr_draft_safety.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

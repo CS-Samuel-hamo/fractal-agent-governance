@@ -311,6 +311,48 @@ def build_learning_summary(project: Path) -> dict[str, Any]:
     }
 
 
+def build_release_summary(project: Path) -> dict[str, Any]:
+    base = project / '.zoo-agent' / 'release'
+    git_context = load_json(base / 'git_context.json')
+    github_ready = load_json(base / 'github_readiness.json')
+    release_ready = load_json(base / 'release_readiness.json')
+    pr_plan = load_json(base / 'pr_plan.json')
+    action_plan = load_json(base / 'release_action_plan.json')
+    workflow = load_json(base / 'readiness_for_0981.json')
+    safety = load_json(base / 'github_workflow_safety_report.json')
+    available = any((base / name).exists() for name in ['git_context.json', 'release_readiness.json', 'pr_draft.md'])
+    blockers = clean_list((github_ready.get('blockers') or []) + (release_ready.get('must_fix') or []), limit=8)
+    next_actions = []
+    for item in action_plan.get('next_actions') or []:
+        if not isinstance(item, dict):
+            continue
+        title = clean_text(item.get('action') or '')
+        if title:
+            next_actions.append(title)
+        if len(next_actions) >= 5:
+            break
+    return {
+        'available': available,
+        'git_status': clean_text(git_context.get('working_tree_status') or 'not available'),
+        'branch': clean_text(git_context.get('current_branch') or 'not available'),
+        'github_ready': bool(github_ready.get('github_ready')),
+        'pr_ready': bool(github_ready.get('pr_ready')),
+        'release_ready': bool(github_ready.get('release_ready')),
+        'release_stage': clean_text(release_ready.get('stage') or 'not available'),
+        'release_score': release_ready.get('readiness_score'),
+        'pr_title': clean_text(pr_plan.get('pr_title') or 'not available'),
+        'pr_draft_path': '.zoo-agent/release/pr_draft.md' if (base / 'pr_draft.md').exists() else '',
+        'release_notes_path': '.zoo-agent/release/release_notes_draft.md' if (base / 'release_notes_draft.md').exists() else '',
+        'changelog_path': '.zoo-agent/release/changelog_draft.md' if (base / 'changelog_draft.md').exists() else '',
+        'report_path': '.zoo-agent/release/release_workflow_report.md' if (base / 'release_workflow_report.md').exists() else '',
+        'blockers': blockers,
+        'suggested_next_command': 'agent start "prepare this project for public release"',
+        'learning_informed_path': next_actions,
+        'safety': 'passed' if safety.get('safe') else 'not available',
+        'readiness_for_0981': clean_text(workflow.get('readiness') or 'not available'),
+    }
+
+
 def build_cockpit_data(project: Path) -> dict[str, Any]:
     data = default_cockpit_data(project)
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
@@ -360,6 +402,7 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['worker'] = build_worker_summary(project)
     data['worker_readiness'] = build_worker_readiness(project)
     data['learning'] = build_learning_summary(project)
+    data['release'] = build_release_summary(project)
     return data
 
 

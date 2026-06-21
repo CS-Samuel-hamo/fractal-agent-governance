@@ -23,6 +23,8 @@ KNOWN_COMMANDS = {
     'debug',
     'continue',
     'pipeline',
+    'pr',
+    'release',
     'run',
     'session',
     'start',
@@ -1078,6 +1080,99 @@ def learning_command(args) -> int:
     return 2
 
 
+def run_release_pack(project: Path, *, debug: bool = False, pr_only: bool = False) -> tuple[int, dict]:
+    common = ['--workspace', str(project)]
+    steps = []
+    if not pr_only:
+        steps.extend(
+            [
+                'git_context_detector.py',
+                'release_readiness_template_builder.py',
+                'github_readiness_detector.py',
+                'release_readiness_evaluator.py',
+                'release_notes_generator.py',
+                'changelog_draft_generator.py',
+                'release_action_plan_generator.py',
+            ]
+        )
+    else:
+        steps.extend(['git_context_detector.py', 'github_readiness_detector.py', 'release_readiness_evaluator.py'])
+    steps.extend(['pr_plan_generator.py', 'pr_draft_generator.py'])
+
+    final_payload: dict = {}
+    for script in steps:
+        result = delegate_capture(script, common)
+        if debug:
+            print(str(result.get('stdout') or '').strip())
+        if result.get('returncode') != 0:
+            return int(result.get('returncode') or 1), {'failed_script': script}
+        if script == 'pr_draft_generator.py':
+            final_payload = parse_json_output(result)
+
+    first_report = delegate_capture('release_workflow_report_generator.py', common)
+    if debug:
+        print(str(first_report.get('stdout') or '').strip())
+    safety = delegate_capture('github_workflow_safety_gate.py', common)
+    if debug:
+        print(str(safety.get('stdout') or '').strip())
+    if safety.get('returncode') != 0:
+        return int(safety.get('returncode') or 1), parse_json_output(safety)
+    report = delegate_capture('release_workflow_report_generator.py', common)
+    if debug:
+        print(str(report.get('stdout') or '').strip())
+    if report.get('returncode') != 0:
+        return int(report.get('returncode') or 1), parse_json_output(report)
+    cockpit = delegate_capture('cockpit_renderer.py', common)
+    if debug:
+        print(str(cockpit.get('stdout') or '').strip())
+    if cockpit.get('returncode') != 0:
+        return int(cockpit.get('returncode') or 1), parse_json_output(cockpit)
+    final_payload.update(parse_json_output(report))
+    return 0, final_payload
+
+
+def release_command(args) -> int:
+    project = project_root(args.workspace)
+    if getattr(args, 'safety_check', False):
+        result = delegate_capture('github_workflow_safety_gate.py', ['--workspace', str(project)])
+        if getattr(args, 'debug', False):
+            print(str(result.get('stdout') or '').strip())
+            return int(result.get('returncode') or 0)
+        payload = parse_json_output(result)
+        print_json(
+            {
+                'task': 'release safety check',
+                'mode': 'ready' if payload.get('safe') else 'blocked',
+                'result': 'Safety report: .zoo-agent/release/github_workflow_safety_report.json',
+            }
+        )
+        return int(result.get('returncode') or 0)
+    code, payload = run_release_pack(project, debug=getattr(args, 'debug', False), pr_only=False)
+    status = str(payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown')
+    print_json(
+        {
+            'task': 'release workflow',
+            'mode': 'ready' if code == 0 else 'blocked',
+            'result': f'Release pack: .zoo-agent/release/release_workflow_report.md; status: {status}; next: agent cockpit or agent pr',
+        }
+    )
+    return code
+
+
+def pr_command(args) -> int:
+    project = project_root(args.workspace)
+    code, payload = run_release_pack(project, debug=getattr(args, 'debug', False), pr_only=True)
+    status = str(payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown')
+    print_json(
+        {
+            'task': 'pr draft',
+            'mode': 'ready' if code == 0 else 'blocked',
+            'result': f'PR draft: .zoo-agent/release/pr_draft.md; status: {status}',
+        }
+    )
+    return code
+
+
 def rollback(args) -> int:
     command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
     if args.dry_run or not args.yes:
@@ -1551,6 +1646,8 @@ def product_help() -> str:
        agent stop
        agent undo
        agent cockpit
+       agent release
+       agent pr
 
 AI Project Operator.
 task flow: ask -> preview -> apply.
@@ -1567,6 +1664,8 @@ examples:
   agent continue
   agent undo
   agent cockpit
+  agent release
+  agent pr
 
 version: {VERSION}
 """
@@ -1599,6 +1698,10 @@ def product_subcommand_help(argv: list[str]) -> str:
             return 'usage: agent status [--workspace .] [--no-write]\n\nShow current task status.\n'
         if command == 'cockpit':
             return 'usage: agent cockpit [--workspace .]\n\nGenerate a local Project Cockpit you can open in your browser.\n'
+        if command == 'release':
+            return 'usage: agent release [--workspace .]\n\nGenerate a local release workflow pack. No remote publishing action is performed.\n'
+        if command == 'pr':
+            return 'usage: agent pr [--workspace .]\n\nGenerate a local PR draft. No remote PR is created.\n'
         if command == 'backend':
             return 'usage: agent config backend <mock|dry_run|codex>\n\nAdvanced configuration only.\n'
     return ''
@@ -1904,6 +2007,18 @@ def main(argv: list[str] | None = None) -> int:
     cockpit_parser.add_argument('--dogfood', action='store_true', help=argparse.SUPPRESS)
     cockpit_parser.add_argument('--debug', action='store_true')
     cockpit_parser.set_defaults(handler=cockpit_command)
+
+    release_parser = sub.add_parser('release', help='Generate a local release workflow pack.')
+    release_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    release_parser.add_argument('--doctor', action='store_true', help=argparse.SUPPRESS)
+    release_parser.add_argument('--safety-check', dest='safety_check', action='store_true', help=argparse.SUPPRESS)
+    release_parser.add_argument('--debug', action='store_true')
+    release_parser.set_defaults(handler=release_command)
+
+    pr_parser = sub.add_parser('pr', help='Generate a local PR draft.')
+    pr_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    pr_parser.add_argument('--debug', action='store_true')
+    pr_parser.set_defaults(handler=pr_command)
 
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
