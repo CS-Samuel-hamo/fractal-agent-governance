@@ -115,6 +115,15 @@ agent "fix README typo" --apply
 agent "fix README typo" -f README.md --apply
 ```
 
+If `--apply` reports that actual execution is unavailable, run:
+
+```bash
+agent workers --doctor
+```
+
+The doctor explains which worker roles are available locally and whether actual
+code execution is currently supported.
+
 ## Compatibility Commands
 
 These still work, but they are not the main user path:

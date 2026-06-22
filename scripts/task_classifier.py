@@ -250,6 +250,45 @@ def detect_big_task(text: str, allowed_files: list[str], changed_file_estimate: 
     return bool(reasons), reasons
 
 
+def is_bounded_doc_edit(text: str, allowed_files: list[str]) -> bool:
+    if not allowed_files or len(allowed_files) > 3:
+        return False
+    normalized = [str(item).replace('\\', '/') for item in allowed_files]
+    if any('*' in item for item in normalized):
+        return False
+    if not all(item == 'README.md' or item.startswith('docs/') or item.lower().endswith(('.md', '.txt')) for item in normalized):
+        return False
+    lowered = text.lower()
+    action_terms = [
+        'revise',
+        'expand',
+        'extend',
+        'update',
+        'edit',
+        'improve',
+        'add',
+        '??',
+        '??',
+        '??',
+        '??',
+        '??',
+        '??',
+        '??',
+    ]
+    action_terms.extend(
+        [
+            '\u5b8c\u5584',
+            '\u6269\u5c55',
+            '\u7ec6\u5316',
+            '\u4fee\u6539',
+            '\u66f4\u65b0',
+            '\u52a0\u5165',
+            '\u8865\u5145',
+        ]
+    )
+    return any(term in lowered for term in action_terms)
+
+
 def classify(
     project: Path,
     text: str,
@@ -268,7 +307,11 @@ def classify(
     blast_hits = term_hits(text, BLAST_RADIUS_TERMS)
     semantic_hits = semantic_resource_hits(text, allowed)
     broad_allowed = allowed == ['**'] or len(allowed) > 4
+    bounded_doc_edit = is_bounded_doc_edit(text, allowed)
     big_task, big_task_reasons = detect_big_task(text, allowed, changed_file_estimate, hard_risk_hits, cross_surface_hits)
+    if bounded_doc_edit and not hard_risk_hits and not cross_surface_hits:
+        big_task = False
+        big_task_reasons = []
 
     coupling_score = 0
     if len(cross_surface_hits) >= 2:
@@ -386,6 +429,7 @@ def classify(
             'blast_radius_hits': blast_hits,
             'semantic_resource_hits': semantic_hits,
             'broad_allowed_files': broad_allowed,
+            'bounded_doc_edit': bounded_doc_edit,
             'changed_file_estimate': changed_file_estimate,
         },
         'parallel_denial_reason': '' if independent else ';'.join(parallel_blockers),

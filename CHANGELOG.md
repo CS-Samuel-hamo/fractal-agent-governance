@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5-alpha.5-bounded-doc-apply-diagnostics
+
+- Fixed Chinese bounded documentation edits such as extending `docs/research_workflow.md` from `project_beginning_prompt.md` being misclassified as big/governed tasks.
+- Added apply preflight diagnostics so unavailable actual execution workers now report a clear reason such as `codex CLI permission denied`.
+- Hardened Windows debug/status output against Unicode encoding failures.
+- Added regression coverage for Chinese research workflow document edits staying on the fast/small execution path.
+
 ## 1.0.5-alpha.4-preview-job-supersede
 
 - Allowed a preview-only seed starter job to be superseded by a new natural-language goal.

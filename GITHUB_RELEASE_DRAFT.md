@@ -87,6 +87,13 @@ agent pr
 - Active jobs are still protected from accidental overwrite.
 - Users can move from seed bootstrap preview to a concrete revision goal without manually stopping first.
 
+## Post-alpha Patch: 1.0.5-alpha.5 Bounded Docs Apply Diagnostics
+
+- Chinese bounded documentation edits like `?? project_beginning_prompt.md ?? docs/research_workflow.md...` now stay on the fast/small path.
+- `--apply` now explains actual execution worker availability problems instead of returning a vague blocked result.
+- `agent workers --doctor` is the recommended next step when actual code execution is unavailable.
+- Windows debug/status output now handles Unicode diagnostics more safely.
+
 ## Privacy / Safety Guarantees
 
 - No GitHub API calls.

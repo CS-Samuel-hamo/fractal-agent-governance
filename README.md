@@ -106,6 +106,9 @@ agent "fix README typo" --preview
 agent "fix README typo" --apply
 ```
 
+If `--apply` reports that actual execution is unavailable, run
+`agent workers --doctor` to inspect local worker readiness.
+
 See [CLI_REFERENCE.md](CLI_REFERENCE.md) for details.
 
 For new projects, see [NEW_PROJECT_GUIDE.md](NEW_PROJECT_GUIDE.md).

@@ -1,5 +1,29 @@
 # Release Notes
 
+## 1.0.5-alpha.5 Bounded Docs Apply Diagnostics Patch
+
+This patch fixes a real Chinese prompt-only project failure where a bounded
+documentation edit was blocked with an unclear JSON result.
+
+### Fixed
+
+- Chinese tasks such as extending `docs/research_workflow.md` from
+  `project_beginning_prompt.md` are now recognized as bounded documentation
+  edits instead of big/governed project work.
+- `--apply` now checks whether the selected actual execution worker is
+  available before entering the pipeline.
+- When Codex execution is unavailable, the CLI now reports a clear user-facing
+  reason such as `actual execution worker unavailable: codex CLI permission
+  denied; run agent workers --doctor`.
+- Windows debug/status output is more tolerant of Unicode text.
+
+### Validation
+
+- Added regression coverage for Chinese research workflow edits staying on the
+  fast/small path with an `actual_allowed` plan.
+- Re-ran intent-first seed bootstrap, product alpha, product surface, worker
+  doctor, real worker adapter hardening, local scanner, and starter pack checks.
+
 ## 1.0.5-alpha.4 Preview Job Supersede Patch
 
 This patch fixes the confusing state where a preview-only seed starter job could block a user's next natural-language goal with `Existing job found`.

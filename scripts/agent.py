@@ -115,8 +115,17 @@ def parse_json_output(result: dict) -> dict:
         return {}
 
 
+def safe_print_text(text: str) -> None:
+    output = f'{text}\n' if not str(text).endswith('\n') else str(text)
+    encoding = sys.stdout.encoding or 'utf-8'
+    try:
+        sys.stdout.write(output)
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(output.encode(encoding, errors='replace'))
+
+
 def print_json(payload: dict) -> None:
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    safe_print_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def clean_progress(value: object) -> str:
@@ -846,7 +855,7 @@ def status(args) -> int:
     result = delegate_capture('runtime_status.py', command)
     payload = parse_json_output(result)
     if getattr(args, 'debug', False):
-        print(str(result.get('stdout') or '').strip())
+        safe_print_text(str(result.get('stdout') or '').strip())
         return int(result.get('returncode') or 0)
     goals = ((payload.get('goal_state') or {}).get('goals') or []) if isinstance(payload.get('goal_state'), dict) else []
     active = next((item for item in goals if item.get('status') == 'active'), {}) if isinstance(goals, list) else {}
@@ -1992,6 +2001,42 @@ def user_task_result(*, task: str, mode: str, result: str) -> dict:
     return {'task': task, 'mode': mode, 'result': result}
 
 
+def actual_execution_issue(project: Path, backend: str) -> str:
+    normalized = str(backend or '').strip().lower()
+    if normalized in {'dry_run', 'dry-run', 'dryrun'}:
+        return f'{normalized} backend is preview/test only; switch to an actual code worker or run with --preview'
+    if normalized == 'codex':
+        try:
+            from codex_worker_adapter_hardened import codex_health  # noqa: WPS433
+
+            health = codex_health(project)
+        except Exception as exc:  # pragma: no cover - defensive diagnostics only
+            return f'actual execution worker check failed: {type(exc).__name__}; run agent workers --doctor'
+        if not health.get('supports_actual_execution'):
+            reason = str(health.get('reason') or health.get('health') or 'codex worker unavailable')
+            return f'actual execution worker unavailable: {reason}; run agent workers --doctor'
+    return ''
+
+
+def pipeline_failure_summary(payload: dict, proc: dict) -> str:
+    if payload:
+        verdict = str(payload.get('final_verdict') or payload.get('status') or '').strip()
+        reason = str(payload.get('reason') or payload.get('result') or '').strip()
+        if verdict and reason:
+            return f'{verdict}: {reason}'
+        if verdict:
+            return verdict
+        if reason:
+            return reason
+    stderr = str(proc.get('stderr') or '').strip()
+    if stderr:
+        return stderr.splitlines()[-1][:240]
+    stdout = str(proc.get('stdout') or '').strip()
+    if stdout:
+        return stdout.splitlines()[-1][:240]
+    return 'could not complete; run agent workers --doctor or agent debug status'
+
+
 def ask(args) -> int:
     if args.preview and args.apply:
         print_json(user_task_result(task=' '.join(args.input).strip(), mode='blocked', result='choose either --preview or --apply, not both'))
@@ -2008,6 +2053,11 @@ def ask(args) -> int:
     mode = 'apply' if args.apply else 'preview'
     ensure_bootstrap_before_run(args)
     selected_backend = str(read_backend_selection(project))
+    if mode == 'apply':
+        issue = actual_execution_issue(project, selected_backend)
+        if issue:
+            print_json(user_task_result(task=text, mode='blocked', result=issue))
+            return 2
     command = [
         sys.executable,
         str(ROOT / 'scripts' / 'pipeline_loop.py'),
@@ -2040,10 +2090,10 @@ def ask(args) -> int:
         except json.JSONDecodeError:
             payload = {}
     if getattr(args, 'debug', False):
-        print(stdout if stdout else json.dumps({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')}, ensure_ascii=False, indent=2))
+        safe_print_text(stdout if stdout else json.dumps({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')}, ensure_ascii=False, indent=2))
         return int(proc.get('returncode') or 0)
     if proc.get('returncode') != 0:
-        print_json(user_task_result(task=text, mode='blocked', result='could not complete; run with --preview or use agent debug status'))
+        print_json(user_task_result(task=text, mode='blocked', result=pipeline_failure_summary(payload, proc)))
         return int(proc.get('returncode') or 1)
     result = str(payload.get('final_verdict') or ('PREVIEW_READY' if mode == 'preview' else 'APPLIED'))
     if mode == 'preview' and result == 'DRY_RUN_COMPLETE':

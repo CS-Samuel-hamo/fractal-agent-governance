@@ -86,6 +86,8 @@ agent "fix README typo" --apply
 ```
 
 Use `-f README.md` when you want to keep a one-off edit scoped to a file.
+If `--apply` says actual execution is unavailable, run `agent workers --doctor`
+to see whether a real code worker is available on this machine.
 
 ## Where To Use It
 

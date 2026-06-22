@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,7 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from map_task_selector import select_next_action  # noqa: E402
+from pipeline_planner import build_plan  # noqa: E402
 from project_map_builder import build_project_map  # noqa: E402
 from runtime_common import write_json  # noqa: E402
 
@@ -319,6 +321,32 @@ def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
     assert_true(current_job.get('goal') == second_goal, 'new goal did not supersede preview starter job')
 
 
+def test_chinese_bounded_research_doc_edit_is_fast_actual_candidate() -> None:
+    project = repo('chinese-bounded-doc-edit')
+    seed(project, text='Build a paper research workflow with literature, evidence, and validation safeguards.')
+    (project / 'docs').mkdir()
+    (project / 'docs' / 'research_workflow.md').write_text('# Research workflow\n', encoding='utf-8')
+    text = '\u6839\u636e project_beginning_prompt.md \u6269\u5c55 docs/research_workflow.md\uff0c\u52a0\u5165\u6587\u732e\u3001\u8bc1\u636e\u548c\u9a8c\u8bc1\u6d41\u7a0b'
+    args = argparse.Namespace(
+        workspace=str(project),
+        run_id='test-chinese-bounded-doc-edit',
+        input_text='',
+        input=[text],
+        goal_id='',
+        allowed_file=[],
+        denied_file=['.env'],
+        force_path='',
+        dry_run=False,
+    )
+    plan = build_plan(args)
+    classification = plan['classification']
+    assert_true(classification['allowed_files'] == ['docs/research_workflow.md'], 'bounded doc target was not inferred')
+    assert_true(classification['signals']['bounded_doc_edit'] is True, 'Chinese bounded docs edit was not detected')
+    assert_true(classification['path'] == 'fast', 'bounded docs edit should stay on the fast path')
+    assert_true(classification['task_scale'] == 'small', 'bounded docs edit should not be treated as a big task')
+    assert_true(plan['execution_plan']['mode'] == 'actual_allowed', 'bounded docs apply should be eligible for actual execution')
+
+
 def main() -> int:
     test_empty_dir_no_seed()
     test_root_seed_prompt_only()
@@ -340,6 +368,7 @@ def main() -> int:
     test_job_inbox_explains_seed_prompt()
     test_seed_starter_docs_are_created_once()
     test_preview_seed_job_can_be_superseded_by_new_goal()
+    test_chinese_bounded_research_doc_edit_is_fast_actual_candidate()
     print('intent-first seed bootstrap tests passed')
     return 0
 
