@@ -33,6 +33,8 @@ def verdict_from_execution(execution: dict[str, Any]) -> tuple[str, str, bool]:
     if all(item in {'delivered', 'no_op_with_evidence'} for item in outcomes):
         return 'COMPLETED', 'all_leaf_results_delivered_or_no_op_with_evidence', True
     if all(item == 'dry_run_only' for item in outcomes):
+        if any(item.get('backend_invoked') or item.get('fallback_used') == 'dry_run_mode' for item in leaves if isinstance(item, dict)):
+            return 'BLOCKED', 'actual_execution_failed_and_fell_back_to_dry_run', False
         return 'DRY_RUN_COMPLETE', 'dry_run_plan_verified_without_actual_execution', False
     if any(item == 'executed_pending_verification' for item in outcomes):
         return 'NEEDS_DELIVERY_VERIFICATION', 'actual_execution_requires_delivery_outcome_check', False

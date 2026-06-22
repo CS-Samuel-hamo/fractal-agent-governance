@@ -101,6 +101,13 @@ agent pr
 - Codex worker health, backend health, and actual execution adapter now use consistent command resolution.
 - Agent/pipeline subprocesses force UTF-8 Python output to support Chinese tasks on Windows consoles.
 
+## Post-alpha Patch: 1.0.5-alpha.7 Non-Git Apply Codex Trust Check
+
+- Non-Git prompt-only projects now pass Codex's git repo check bypass during bounded local execution.
+- Actual execution failures that fall back to dry-run are reported as blocked, not `DRY_RUN_COMPLETE`.
+- `agent "<task>" --apply` no longer implies success when no business file was changed.
+- Added regression coverage for non-Git Codex command construction and actual-failure fallback verdicts.
+
 ## Privacy / Safety Guarantees
 
 - No GitHub API calls.

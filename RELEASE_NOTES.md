@@ -1,5 +1,26 @@
 # Release Notes
 
+## 1.0.5-alpha.7 Non-Git Apply Codex Trust Check Patch
+
+This patch fixes the state where Codex was available, but a prompt-only project
+still returned `DRY_RUN_COMPLETE` after `--apply`.
+
+### Fixed
+
+- Non-Git workspaces now automatically pass Codex's git repo check bypass flag
+  during bounded local execution.
+- Actual execution failures that fall back to dry-run are now reported as
+  `BLOCKED`, not `DRY_RUN_COMPLETE`.
+- One-off `agent "<task>" --apply` now returns `mode: blocked` when no delivery
+  happened, instead of implying that apply succeeded.
+
+### Validation
+
+- Added regression coverage for non-Git Codex command construction.
+- Added regression coverage for actual-failure dry-run fallback verdicts.
+- Re-ran intent-first seed bootstrap, product alpha, worker doctor, real worker
+  adapter hardening, and starter pack checks.
+
 ## 1.0.5-alpha.6 Windows Codex Worker Resolution Patch
 
 This patch fixes the real local cause behind `codex CLI permission denied` on

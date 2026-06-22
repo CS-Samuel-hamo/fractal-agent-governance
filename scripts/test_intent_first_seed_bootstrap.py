@@ -15,8 +15,10 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 from map_task_selector import select_next_action  # noqa: E402
 from pipeline_planner import build_plan  # noqa: E402
+from pipeline_verifier import verdict_from_execution  # noqa: E402
 from project_map_builder import build_project_map  # noqa: E402
 from runtime_common import write_json  # noqa: E402
+from codex_exec_adapter import build_command as build_codex_command  # noqa: E402
 
 
 def repo(name: str) -> Path:
@@ -347,6 +349,38 @@ def test_chinese_bounded_research_doc_edit_is_fast_actual_candidate() -> None:
     assert_true(plan['execution_plan']['mode'] == 'actual_allowed', 'bounded docs apply should be eligible for actual execution')
 
 
+def test_non_git_workspace_codex_command_skips_git_repo_check() -> None:
+    project = repo('non-git-codex-skip')
+    args = argparse.Namespace(
+        codex_command='codex.cmd',
+        workspace=str(project),
+        sandbox='workspace-write',
+        output_last_message=str(project / 'last.md'),
+        skip_git_repo_check=False,
+        extra_codex_arg=[],
+    )
+    command = build_codex_command(args)
+    assert_true('--skip-git-repo-check' in command, 'non-git workspaces should skip Codex git repo check')
+
+
+def test_actual_failure_fallback_dry_run_is_blocked_not_complete() -> None:
+    verdict, reason, converged = verdict_from_execution(
+        {
+            'leaf_results': [
+                {
+                    'delivery_outcome': 'dry_run_only',
+                    'backend_invoked': True,
+                    'fallback_used': 'dry_run_mode',
+                    'backend_status': 'failed',
+                }
+            ]
+        }
+    )
+    assert_true(verdict == 'BLOCKED', 'actual failure fallback must not be reported as dry-run complete')
+    assert_true(reason == 'actual_execution_failed_and_fell_back_to_dry_run', 'fallback failure reason missing')
+    assert_true(converged is False, 'failed actual fallback should not converge')
+
+
 def main() -> int:
     test_empty_dir_no_seed()
     test_root_seed_prompt_only()
@@ -369,6 +403,8 @@ def main() -> int:
     test_seed_starter_docs_are_created_once()
     test_preview_seed_job_can_be_superseded_by_new_goal()
     test_chinese_bounded_research_doc_edit_is_fast_actual_candidate()
+    test_non_git_workspace_codex_command_skips_git_repo_check()
+    test_actual_failure_fallback_dry_run_is_blocked_not_complete()
     print('intent-first seed bootstrap tests passed')
     return 0
 

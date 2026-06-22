@@ -111,7 +111,7 @@ def build_command(args: argparse.Namespace) -> list[str]:
         '--output-last-message',
         str(Path(args.output_last_message).resolve()),
     ]
-    if args.skip_git_repo_check:
+    if should_skip_git_repo_check(args):
         command.append('--skip-git-repo-check')
     for item in args.extra_codex_arg or []:
         command.append(str(item))
@@ -134,6 +134,26 @@ def resolve_codex_command() -> str:
             if found:
                 return found
     return ''
+
+
+def is_git_worktree(path: Path) -> bool:
+    try:
+        proc = subprocess.run(
+            ['git', '-C', str(path), 'rev-parse', '--is-inside-work-tree'],
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+        return proc.returncode == 0 and proc.stdout.strip().lower() == 'true'
+    except Exception:
+        return False
+
+
+def should_skip_git_repo_check(args: argparse.Namespace) -> bool:
+    return bool(args.skip_git_repo_check or not is_git_worktree(Path(args.workspace).resolve()))
 
 
 def execute(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:

@@ -134,6 +134,22 @@ def run_adapter(command: list[str], cwd: Path, *, timeout: int | None = None) ->
         }
 
 
+def is_git_worktree(path: Path) -> bool:
+    try:
+        proc = subprocess.run(
+            ['git', '-C', str(path), 'rev-parse', '--is-inside-work-tree'],
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+        return proc.returncode == 0 and proc.stdout.strip().lower() == 'true'
+    except Exception:
+        return False
+
+
 def load_json(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding='utf-8-sig'))
@@ -255,7 +271,7 @@ def main():
     ]
     if args.codex_home:
         adapter_cmd += ['--codex-home', str(codex_home)]
-    if args.skip_git_repo_check:
+    if args.skip_git_repo_check or not is_git_worktree(workspace):
         adapter_cmd.append('--skip-git-repo-check')
     if args.profile:
         adapter_cmd += ['--extra-codex-arg=--profile', '--extra-codex-arg', args.profile]

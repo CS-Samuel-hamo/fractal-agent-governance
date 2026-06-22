@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5-alpha.7-non-git-apply-codex-trust-check
+
+- Added automatic `--skip-git-repo-check` for Codex execution in non-Git workspaces, preserving support for new/prompt-only projects.
+- Fixed verifier behavior so actual execution failures that fall back to dry-run are reported as blocked, not `DRY_RUN_COMPLETE`.
+- Fixed one-off `agent "<task>" --apply` output so non-delivery returns `mode=blocked` instead of a misleading apply result.
+- Added regression coverage for non-Git Codex command construction and actual-failure fallback verdicts.
+
 ## 1.0.5-alpha.6-windows-codex-worker-resolution
 
 - Fixed Windows Codex CLI worker resolution by preferring `codex.cmd` / `codex.exe` over the extensionless Anaconda `codex` shim.

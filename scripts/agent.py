@@ -2102,6 +2102,9 @@ def ask(args) -> int:
     result = str(payload.get('final_verdict') or ('PREVIEW_READY' if mode == 'preview' else 'APPLIED'))
     if mode == 'preview' and result == 'DRY_RUN_COMPLETE':
         result = 'PREVIEW_READY'
+    if mode == 'apply' and result != 'COMPLETED':
+        print_json(user_task_result(task=text, mode='blocked', result=f'not applied: {result}'))
+        return 1
     print_json(user_task_result(task=text, mode=mode, result=result))
     return 0
 
