@@ -1,5 +1,28 @@
 # Release Notes
 
+## 1.0.5-alpha.6 Windows Codex Worker Resolution Patch
+
+This patch fixes the real local cause behind `codex CLI permission denied` on
+Windows/Anaconda installs.
+
+### Fixed
+
+- Codex worker detection now prefers `codex.cmd`, `codex.exe`, or `codex.bat`
+  on Windows instead of invoking the extensionless `codex` shim.
+- Actual Codex execution uses the same resolved command as the health check.
+- Backend health and worker doctor now agree on Codex availability.
+- Agent and pipeline subprocesses now force UTF-8 Python output so Chinese tasks
+  do not fail on GBK console encoding.
+
+### Validation
+
+- `agent workers --doctor` now reports actual code execution as available when
+  `codex.cmd --version` succeeds.
+- Chinese research workflow preview completes without GBK output failure.
+- Re-ran worker doctor, real worker adapter hardening, intent-first seed
+  bootstrap, product alpha, product surface hardening, local scanner, and
+  starter pack checks.
+
 ## 1.0.5-alpha.5 Bounded Docs Apply Diagnostics Patch
 
 This patch fixes a real Chinese prompt-only project failure where a bounded

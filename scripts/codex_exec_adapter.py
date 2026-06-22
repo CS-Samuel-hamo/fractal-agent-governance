@@ -100,7 +100,7 @@ def stream_reader(stream, log_path: Path, state: dict[str, Any], key: str, lock:
 
 
 def build_command(args: argparse.Namespace) -> list[str]:
-    codex = args.codex_command or shutil.which('codex') or 'codex'
+    codex = args.codex_command or resolve_codex_command() or 'codex'
     command = [
         codex,
         'exec',
@@ -117,6 +117,23 @@ def build_command(args: argparse.Namespace) -> list[str]:
         command.append(str(item))
     command.append('-')
     return command
+
+
+def resolve_codex_command() -> str:
+    if sys.platform == 'win32':
+        for name in ['codex.cmd', 'codex.exe', 'codex.bat']:
+            found = shutil.which(name)
+            if found:
+                return found
+    found = shutil.which('codex')
+    if found:
+        return found
+    if sys.platform == 'win32':
+        for name in ['codex.ps1', 'codex']:
+            found = shutil.which(name)
+            if found:
+                return found
+    return ''
 
 
 def execute(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:

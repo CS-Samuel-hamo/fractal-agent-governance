@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -105,7 +105,8 @@ def disk_probe() -> dict[str, Any]:
 
 
 def resolve_codex_command() -> str:
-    for name in ['codex', 'codex.cmd', 'codex.exe', 'codex.bat']:
+    names = ['codex.cmd', 'codex.exe', 'codex.bat', 'codex'] if sys.platform == 'win32' else ['codex', 'codex.cmd', 'codex.exe', 'codex.bat']
+    for name in names:
         found = shutil.which(name)
         if found:
             return found

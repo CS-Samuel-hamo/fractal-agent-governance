@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -36,9 +37,13 @@ FAST_SKIPPED_GOVERNANCE = [
 
 def run_stage(command: list[str]) -> dict[str, Any]:
     started = time.monotonic()
+    env = os.environ.copy()
+    env.setdefault('PYTHONIOENCODING', 'utf-8')
+    env.setdefault('PYTHONUTF8', '1')
     proc = subprocess.run(
         command,
         cwd=ROOT,
+        env=env,
         text=True,
         encoding='utf-8',
         errors='replace',
@@ -52,6 +57,15 @@ def run_stage(command: list[str]) -> dict[str, Any]:
         'stderr_tail': proc.stderr[-4000:],
         'duration_seconds': round(time.monotonic() - started, 3),
     }
+
+
+def safe_print_json(payload: dict[str, Any]) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + '\n'
+    encoding = sys.stdout.encoding or 'utf-8'
+    try:
+        sys.stdout.write(text)
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(text.encode(encoding, errors='replace'))
 
 
 def maxed_loop_state(loop_state: dict[str, Any]) -> bool:
@@ -422,7 +436,7 @@ def main() -> int:
     parser.add_argument('--max-retries', type=int, default=2)
     args = parser.parse_args()
     report = pipeline_run(args)
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    safe_print_json(report)
     return 0 if report.get('iterations') else 1
 
 

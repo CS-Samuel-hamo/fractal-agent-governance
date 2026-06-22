@@ -4,6 +4,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+import shutil
 from pathlib import Path
 
 from execution_interface import ExecutionBackend, ExecutionContext, ExecutionResult, ExecutionTask
@@ -12,12 +13,30 @@ from execution_interface import ExecutionBackend, ExecutionContext, ExecutionRes
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def resolve_codex_command() -> str:
+    if sys.platform == 'win32':
+        for name in ['codex.cmd', 'codex.exe', 'codex.bat']:
+            found = shutil.which(name)
+            if found:
+                return found
+    found = shutil.which('codex')
+    if found:
+        return found
+    if sys.platform == 'win32':
+        for name in ['codex.ps1', 'codex']:
+            found = shutil.which(name)
+            if found:
+                return found
+    return 'codex'
+
+
 class CodexExecutionBackend(ExecutionBackend):
     name = 'codex'
 
     def health(self) -> dict[str, object]:
+        codex = resolve_codex_command()
         proc = subprocess.run(
-            ['codex', '--version'],
+            [codex, '--version'],
             cwd=ROOT,
             text=True,
             encoding='utf-8',

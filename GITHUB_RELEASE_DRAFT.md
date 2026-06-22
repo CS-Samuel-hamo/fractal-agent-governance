@@ -94,6 +94,13 @@ agent pr
 - `agent workers --doctor` is the recommended next step when actual code execution is unavailable.
 - Windows debug/status output now handles Unicode diagnostics more safely.
 
+## Post-alpha Patch: 1.0.5-alpha.6 Windows Codex Worker Resolution
+
+- Windows Codex worker resolution now prefers `codex.cmd` / `codex.exe` over the extensionless Anaconda `codex` shim.
+- `codex CLI permission denied` caused by Python subprocess command resolution is fixed.
+- Codex worker health, backend health, and actual execution adapter now use consistent command resolution.
+- Agent/pipeline subprocesses force UTF-8 Python output to support Chinese tasks on Windows consoles.
+
 ## Privacy / Safety Guarantees
 
 - No GitHub API calls.

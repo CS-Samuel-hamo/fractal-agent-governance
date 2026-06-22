@@ -17,8 +17,25 @@ from worker_adapter_contract import worker_contract  # noqa: E402
 from worker_interface import worker_result  # noqa: E402
 
 
+def resolve_codex_command() -> str:
+    if sys.platform == 'win32':
+        for name in ['codex.cmd', 'codex.exe', 'codex.bat']:
+            found = shutil.which(name)
+            if found:
+                return found
+    found = shutil.which('codex')
+    if found:
+        return found
+    if sys.platform == 'win32':
+        for name in ['codex.ps1', 'codex']:
+            found = shutil.which(name)
+            if found:
+                return found
+    return ''
+
+
 def detect_codex_cli() -> dict[str, Any]:
-    executable = shutil.which('codex')
+    executable = resolve_codex_command()
     if not executable:
         return {'available': False, 'status': 'unavailable', 'reason': 'codex CLI not found', 'version': ''}
     version = ''
@@ -26,7 +43,7 @@ def detect_codex_cli() -> dict[str, Any]:
     reason = 'codex CLI detected'
     try:
         proc = subprocess.run(
-            ['codex', '--version'],
+            [executable, '--version'],
             text=True,
             encoding='utf-8',
             errors='replace',

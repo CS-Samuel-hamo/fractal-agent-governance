@@ -79,9 +79,13 @@ def run_command(command: list[str], cwd: Path) -> int:
 
 
 def run_command_capture(command: list[str], cwd: Path) -> dict:
+    env = os.environ.copy()
+    env.setdefault('PYTHONIOENCODING', 'utf-8')
+    env.setdefault('PYTHONUTF8', '1')
     proc = subprocess.run(
         command,
         cwd=cwd,
+        env=env,
         text=True,
         encoding='utf-8',
         errors='replace',

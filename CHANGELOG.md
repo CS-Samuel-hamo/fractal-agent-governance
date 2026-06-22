@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5-alpha.6-windows-codex-worker-resolution
+
+- Fixed Windows Codex CLI worker resolution by preferring `codex.cmd` / `codex.exe` over the extensionless Anaconda `codex` shim.
+- Aligned Codex worker health, backend health, and actual execution adapter command resolution.
+- Forced UTF-8 child process output for agent/pipeline subprocesses to avoid GBK failures on Chinese tasks.
+- Confirmed `agent workers --doctor` reports actual code execution as available when `codex.cmd --version` succeeds.
+
 ## 1.0.5-alpha.5-bounded-doc-apply-diagnostics
 
 - Fixed Chinese bounded documentation edits such as extending `docs/research_workflow.md` from `project_beginning_prompt.md` being misclassified as big/governed tasks.
