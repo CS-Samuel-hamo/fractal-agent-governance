@@ -75,6 +75,12 @@ agent pr
 - Completed starter docs jobs show `Completed` and no longer ask for repeated `agent continue`.
 - `agent continue` after completion is harmless and does not overwrite existing starter docs.
 
+## Post-alpha Patch: 1.0.5-alpha.3 Partial Starter Docs
+
+- Existing starter docs are preserved.
+- Missing trusted starter docs are still created.
+- Preview-only is used only when all starter docs already exist.
+
 ## Privacy / Safety Guarantees
 
 - No GitHub API calls.

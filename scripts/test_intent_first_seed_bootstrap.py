@@ -119,13 +119,28 @@ def test_research_seed_prompt() -> None:
     assert_true('docs/research_workflow.md' in action['target_files'], 'research workflow target missing')
 
 
-def test_existing_readme_preview_only() -> None:
+def test_existing_readme_skips_existing_and_creates_missing() -> None:
     project = repo('existing-readme')
     seed(project)
     (project / 'README.md').write_text('# Existing\n', encoding='utf-8')
     action = selected(project, 'read project_beginning_prompt.md')
-    assert_true(action['execution_mode'] == 'preview', 'existing README should force preview')
-    assert_true(action['preview_only'] is True, 'preview_only missing')
+    assert_true(action['execution_mode'] == 'auto', 'partial existing starter docs should still create missing targets')
+    assert_true(action['preview_only'] is False, 'partial existing targets should not force preview')
+    assert_true(action['existing_targets'] == ['README.md'], 'existing README should be recorded')
+    assert_true('docs/project_plan.md' in action['missing_targets'], 'missing project plan should be recorded')
+
+
+def test_all_existing_starter_docs_preview_only() -> None:
+    project = repo('all-existing-starter-docs')
+    seed(project, text='Build a paper research workflow with literature and evidence safeguards.')
+    (project / 'README.md').write_text('# Existing\n', encoding='utf-8')
+    (project / 'docs').mkdir()
+    (project / 'docs' / 'project_plan.md').write_text('# Existing plan\n', encoding='utf-8')
+    (project / 'docs' / 'research_workflow.md').write_text('# Existing workflow\n', encoding='utf-8')
+    action = selected(project, 'read project_beginning_prompt.md')
+    assert_true(action['execution_mode'] == 'preview', 'all existing starter docs should force preview')
+    assert_true(action['preview_only'] is True, 'all existing starter docs should be preview_only')
+    assert_true(action['missing_targets'] == [], 'all existing starter docs should have no missing targets')
 
 
 def test_existing_project_with_src_tests() -> None:
@@ -277,7 +292,8 @@ def main() -> int:
     test_seed_file_secret_name()
     test_seed_prompt_injection_attempt()
     test_research_seed_prompt()
-    test_existing_readme_preview_only()
+    test_existing_readme_skips_existing_and_creates_missing()
+    test_all_existing_starter_docs_preview_only()
     test_existing_project_with_src_tests()
     test_dangerous_goal_delete()
     test_dangerous_goal_env()

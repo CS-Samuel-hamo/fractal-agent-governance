@@ -110,6 +110,8 @@ def build_next_actions(evidence: list[dict[str, Any]], capabilities: list[dict[s
             seed_evidence,
         )
         existing_targets = [target for target in targets if Path(target).as_posix() in paths]
+        missing_targets = [target for target in targets if target not in existing_targets]
+        all_targets_exist = bool(targets) and not missing_targets
         action.update(
             {
                 'source': 'seed_prompt',
@@ -117,9 +119,11 @@ def build_next_actions(evidence: list[dict[str, Any]], capabilities: list[dict[s
                 'action_type': 'create_or_preview_docs',
                 'constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_overwrite'],
                 'safety_constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_external_network', 'no_fake_citations', 'no_final_paper_generation'],
-                'preview_only': bool(existing_targets),
-                'preview_reason': 'target file already exists; no overwrite' if existing_targets else '',
-                'fallback_behavior': {'if_target_exists': 'preview_only', 'if_ambiguous_intent': 'present_options'},
+                'preview_only': all_targets_exist,
+                'preview_reason': 'all starter docs already exist; no overwrite' if all_targets_exist else '',
+                'existing_targets': existing_targets,
+                'missing_targets': missing_targets,
+                'fallback_behavior': {'if_target_exists': 'skip_existing_create_missing', 'if_all_targets_exist': 'preview_only', 'if_ambiguous_intent': 'present_options'},
             }
         )
         actions.append(action)

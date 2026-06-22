@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5-alpha.3-partial-starter-docs
+
+- Changed seed prompt starter docs behavior from all-or-preview to create-missing-only.
+- Existing starter docs are preserved; missing trusted docs are created.
+- Preview-only is now used only when all starter doc targets already exist.
+- Added regression coverage for partial existing starter docs.
+
 ## 1.0.5-alpha.2-starter-docs-completion
 
 - Fixed seed prompt starter actions that could loop as preview-only after `agent continue`.

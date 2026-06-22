@@ -1,5 +1,21 @@
 # Release Notes
 
+## 1.0.5-alpha.3 Partial Starter Docs Patch
+
+This patch makes seed prompt execution match the expected user behavior: keep existing starter docs and create only the missing trusted docs.
+
+### Changed
+
+- Existing starter docs are skipped instead of causing the whole starter action to become preview-only.
+- Missing trusted docs are still created when at least one starter target is absent.
+- Preview-only is now reserved for the case where all starter doc targets already exist.
+
+### Safety
+
+- Existing files are not overwritten.
+- Only trusted starter docs are eligible: `README.md`, `docs/project_plan.md`, and `docs/research_workflow.md`.
+- The flow still does not execute shell commands, read secrets, push, merge, deploy, or generate final paper content.
+
 ## 1.0.5-alpha.2 Starter Docs Completion Patch
 
 This patch fixes the post-bootstrap continuation loop discovered in real prompt-only project usage.

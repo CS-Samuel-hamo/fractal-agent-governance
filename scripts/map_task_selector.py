@@ -117,6 +117,8 @@ def _existing_targets(project: Path, targets: list[str]) -> list[str]:
 def _starter_action_from_evidence(project: Path, *, evidence: dict[str, Any], goal: str, source: str) -> dict[str, Any]:
     targets = _starter_targets(evidence, goal)
     existing = _existing_targets(project, targets)
+    missing = [target for target in targets if target not in existing]
+    all_targets_exist = bool(targets) and not missing
     return {
         'schema_version': '1.0',
         'generated_by': 'map_task_selector.py',
@@ -128,7 +130,7 @@ def _starter_action_from_evidence(project: Path, *, evidence: dict[str, Any], go
         'expected_project_progress': 'Creates a trusted documentation starting point without running scripts.',
         'risk_level': 'low',
         'target_files': targets,
-        'execution_mode': 'preview' if existing else 'auto',
+        'execution_mode': 'preview' if all_targets_exist else 'auto',
         'trust_zone': 'trusted',
         'trust_zone_reasons': ['trusted_documentation_test_example_or_local_script_surface'],
         'source': source,
@@ -137,11 +139,13 @@ def _starter_action_from_evidence(project: Path, *, evidence: dict[str, Any], go
         'project_map_ref': str(map_dir(project) / 'project_map.json'),
         'evidence': [evidence],
         'autopilot_eligible': True,
-        'preview_only': bool(existing),
-        'preview_reason': 'target file already exists; no overwrite' if existing else '',
+        'preview_only': all_targets_exist,
+        'preview_reason': 'all starter docs already exist; no overwrite' if all_targets_exist else '',
+        'existing_targets': existing,
+        'missing_targets': missing,
         'constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_overwrite'],
         'safety_constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_external_network', 'no_fake_citations', 'no_final_paper_generation'],
-        'fallback_behavior': {'if_target_exists': 'preview_only', 'if_ambiguous_intent': 'present_options'},
+        'fallback_behavior': {'if_target_exists': 'skip_existing_create_missing', 'if_all_targets_exist': 'preview_only', 'if_ambiguous_intent': 'present_options'},
         'learning_feedback_ref': '.zoo-agent/learning/cross_project/learning_insights.json',
     }
 
@@ -269,6 +273,9 @@ def select_next_action(project: Path, *, mode: str = 'standard') -> dict[str, An
         'autopilot_eligible': bool(selected.get('autopilot_eligible')),
         'preview_only': bool(selected.get('preview_only')),
         'preview_reason': selected.get('preview_reason', ''),
+        'existing_targets': selected.get('existing_targets') or [],
+        'missing_targets': selected.get('missing_targets') or [],
+        'fallback_behavior': selected.get('fallback_behavior') or {},
         'constraints': selected.get('constraints') or [],
         'safety_constraints': selected.get('safety_constraints') or [],
         'project_map_ref': str(map_path),
