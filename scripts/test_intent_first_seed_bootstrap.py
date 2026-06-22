@@ -226,6 +226,48 @@ def test_job_inbox_explains_seed_prompt() -> None:
     assert_true('How to continue:' in text, 'Job Inbox continue guidance missing')
 
 
+def test_seed_starter_docs_are_created_once() -> None:
+    project = repo('seed-starter-created')
+    seed(project, text='Build a paper research workflow with literature map, evidence plan, and safe project docs.')
+    proc = subprocess.run(
+        [sys.executable, str(AGENT), 'read project_beginning_prompt.md', '--workspace', str(project)],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if proc.returncode:
+        raise AssertionError(f'agent command failed\nstdout={proc.stdout}\nstderr={proc.stderr}')
+    for target in ['README.md', 'docs/project_plan.md', 'docs/research_workflow.md']:
+        assert_true((project / target).exists(), f'{target} was not created')
+    readme_before = (project / 'README.md').read_text(encoding='utf-8')
+    inbox = subprocess.run(
+        [sys.executable, str(AGENT)],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if inbox.returncode:
+        raise AssertionError(f'agent inbox failed\nstdout={inbox.stdout}\nstderr={inbox.stderr}')
+    assert_true('Status:\nCompleted' in inbox.stdout, 'starter docs job should complete after creation')
+    cont = subprocess.run(
+        [sys.executable, str(AGENT), 'continue', '--workspace', str(project)],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert_true(cont.returncode == 0, f'continue after completion should be harmless\nstdout={cont.stdout}\nstderr={cont.stderr}')
+    assert_true((project / 'README.md').read_text(encoding='utf-8') == readme_before, 'continue should not overwrite starter docs')
+
+
 def main() -> int:
     test_empty_dir_no_seed()
     test_root_seed_prompt_only()
@@ -244,6 +286,7 @@ def main() -> int:
     test_no_map_action_no_intent()
     test_feature_flag_disables_fallback()
     test_job_inbox_explains_seed_prompt()
+    test_seed_starter_docs_are_created_once()
     print('intent-first seed bootstrap tests passed')
     return 0
 

@@ -35,6 +35,8 @@ def _same_goal(left: str, right: str) -> bool:
 
 
 def _action_display_status(job: dict[str, Any], action: dict[str, Any]) -> str:
+    if job.get('status') == 'completed':
+        return 'Completed'
     if action.get('execution_mode') == 'needs_attention' or action.get('trust_zone') == 'blocked':
         return 'Blocked with reason'
     if action.get('preview_only') or action.get('execution_mode') == 'preview':
@@ -75,6 +77,8 @@ def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint:
     display_status = _action_display_status(job, action)
     if display_status == 'Ready for starter action':
         prefix = 'Ready for starter action.\nProject job saved.'
+    elif display_status == 'Completed':
+        prefix = 'Done.\nProject job completed.'
     elif display_status == 'Preview recommended':
         prefix = 'Preview ready.\nProject job saved.'
     elif job.get('status') == 'needs_attention':
@@ -91,7 +95,7 @@ def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint:
         display_status,
         '',
         'Reason:',
-        f'- {action.get("reason") or action.get("blocked_reason") or job.get("attention_reason") or "Project job updated."}',
+        f'- {job.get("attention_reason") if display_status == "Completed" and job.get("attention_reason") else action.get("reason") or action.get("blocked_reason") or job.get("attention_reason") or "Project job updated."}',
         '',
         'Evidence:',
         *_action_evidence_lines(action),

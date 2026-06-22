@@ -1,5 +1,25 @@
 # Release Notes
 
+## 1.0.5-alpha.2 Starter Docs Completion Patch
+
+This patch fixes the post-bootstrap continuation loop discovered in real prompt-only project usage.
+
+### Fixed
+
+- `agent continue` no longer repeats the same seed prompt preview state after a safe starter action is available.
+- Safe seed prompt starter actions now create trusted starter docs directly when targets do not already exist.
+- Completed starter docs jobs now show `Status: Completed` and `Needs attention: none`.
+- Follow-up `agent continue` after completion is harmless and does not overwrite existing starter docs.
+
+### Safety
+
+- The internal starter docs writer can only create `README.md`, `docs/project_plan.md`, and `docs/research_workflow.md`.
+- It does not run shell commands, call external workers, access secrets, overwrite files, push, merge, deploy, or generate full paper content.
+
+### Validation
+
+- Added regression coverage for one-time starter docs creation, completed job status, and no-overwrite behavior.
+
 ## 1.0.5 Intent-first Seed Prompt Bootstrap Patch
 
 This patch improves first-run behavior for empty or prompt-only projects.

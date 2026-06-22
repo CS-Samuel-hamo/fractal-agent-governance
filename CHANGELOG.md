@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.5-alpha.2-starter-docs-completion
+
+- Fixed seed prompt starter actions that could loop as preview-only after `agent continue`.
+- Added a safe internal starter docs writer for `README.md`, `docs/project_plan.md`, and `docs/research_workflow.md`.
+- Marked completed starter docs jobs as `Completed` instead of `Needs attention`.
+- Ensured `agent continue` after completion is harmless and does not overwrite starter docs.
+- Added regression coverage for one-time starter docs creation and no-overwrite behavior.
+
 ## 1.0.5-intent-first-seed-bootstrap
 
 - Added safe seed prompt discovery for prompt-only projects.

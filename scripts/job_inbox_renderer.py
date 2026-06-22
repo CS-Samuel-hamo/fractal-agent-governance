@@ -15,6 +15,8 @@ def _selected_action(project: Path) -> dict:
 
 
 def _action_status(status: str, action: dict, attention: str) -> str:
+    if status == 'completed':
+        return 'Completed'
     if action.get('execution_mode') == 'needs_attention' or str(action.get('trust_zone')) == 'blocked':
         return 'Blocked with reason'
     if action.get('preview_only') or action.get('execution_mode') == 'preview':
@@ -68,9 +70,14 @@ def render_job_inbox(project: Path, *, refresh: bool = True) -> str:
     action = _selected_action(project)
     display_status = _action_status(str(status), action, str(job.get('attention_reason') or ''))
     next_action = action.get('title') or job.get('next_action') or 'not available'
-    attention = job.get('attention_reason') or ('review required' if job.get('attention_required') else 'none')
+    if display_status == 'Completed':
+        attention = 'none'
+    else:
+        attention = job.get('attention_reason') or ('review required' if job.get('attention_required') else 'none')
     reason = action.get('reason') or action.get('blocked_reason') or attention
     risk_level = action.get('risk_level') or 'unknown'
+    suggested_commands = ['agent cockpit', 'agent undo', 'agent release', 'agent pr'] if display_status == 'Completed' else ['agent continue', 'agent cockpit', 'agent undo', 'agent release', 'agent pr']
+    continue_line = 'agent "<next goal>"' if display_status == 'Completed' else 'agent continue'
     lines = [
         'AI Project Operator',
         '',
@@ -108,14 +115,10 @@ def render_job_inbox(project: Path, *, refresh: bool = True) -> str:
         f'- PR draft: {"available" if job.get("pr_draft_available") else "not generated yet"}',
         '',
         'Suggested commands:',
-        'agent continue',
-        'agent cockpit',
-        'agent undo',
-        'agent release',
-        'agent pr',
+        *suggested_commands,
         '',
         'How to continue:',
-        'agent continue',
+        continue_line,
         '',
         'Tip: most of the time, use `agent "<goal>"` and `agent`.',
     ]

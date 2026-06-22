@@ -69,6 +69,12 @@ agent pr
 - Job Inbox now explains reason, evidence, suggested next action, risk, and how to continue.
 - Dangerous goals such as reading `.env`, deleting files, pushing, merging, or deploying remain blocked with a concrete reason.
 
+## Post-alpha Patch: 1.0.5-alpha.2 Starter Docs Completion
+
+- Safe seed prompt starter actions now create trusted starter docs instead of looping in preview.
+- Completed starter docs jobs show `Completed` and no longer ask for repeated `agent continue`.
+- `agent continue` after completion is harmless and does not overwrite existing starter docs.
+
 ## Privacy / Safety Guarantees
 
 - No GitHub API calls.

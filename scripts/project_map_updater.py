@@ -14,7 +14,8 @@ from runtime_common import load_json, project_root, utc_now, write_json
 def _changed_files(execution_result: dict[str, Any]) -> list[str]:
     changed: list[str] = []
     for leaf in execution_result.get('leaf_results') or []:
-        for path in leaf.get('business_changed_files') or leaf.get('diff') or []:
+        delivery = leaf.get('delivery') if isinstance(leaf.get('delivery'), dict) else {}
+        for path in leaf.get('business_changed_files') or delivery.get('business_changed_files') or leaf.get('changed_files') or leaf.get('diff') or []:
             normalized = str(path).replace('\\', '/')
             if normalized and normalized not in changed:
                 changed.append(normalized)

@@ -180,7 +180,11 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
     state['current_action_id'] = ''
     state['completed_steps'] = int(state.get('completed_steps') or 0) + (1 if classification.get('outcome') in {'delivered', 'dry_run_only'} else 0)
     state['failed_steps'] = int(state.get('failed_steps') or 0) + (1 if classification.get('status') == 'needs_attention' and classification.get('outcome') not in {'dry_run_only'} else 0)
-    if classification.get('pause'):
+    starter_docs_completed = bool(selected.get('action_type') == 'create_or_preview_docs' and classification.get('outcome') == 'delivered' and changed_files)
+    if starter_docs_completed:
+        state.update({'status': 'completed', 'attention_required': False, 'pause_reason': 'starter documents created', 'resume_available': False, 'next_action_id': ''})
+        attention = None
+    elif classification.get('pause'):
         attention = mark_attention(project, reason=str(classification.get('reason') or 'review required'), suggested_next_step='Review the result, then run agent continue when ready.', action=selected)
         state.update({'status': 'needs_attention', 'attention_required': True, 'pause_reason': classification.get('reason', ''), 'resume_available': True})
     else:
