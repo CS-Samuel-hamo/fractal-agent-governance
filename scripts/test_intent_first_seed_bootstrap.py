@@ -283,6 +283,42 @@ def test_seed_starter_docs_are_created_once() -> None:
     assert_true((project / 'README.md').read_text(encoding='utf-8') == readme_before, 'continue should not overwrite starter docs')
 
 
+def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
+    project = repo('supersede-preview-seed')
+    seed(project, text='Build a paper research workflow with literature map, evidence plan, and safe project docs.')
+    (project / 'README.md').write_text('# Existing readme\n', encoding='utf-8')
+    (project / 'docs').mkdir()
+    (project / 'docs' / 'project_plan.md').write_text('# Existing plan\n', encoding='utf-8')
+    (project / 'docs' / 'research_workflow.md').write_text('# Existing workflow\n', encoding='utf-8')
+    first = subprocess.run(
+        [sys.executable, str(AGENT), 'read project_beginning_prompt.md', '--workspace', str(project)],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if first.returncode:
+        raise AssertionError(f'first agent command failed\nstdout={first.stdout}\nstderr={first.stderr}')
+    assert_true('Preview recommended' in first.stdout, 'all existing starter docs should preview')
+    second_goal = 'revise docs/research_workflow.md based on project_beginning_prompt.md'
+    second = subprocess.run(
+        [sys.executable, str(AGENT), second_goal, '--workspace', str(project)],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if second.returncode:
+        raise AssertionError(f'second agent command failed\nstdout={second.stdout}\nstderr={second.stderr}')
+    assert_true('Existing job found' not in second.stdout, 'preview starter job should not block a new goal')
+    current_job = json.loads((project / '.zoo-agent' / 'jobs' / 'current_job.json').read_text(encoding='utf-8'))
+    assert_true(current_job.get('goal') == second_goal, 'new goal did not supersede preview starter job')
+
+
 def main() -> int:
     test_empty_dir_no_seed()
     test_root_seed_prompt_only()
@@ -303,6 +339,7 @@ def main() -> int:
     test_feature_flag_disables_fallback()
     test_job_inbox_explains_seed_prompt()
     test_seed_starter_docs_are_created_once()
+    test_preview_seed_job_can_be_superseded_by_new_goal()
     print('intent-first seed bootstrap tests passed')
     return 0
 

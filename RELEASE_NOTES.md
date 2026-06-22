@@ -1,5 +1,19 @@
 # Release Notes
 
+## 1.0.5-alpha.4 Preview Job Supersede Patch
+
+This patch fixes the confusing state where a preview-only seed starter job could block a user's next natural-language goal with `Existing job found`.
+
+### Fixed
+
+- Preview-only seed starter jobs can now be superseded by a new goal.
+- Genuinely active jobs are still protected from accidental overwrite.
+- Users no longer need to run `agent stop` just to move past a no-op starter preview.
+
+### Validation
+
+- Added regression coverage for replacing an all-existing-docs seed preview with a new project goal.
+
 ## 1.0.5-alpha.3 Partial Starter Docs Patch
 
 This patch makes seed prompt execution match the expected user behavior: keep existing starter docs and create only the missing trusted docs.

@@ -81,6 +81,12 @@ agent pr
 - Missing trusted starter docs are still created.
 - Preview-only is used only when all starter docs already exist.
 
+## Post-alpha Patch: 1.0.5-alpha.4 Preview Job Supersede
+
+- Preview-only starter jobs no longer block the next natural-language goal.
+- Active jobs are still protected from accidental overwrite.
+- Users can move from seed bootstrap preview to a concrete revision goal without manually stopping first.
+
 ## Privacy / Safety Guarantees
 
 - No GitHub API calls.

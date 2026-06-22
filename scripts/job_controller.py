@@ -72,6 +72,24 @@ def _autopilot_line(action: dict[str, Any]) -> str:
     return '- Not eligible.'
 
 
+def _can_supersede_preview_job(project: Path, existing: dict[str, Any]) -> bool:
+    if existing.get('status') != 'needs_attention':
+        return False
+    action = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
+    if action.get('action_type') != 'create_or_preview_docs':
+        return False
+    if not (action.get('preview_only') or action.get('execution_mode') == 'preview'):
+        return False
+    reason = ' '.join(
+        [
+            str(existing.get('attention_reason') or ''),
+            str(action.get('preview_reason') or ''),
+            str(action.get('reason') or ''),
+        ]
+    ).lower()
+    return any(term in reason for term in ['preview', 'already exist', 'overwrite', 'apply requires user intent'])
+
+
 def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint: str = '') -> str:
     action = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
     display_status = _action_display_status(job, action)
@@ -146,6 +164,20 @@ def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max
     existing = load_current_job(project)
     decision = decide_policy(goal, existing_job=bool(existing))
     write_policy_report(project, decision)
+    if existing and existing.get('status') in JOB_ACTIVE_STATUSES and not _same_goal(str(existing.get('goal') or ''), goal):
+        if _can_supersede_preview_job(project, existing):
+            append_job_event(project, 'preview_job_superseded', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal})
+            stop_session(project)
+            sync_job_from_session(project, goal=str(existing.get('goal') or ''))
+        else:
+            message = (
+                'Existing job found.\n\n'
+                f'Current job:\n{existing.get("goal")}\n\n'
+                'Use:\nagent\nagent continue\nagent stop\n\n'
+                'The existing job was not overwritten.'
+            )
+            return {'status': 'blocked', 'job': existing, 'message': message}
+    existing = load_current_job(project)
     if existing and existing.get('status') in JOB_ACTIVE_STATUSES and not _same_goal(str(existing.get('goal') or ''), goal):
         message = (
             'Existing job found.\n\n'

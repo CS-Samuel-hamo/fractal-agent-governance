@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5-alpha.4-preview-job-supersede
+
+- Allowed a preview-only seed starter job to be superseded by a new natural-language goal.
+- Kept protection for genuinely active jobs, while avoiding the confusing `Existing job found` block after no-op starter previews.
+- Added regression coverage for replacing an all-existing-docs seed preview with a new project goal.
+
 ## 1.0.5-alpha.3-partial-starter-docs
 
 - Changed seed prompt starter docs behavior from all-or-preview to create-missing-only.
