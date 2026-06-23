@@ -1,5 +1,40 @@
 # Release Notes
 
+## v1.0.0-alpha.2 Interaction Closure Public Alpha Patch
+
+This patch release packages the post-alpha improvements from 1.0.6 through
+1.0.8 into a source release. It is the recommended public alpha build for users
+who want the simplified AI Project Operator interaction loop.
+
+### Included
+
+- Timeout-aware worker failover and bounded docs apply behavior from 1.0.6.
+- Unified prompt execution entry from 1.0.7.
+- Beginner-friendly interaction closure and new user guidance from 1.0.8.
+
+### User-facing change
+
+Most usage now centers on:
+
+```bash
+agent "<project goal>"
+agent
+agent do "<independent one-off task>"
+agent cockpit
+agent undo
+```
+
+Every normal result is expected to explain what happened, where the project is,
+what changed, how to check it, what to do next, and how to undo or change
+direction.
+
+### Safety
+
+- No automatic push, merge, deployment, or remote PR creation.
+- No `.env` content or API key reading.
+- GitHub release publishing remains a maintainer action, not an in-product
+  automatic workflow.
+
 ## 1.0.8 Interaction Closure & New User Guidance Patch
 
 This patch turns the CLI from "it can execute a task" into "a new user can see

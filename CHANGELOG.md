@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.0-alpha.2
+
+- Packaged 1.0.6, 1.0.7, and 1.0.8 post-alpha patches into a new public alpha source release.
+- Updated public version metadata from `v1.0.0-alpha.1` to `v1.0.0-alpha.2`.
+- Kept the main product path focused on `agent "<goal>"`, `agent`, `agent do "<task>"`, `agent cockpit`, and `agent undo`.
+- Preserved local-first safety guarantees: no automatic push, merge, deployment, remote PR creation, `.env` reading, or API key storage.
+
 ## 1.0.8-interaction-closure-new-user-guidance
 
 - Added beginner-friendly interaction summaries with `Result`, `Where you are`, `What changed`, `How to check`, `Next`, `If this is not what you wanted`, and `Details`.

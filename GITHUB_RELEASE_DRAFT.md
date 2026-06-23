@@ -1,12 +1,16 @@
-# AI Project Operator v1.0.0-alpha.1
+# AI Project Operator v1.0.0-alpha.2
 
-Tag: `v1.0.0-alpha.1`
+Tag: `v1.0.0-alpha.2`
 
 ## Summary
 
 Project Map-backed Autopilot for AI-heavy developers.
 
 Agent Runtime is a local-first AI Project Operator. Give it a project. It keeps moving it forward.
+
+This alpha patch packages the 1.0.6 through 1.0.8 post-alpha improvements into
+a source release so the GitHub tag, source archive, and release notes all point
+to the current interaction model.
 
 ## What This Is
 

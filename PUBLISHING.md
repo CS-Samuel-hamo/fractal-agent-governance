@@ -5,13 +5,13 @@ Agent Runtime does not assume a `main` branch exists.
 The public alpha branch is:
 
 ```text
-release/v1.0.0-alpha.1
+release/v1.0.0-alpha.2
 ```
 
 The public alpha tag is:
 
 ```text
-v1.0.0-alpha.1
+v1.0.0-alpha.2
 ```
 
 ## Detect The Current Branch
@@ -21,7 +21,7 @@ git branch --show-current
 git branch -vv
 git remote -v
 git ls-remote --heads origin
-git ls-remote --tags origin v1.0.0-alpha.1
+git ls-remote --tags origin v1.0.0-alpha.2
 ```
 
 ## Manual Alpha Publish Path
@@ -29,14 +29,14 @@ git ls-remote --tags origin v1.0.0-alpha.1
 These commands are maintainer actions. Agent Runtime does not run them automatically.
 
 ```bash
-git tag -a v1.0.0-alpha.1 -m "AI Project Operator v1.0.0-alpha.1"
-git push origin HEAD:refs/heads/release/v1.0.0-alpha.1
-git push origin v1.0.0-alpha.1
+git tag -a v1.0.0-alpha.2 -m "AI Project Operator v1.0.0-alpha.2"
+git push origin HEAD:refs/heads/release/v1.0.0-alpha.2
+git push origin v1.0.0-alpha.2
 ```
 
 If GitHub should show the alpha branch as the repo homepage, change it manually:
 
-GitHub Settings -> Branches -> Default branch -> `release/v1.0.0-alpha.1`
+GitHub Settings -> Branches -> Default branch -> `release/v1.0.0-alpha.2`
 
 ## Safety Rules
 

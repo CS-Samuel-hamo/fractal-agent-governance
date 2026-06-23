@@ -4,11 +4,11 @@ Generated: 2026-06-21T11:05:20Z
 
 ## Published Alpha
 
-- Version: `v1.0.0-alpha.1`
-- Release branch: `release/v1.0.0-alpha.1`
-- Tag: `v1.0.0-alpha.1`
-- Release branch URL: https://github.com/CS-Samuel-hamo/fractal-agent-governance/tree/release/v1.0.0-alpha.1
-- Tag URL: https://github.com/CS-Samuel-hamo/fractal-agent-governance/releases/tag/v1.0.0-alpha.1
+- Version: `v1.0.0-alpha.2`
+- Release branch: `release/v1.0.0-alpha.2`
+- Tag: `v1.0.0-alpha.2`
+- Release branch URL: https://github.com/CS-Samuel-hamo/fractal-agent-governance/tree/release/v1.0.0-alpha.2
+- Tag URL: https://github.com/CS-Samuel-hamo/fractal-agent-governance/releases/tag/v1.0.0-alpha.2
 
 ## Verification
 
@@ -33,7 +33,7 @@ Generated: 2026-06-21T11:05:20Z
 - There is no `main` branch assumption for publishing.
 - Local `master` and remote `origin/master` are not treated as safely pushable.
 - Current default branch: `release/v0.9.1-alpha`
-- Recommended default branch: `release/v1.0.0-alpha.1`
+- Recommended default branch: `release/v1.0.0-alpha.2`
 - Default branch changes must be done manually in GitHub Settings -> Branches.
 
 ## What Was Not Done

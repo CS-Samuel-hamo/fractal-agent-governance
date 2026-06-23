@@ -6,7 +6,7 @@ Agent Runtime is a local-first AI Project Operator. It builds a project map, sta
 
 It is not a Codex wrapper, a Claude Code replacement, a generic AI coding CLI, or a GitHub bot. Codex, Claude Code, local scanner, mock, and dry-run modes are workers. The product is the project operator layer that keeps the project moving.
 
-Version: `v1.0.0-alpha.1`
+Version: `v1.0.0-alpha.2`
 
 Current patch level: `1.0.8-interaction-closure-new-user-guidance`
 
@@ -191,12 +191,12 @@ See [PRIVACY.md](PRIVACY.md) and [SAFETY_MODEL.md](SAFETY_MODEL.md).
 
 ## Publishing Status
 
-The public alpha is published on branch `release/v1.0.0-alpha.1` with tag `v1.0.0-alpha.1`.
+The current public alpha patch release is published on branch `release/v1.0.0-alpha.2` with tag `v1.0.0-alpha.2`.
 
 This repository does not assume a `main` branch. See [PUBLISHING.md](PUBLISHING.md), [BRANCHING.md](BRANCHING.md), and [POST_LAUNCH_STATUS.md](POST_LAUNCH_STATUS.md) before changing release branches or the GitHub default branch.
 
 ## Alpha Status
 
-This is `v1.0.0-alpha.1`, a public alpha. It is useful for local project operation and release preparation, but it does not create remote pull requests, push branches, deploy systems, or replace human review.
+This is `v1.0.0-alpha.2`, a public alpha patch release. It is useful for local project operation and release preparation, but it does not create remote pull requests, push branches, deploy systems, or replace human review.
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) and [ROADMAP.md](ROADMAP.md).

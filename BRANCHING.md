@@ -5,8 +5,8 @@ This repository has historical branch caveats from the public alpha publishing p
 ## Current Facts
 
 - Local working branch: `master`
-- Release branch: `release/v1.0.0-alpha.1`
-- Release tag: `v1.0.0-alpha.1`
+- Release branch: `release/v1.0.0-alpha.2`
+- Release tag: `v1.0.0-alpha.2`
 - Previous remote default branch observed during publishing: `release/v0.9.1-alpha`
 - `main` is not assumed to exist.
 
@@ -17,7 +17,7 @@ Local `master` and remote `origin/master` were not treated as a safe fast-forwar
 Use the release branch instead:
 
 ```bash
-git push origin HEAD:refs/heads/release/v1.0.0-alpha.1
+git push origin HEAD:refs/heads/release/v1.0.0-alpha.2
 ```
 
 Do not force push.
@@ -26,6 +26,6 @@ Do not force push.
 
 If maintainers want the GitHub repository homepage to show the 1.0 alpha content, change the default branch manually:
 
-GitHub Settings -> Branches -> Default branch -> `release/v1.0.0-alpha.1`
+GitHub Settings -> Branches -> Default branch -> `release/v1.0.0-alpha.2`
 
 Agent Runtime does not change the GitHub default branch automatically.
