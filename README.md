@@ -8,13 +8,14 @@ It is not a Codex wrapper, a Claude Code replacement, a generic AI coding CLI, o
 
 Version: `v1.0.0-alpha.1`
 
-Current patch level: `1.0.5-intent-first-seed-bootstrap`
+Current patch level: `1.0.8-interaction-closure-new-user-guidance`
 
 ## Quick Demo
 
 ```bash
 agent "prepare this project for public release"
 agent
+agent do "show me an independent project overview"
 agent release
 agent pr
 ```
@@ -33,7 +34,45 @@ agent "<goal>"
 agent
 ```
 
-You do not need to remember every command. Other commands are situational.
+Use `agent do "<task>"` when you want an independent one-off task that should not replace the current project goal. You do not need to remember every command. Other commands are situational.
+
+## Interaction Model
+
+The product is not a collection of backend commands. It is a project operator loop:
+
+```text
+give a goal -> execute a safe batch -> show project overview -> choose next move
+```
+
+Every normal interaction should answer:
+
+- what project this is
+- where the project is in the plan
+- what changed in the latest batch
+- how to verify that the change landed
+- whether the work is blocked
+- why the operator stopped
+- what choices the user has next
+
+The first screen is intentionally beginner-friendly:
+
+```text
+Result -> Where you are -> What changed -> How to check -> Next -> If this is not what you wanted -> Details
+```
+
+Use the first four sections to decide whether the work landed. Use `Details` when you want the Project Map, Landing proof, Project Rules, and Logic Check.
+
+The core user path is:
+
+```bash
+agent "<project goal or next instruction>"
+agent do "<independent one-off task>"
+agent
+agent cockpit
+agent undo
+```
+
+Use `agent continue` only when the overview says there is a planned batch ready to continue. Otherwise, give the operator the next goal in natural language.
 
 For a brand-new project that starts from a prompt or brief file, put the file in
 the project root or `docs/`, then run:
@@ -54,7 +93,7 @@ citations/results.
 - Maintains a local Project Map with modules, capabilities, risks, and next actions.
 - Runs long-lived project sessions that can continue after interruption.
 - Uses worker roles for scanning, previewing, code work, tests, and dry runs.
-- Keeps normal output focused on project progress, not implementation details.
+- Keeps normal output focused on project overview, progress, review points, and choices.
 - Generates local release readiness, PR draft, release notes, changelog draft, and action plan.
 - Opens a static local Cockpit at `.zoo-agent/cockpit/index.html`.
 
@@ -83,6 +122,14 @@ agent "<goal>"
 agent
 ```
 
+Independent one-off task:
+
+```bash
+agent do "<task>"
+```
+
+Use `agent do` for temporary explanations, reviews, examples, or bounded single-file edits that should not replace the current project job.
+
 Steer the current job:
 
 ```bash
@@ -99,7 +146,7 @@ agent release
 agent pr
 ```
 
-One-off task mode is still available when you explicitly ask for it:
+Advanced one-off compatibility flags are still available when you explicitly ask for preview/apply behavior:
 
 ```bash
 agent "fix README typo" --preview

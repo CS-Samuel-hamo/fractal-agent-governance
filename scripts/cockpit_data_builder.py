@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from cockpit_schema import cockpit_dir, default_cockpit_data  # noqa: E402
+from project_logic_rules_check import build_project_logic_rules_check  # noqa: E402
 from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
 
 
@@ -353,6 +354,29 @@ def build_release_summary(project: Path) -> dict[str, Any]:
     }
 
 
+def build_logic_rules_summary(project: Path) -> dict[str, Any]:
+    payload = build_project_logic_rules_check(project)
+    rules = payload.get('rules') if isinstance(payload.get('rules'), dict) else {}
+    logic = payload.get('logic') if isinstance(payload.get('logic'), dict) else {}
+    coverage = rules.get('coverage') if isinstance(rules.get('coverage'), dict) else {}
+    return {
+        'overall_status': clean_text(payload.get('overall_status') or 'unknown'),
+        'rules_status': clean_text(rules.get('status') or 'unknown'),
+        'workflow_chain': clean_text(logic.get('workflow_chain') or 'unknown'),
+        'risk_coverage': clean_text(logic.get('risk_coverage') or 'unknown'),
+        'orphan_modules': clean_list(logic.get('orphan_modules') or [], limit=8),
+        'missing_links': clean_list(logic.get('missing_links') or [], limit=8),
+        'weak_links': clean_list(logic.get('weak_links') or [], limit=8),
+        'recommendations': clean_list(logic.get('recommendations') or [], limit=5),
+        'coverage': {
+            'no_fake_citations': bool(coverage.get('no_fake_citations')),
+            'no_fake_results': bool(coverage.get('no_fake_results')),
+            'evidence_separation': bool(coverage.get('evidence_separation')),
+            'restricted_access': bool(coverage.get('no_secret_access')),
+        },
+    }
+
+
 def build_cockpit_data(project: Path) -> dict[str, Any]:
     data = default_cockpit_data(project)
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
@@ -403,6 +427,7 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['worker_readiness'] = build_worker_readiness(project)
     data['learning'] = build_learning_summary(project)
     data['release'] = build_release_summary(project)
+    data['logic_rules'] = build_logic_rules_summary(project)
     return data
 
 

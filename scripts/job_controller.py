@@ -10,6 +10,7 @@ from background_job_policy import decide_policy, write_policy_report
 from job_inbox_renderer import render_job_inbox
 from job_state_store import (
     JOB_ACTIVE_STATUSES,
+    JOB_BLOCKING_STATUSES,
     append_job_event,
     load_current_job,
     save_current_job,
@@ -90,6 +91,42 @@ def _can_supersede_preview_job(project: Path, existing: dict[str, Any]) -> bool:
     return any(term in reason for term in ['preview', 'already exist', 'overwrite', 'apply requires user intent'])
 
 
+def _can_supersede_non_running_job(project: Path, existing: dict[str, Any]) -> bool:
+    status = str(existing.get('status') or '').lower()
+    if status in {'failed', 'completed', 'stopped'}:
+        return True
+    if _can_supersede_preview_job(project, existing):
+        return True
+    if status not in {'needs_attention', 'paused'}:
+        return False
+    action = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
+    surface = ' '.join(
+        [
+            str(existing.get('attention_reason') or ''),
+            str(action.get('reason') or ''),
+            str(action.get('blocked_reason') or ''),
+            str(action.get('execution_mode') or ''),
+        ]
+    ).lower()
+    return any(term in surface for term in ['preview', 'no_delivery', 'no delivery', 'timeout', 'failed', 'apply requires user intent', 'worker unavailable'])
+
+
+def _blocks_new_goal(existing: dict[str, Any], goal: str) -> bool:
+    if not existing:
+        return False
+    if _same_goal(str(existing.get('goal') or ''), goal):
+        return False
+    return str(existing.get('status') or '').lower() in JOB_BLOCKING_STATUSES
+
+
+def _should_replace_reviewable_job(existing: dict[str, Any], goal: str) -> bool:
+    if not existing:
+        return False
+    if _same_goal(str(existing.get('goal') or ''), goal):
+        return False
+    return not _blocks_new_goal(existing, goal)
+
+
 def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint: str = '') -> str:
     action = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
     display_status = _action_display_status(job, action)
@@ -164,9 +201,9 @@ def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max
     existing = load_current_job(project)
     decision = decide_policy(goal, existing_job=bool(existing))
     write_policy_report(project, decision)
-    if existing and existing.get('status') in JOB_ACTIVE_STATUSES and not _same_goal(str(existing.get('goal') or ''), goal):
-        if _can_supersede_preview_job(project, existing):
-            append_job_event(project, 'preview_job_superseded', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal})
+    if existing and _blocks_new_goal(existing, goal):
+        if _can_supersede_non_running_job(project, existing):
+            append_job_event(project, 'job_superseded', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal, 'old_status': existing.get('status', '')})
             stop_session(project)
             sync_job_from_session(project, goal=str(existing.get('goal') or ''))
         else:
@@ -178,7 +215,28 @@ def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max
             )
             return {'status': 'blocked', 'job': existing, 'message': message}
     existing = load_current_job(project)
-    if existing and existing.get('status') in JOB_ACTIVE_STATUSES and not _same_goal(str(existing.get('goal') or ''), goal):
+    if _should_replace_reviewable_job(existing, goal):
+        append_job_event(project, 'job_replaced_after_reviewable_state', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal, 'old_status': existing.get('status', '')})
+        stop_session(project)
+        existing.update({'status': 'stopped', 'attention_required': False, 'attention_reason': ''})
+        save_current_job(project, existing)
+        existing = {}
+    existing = load_current_job(project)
+    if existing and _blocks_new_goal(existing, goal):
+        if _can_supersede_non_running_job(project, existing):
+            append_job_event(project, 'job_superseded_after_refresh', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal, 'old_status': existing.get('status', '')})
+            stop_session(project)
+            sync_job_from_session(project, goal=str(existing.get('goal') or ''))
+            existing = load_current_job(project)
+        if existing and _blocks_new_goal(existing, goal):
+            message = (
+                'Existing job found.\n\n'
+                f'Current job:\n{existing.get("goal")}\n\n'
+                'Use:\nagent\nagent continue\nagent stop\n\n'
+                'The existing job is active and was not overwritten.'
+            )
+            return {'status': 'blocked', 'job': existing, 'message': message}
+    if existing and _blocks_new_goal(existing, goal):
         message = (
             'Existing job found.\n\n'
             f'Current job:\n{existing.get("goal")}\n\n'

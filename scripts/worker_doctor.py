@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,51 @@ from runtime_common import project_root, utc_now, write_json  # noqa: E402
 from worker_environment_report import build_environment_report, write_environment_report  # noqa: E402
 from worker_installation_diagnostics import write_installation_diagnostics  # noqa: E402
 from worker_registry import write_worker_registry  # noqa: E402
+
+
+def has_non_ascii(text: str) -> bool:
+    return any(ord(ch) > 127 for ch in text)
+
+
+def codex_login_status() -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            ['codex.cmd' if sys.platform == 'win32' else 'codex', 'login', 'status'],
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=20,
+        )
+        text = (proc.stdout or proc.stderr).strip()
+        return {'checked': True, 'returncode': proc.returncode, 'status': text[:200], 'logged_in': proc.returncode == 0 and 'logged in' in text.lower()}
+    except Exception as exc:
+        return {'checked': False, 'logged_in': False, 'status': type(exc).__name__}
+
+
+def codex_sandbox_smoke(project: Path, *, force: bool = False) -> dict[str, Any]:
+    if not force:
+        return {'checked': False, 'status': 'not run; no path risk detected'}
+    if not any(item.get('provider') == 'codex' and item.get('available') for item in (write_worker_registry(project).get('workers') or [])):
+        return {'checked': False, 'status': 'codex unavailable'}
+    try:
+        proc = subprocess.run(
+            ['codex.cmd' if sys.platform == 'win32' else 'codex', 'exec', '--cd', str(project), '--sandbox', 'read-only', '--skip-git-repo-check', 'Respond with OK only.'],
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+        )
+        stderr = proc.stderr[-1000:]
+        failed = any(marker in stderr.lower() for marker in ['windows sandbox', 'spawn setup refresh', 'sandbox'])
+        return {'checked': True, 'returncode': proc.returncode, 'sandbox_failed': failed, 'status': 'failed' if failed else ('ok' if proc.returncode == 0 else 'nonzero')}
+    except subprocess.TimeoutExpired:
+        return {'checked': True, 'returncode': 124, 'sandbox_failed': True, 'status': 'timeout'}
+    except Exception as exc:
+        return {'checked': True, 'returncode': 1, 'sandbox_failed': True, 'status': type(exc).__name__}
 
 
 def product_role(worker: dict[str, Any]) -> str:
@@ -44,6 +90,9 @@ def doctor_payload(project: Path) -> dict[str, Any]:
     registry = write_worker_registry(project)
     workers = [item for item in registry.get('workers') or [] if isinstance(item, dict)]
     actual_available = any(item.get('available') and item.get('supports_actual_execution') and item.get('provider') not in {'mock'} for item in workers)
+    login = codex_login_status()
+    non_ascii = has_non_ascii(str(project))
+    smoke = codex_sandbox_smoke(project, force=non_ascii)
     payload = {
         'schema_version': '1.0',
         'generated_by': 'worker_doctor.py',
@@ -66,6 +115,12 @@ def doctor_payload(project: Path) -> dict[str, Any]:
             'actual_code_execution': 'available' if actual_available else 'unavailable',
             'autopilot': 'standard with safe fallback' if workers else 'not ready',
         },
+        'codex_diagnostics': {
+            'login_status': login,
+            'sandbox_smoke': smoke,
+            'non_ascii_project_path': non_ascii,
+            'recommended_fallback': 'bounded docs fallback' if smoke.get('sandbox_failed') or non_ascii else 'codex worker',
+        },
         'artifacts': {
             'worker_registry': '.zoo-agent/workers/worker_registry.json',
             'installation_diagnostics': '.zoo-agent/workers/installation_diagnostics.json',
@@ -84,6 +139,9 @@ def render_doctor(payload: dict[str, Any]) -> str:
         reason = f", {worker.get('why_unavailable')}" if not worker.get('available') else ''
         lines.append(f"* {worker.get('role')}: {status}, {worker.get('health')}. {worker.get('safe_capability')}{reason}")
     system = payload.get('system_status') or {}
+    codex = payload.get('codex_diagnostics') or {}
+    login = codex.get('login_status') or {}
+    smoke = codex.get('sandbox_smoke') or {}
     lines.extend(
         [
             '',
@@ -93,6 +151,13 @@ def render_doctor(payload: dict[str, Any]) -> str:
             f"* Preview: {system.get('preview', 'unknown')}",
             f"* Actual code execution: {system.get('actual_code_execution', 'unknown')}",
             f"* Autopilot: {system.get('autopilot', 'unknown')}",
+            '',
+            'Codex diagnostics:',
+            '',
+            f"* Login: {'logged in' if login.get('logged_in') else login.get('status', 'unknown')}",
+            f"* Sandbox smoke: {smoke.get('status', 'not checked')}",
+            f"* Non-ASCII project path: {'yes' if codex.get('non_ascii_project_path') else 'no'}",
+            f"* Recommended fallback: {codex.get('recommended_fallback', 'unknown')}",
             '',
             'Reports:',
             '',

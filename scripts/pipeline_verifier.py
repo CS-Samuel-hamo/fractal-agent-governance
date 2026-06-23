@@ -51,9 +51,18 @@ def verify_execution(args: argparse.Namespace) -> dict[str, Any]:
     verdict, reason, converged = verdict_from_execution(execution)
     leaf_results = execution.get('leaf_results') or []
     delivery_counts: dict[str, int] = {}
+    changed_files: list[str] = []
+    fallback_used: list[str] = []
     for item in leaf_results:
         key = str(item.get('delivery_outcome') or 'unknown')
         delivery_counts[key] = delivery_counts.get(key, 0) + 1
+        for path in item.get('business_changed_files') or []:
+            value = str(path).replace('\\', '/')
+            if value and value not in changed_files:
+                changed_files.append(value)
+        fallback = str(item.get('fallback_used') or '')
+        if fallback and fallback not in fallback_used:
+            fallback_used.append(fallback)
     return {
         'schema_version': '1.0',
         'generated_by': 'pipeline_verifier.py',
@@ -74,6 +83,8 @@ def verify_execution(args: argparse.Namespace) -> dict[str, Any]:
         'final_verdict': verdict,
         'goal_converged': converged,
         'reason': reason,
+        'changed_files': changed_files,
+        'fallback_used': fallback_used,
         'delivery_counts': delivery_counts,
         'checks': {
             'execution_result_readable': True,

@@ -37,9 +37,12 @@ def test_bare_agent_guidance_and_goal_starts_job() -> None:
     repo = init_repo()
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo)
     empty = run([sys.executable, str(AGENT)], repo)
-    assert 'No active project job yet' in empty.stdout
+    assert 'Welcome.' in empty.stdout
+    assert 'Start in one of three ways:' in empty.stdout
     start = run([sys.executable, str(AGENT), 'prepare this project for public release', '--workspace', str(repo)], repo)
-    assert 'Started project job' in start.stdout
+    assert 'Result:' in start.stdout
+    assert 'Where you are:' in start.stdout
+    assert 'Next:' in start.stdout
     job_path = repo / '.zoo-agent' / 'jobs' / 'current_job.json'
     session_path = repo / '.zoo-agent' / 'session' / 'session_state.json'
     assert job_path.exists()
@@ -49,8 +52,8 @@ def test_bare_agent_guidance_and_goal_starts_job() -> None:
     assert job['goal'] == 'prepare this project for public release'
     assert job['linked_session_id'] == session['session_id']
     inbox = run([sys.executable, str(AGENT)], repo)
-    assert 'Current job:' in inbox.stdout
-    assert 'Suggested commands:' in inbox.stdout
+    assert 'Result:' in inbox.stdout
+    assert 'Job details:' in inbox.stdout
 
 
 def test_aliases_and_controls_update_job_state() -> None:
@@ -59,7 +62,7 @@ def test_aliases_and_controls_update_job_state() -> None:
     run([sys.executable, str(AGENT), 'start', 'improve project readiness', '--workspace', str(repo)], repo)
     assert (repo / '.zoo-agent' / 'jobs' / 'current_job.json').exists()
     status = run([sys.executable, str(AGENT), 'status', '--workspace', str(repo)], repo)
-    assert 'AI Project Operator' in status.stdout
+    assert 'Result:' in status.stdout
     assert 'Tip: `agent` also shows this inbox.' in status.stdout
     run([sys.executable, str(AGENT), 'continue', '--workspace', str(repo)], repo)
     continued = read_json(repo / '.zoo-agent' / 'jobs' / 'current_job.json')
@@ -69,6 +72,15 @@ def test_aliases_and_controls_update_job_state() -> None:
     run([sys.executable, str(AGENT), 'stop', '--workspace', str(repo)], repo)
     stopped = read_json(repo / '.zoo-agent' / 'jobs' / 'current_job.json')
     assert stopped['status'] == 'stopped'
+
+
+def test_first_run_guidance_recommends_seed_prompt() -> None:
+    repo = init_repo()
+    (repo / 'project_beginning_prompt.md').write_text('Build a safe project workflow.', encoding='utf-8')
+    empty = run([sys.executable, str(AGENT)], repo)
+    assert 'Welcome.' in empty.stdout
+    assert 'agent "read project_beginning_prompt.md"' in empty.stdout
+    assert 'Detected project prompt:' in empty.stdout
 
 
 def test_single_task_explicit_modes_still_work() -> None:
@@ -83,6 +95,7 @@ def test_single_task_explicit_modes_still_work() -> None:
 def main() -> int:
     test_bare_agent_guidance_and_goal_starts_job()
     test_aliases_and_controls_update_job_state()
+    test_first_run_guidance_recommends_seed_prompt()
     test_single_task_explicit_modes_still_work()
     print('background job mode tests passed')
     return 0

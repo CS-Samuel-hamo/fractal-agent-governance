@@ -59,6 +59,12 @@ def worker_score(worker: dict[str, Any], task_profile: dict[str, Any], *, mode: 
         score += 4.0
     if task_type == 'docs_update' and 'docs_edit' in (worker.get('capabilities') or []):
         score += 2.0
+        if provider == 'codex':
+            score += 12.0
+        elif provider == 'openai_api':
+            score += 4.0
+        elif provider == 'local_docs':
+            score += 2.0
     if task_type == 'test_update' and 'tests_edit' in (worker.get('capabilities') or []):
         score += 2.0
     if mode == 'preview' and provider == 'dry_run':

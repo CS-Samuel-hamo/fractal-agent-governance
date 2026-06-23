@@ -28,6 +28,11 @@ def _is_git_repo(project: Path) -> bool:
 
 def inspect_first_run(project: Path) -> dict[str, Any]:
     zoo = project / '.zoo-agent'
+    seed_prompt = ''
+    for candidate in ['project_beginning_prompt.md', 'project_prompt.md', 'goal.md', 'brief.md', 'spec.md', 'requirements.md', 'prompt.md']:
+        if (project / candidate).exists():
+            seed_prompt = candidate
+            break
     state = {
         'generated_at': utc_now(),
         'has_zoo_agent': zoo.exists(),
@@ -37,8 +42,10 @@ def inspect_first_run(project: Path) -> dict[str, Any]:
         'is_git_repo': _is_git_repo(project),
         'has_cockpit': (zoo / 'cockpit' / 'index.html').exists(),
         'has_release_pack': (zoo / 'release' / 'release_workflow_report.md').exists(),
-        'recommended_first_command': 'agent "map this project and suggest the next action"',
-        'optional_commands': ['agent', 'agent cockpit', 'agent continue'],
+        'has_seed_prompt': bool(seed_prompt),
+        'seed_prompt': seed_prompt,
+        'recommended_first_command': f'agent "read {seed_prompt}"' if seed_prompt else 'agent "prepare this project for public release"',
+        'optional_commands': ['agent do "explain this project"', 'agent cockpit', 'agent undo'],
         'safety_note': 'Runs locally by default. It does not push, merge, deploy, or create remote PRs.',
     }
     write_json(project / COMMAND_UX_DIR / 'first_run_guidance_report.json', state)
@@ -48,25 +55,28 @@ def inspect_first_run(project: Path) -> dict[str, Any]:
 def render_guidance(project: Path) -> str:
     state = inspect_first_run(project)
     lines = [
-        'AI Project Operator',
+        'Welcome.',
         '',
         'No active project job yet.',
         '',
-        'Recommended:',
-        f'{state["recommended_first_command"]}',
+        'Start in one of three ways:',
         '',
-        'Then check progress with:',
-        'agent',
+        '1. Start a project:',
+        f'   {state["recommended_first_command"]}',
         '',
-        'Useful next commands:',
-        'agent cockpit',
-        'agent continue',
+        '2. Run a one-off task:',
+        '   agent do "explain this project"',
+        '',
+        '3. Open a visual overview:',
+        '   agent cockpit',
         '',
         'Local-first safety:',
         '- no automatic push',
         '- no automatic merge',
         '- no remote PR creation',
     ]
+    if state.get('has_seed_prompt'):
+        lines.extend(['', 'Detected project prompt:', f'- {state.get("seed_prompt")}'])
     if not state['is_git_repo']:
         lines.extend(['', 'Note:', 'This directory is not a Git repo yet. The operator can still inspect local files, but Git/release context will be limited.'])
     return '\n'.join(lines)

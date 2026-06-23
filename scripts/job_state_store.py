@@ -12,6 +12,7 @@ from runtime_common import load_json, project_root, utc_now, write_json
 
 JOB_SCHEMA_VERSION = '1.0'
 JOB_ACTIVE_STATUSES = {'active', 'paused', 'needs_attention'}
+JOB_BLOCKING_STATUSES = {'active', 'running', 'executing'}
 
 
 def jobs_dir(project: Path) -> Path:
@@ -47,6 +48,7 @@ def default_job(project: Path, *, goal: str = '', linked_session_id: str = '') -
         'updated_at': now,
         'last_checked_at': now,
         'last_action': '',
+        'last_changed_files': [],
         'next_action': '',
         'attention_required': False,
         'attention_reason': '',
@@ -85,6 +87,7 @@ def append_job_history(project: Path, job: dict[str, Any]) -> dict[str, Any]:
         'linked_session_id': job.get('linked_session_id', ''),
         'updated_at': job.get('updated_at') or utc_now(),
         'next_action': job.get('next_action', ''),
+        'last_changed_files': job.get('last_changed_files') or [],
         'attention_required': bool(job.get('attention_required')),
     }
     jobs = [item for item in jobs if item.get('job_id') != compact['job_id']]

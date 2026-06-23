@@ -211,6 +211,31 @@ def release_panel(release: dict[str, Any]) -> str:
 {list_items(learning_path, empty='No local learning path available yet.')}'''
 
 
+def logic_rules_panel(logic_rules: dict[str, Any]) -> str:
+    if not logic_rules:
+        return '<div class="empty">Project logic and rules check is not available yet.</div>'
+    coverage = logic_rules.get('coverage') if isinstance(logic_rules.get('coverage'), dict) else {}
+    coverage_rows = [
+        f'No fake citations: {str(bool(coverage.get("no_fake_citations"))).lower()}',
+        f'No fake results: {str(bool(coverage.get("no_fake_results"))).lower()}',
+        f'Evidence separation: {str(bool(coverage.get("evidence_separation"))).lower()}',
+        f'Restricted access policy: {str(bool(coverage.get("restricted_access"))).lower()}',
+    ]
+    links = (logic_rules.get('missing_links') or []) + (logic_rules.get('weak_links') or [])
+    return f'''<div class="stats">
+  <div class="stat"><span class="muted">Rules</span><b>{esc(logic_rules.get('rules_status') or 'unknown')}</b></div>
+  <div class="stat"><span class="muted">Workflow</span><b>{esc(logic_rules.get('workflow_chain') or 'unknown')}</b></div>
+  <div class="stat"><span class="muted">Risk coverage</span><b>{esc(logic_rules.get('risk_coverage') or 'unknown')}</b></div>
+  <div class="stat"><span class="muted">Overall</span><b>{esc(logic_rules.get('overall_status') or 'unknown')}</b></div>
+</div>
+<h3>Rule coverage</h3>
+{list_items(coverage_rows)}
+<h3>Missing or weak links</h3>
+{list_items(links, empty='No missing or weak module link recorded.')}
+<h3>Recommended fixes</h3>
+{list_items(logic_rules.get('recommendations') or [], empty='No logic fix recommended right now.')}'''
+
+
 def render_cockpit_html(data: dict[str, Any]) -> str:
     project = data.get('project') or {}
     session = data.get('session') or {}
@@ -223,6 +248,7 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     worker_readiness = data.get('worker_readiness') or {}
     learning = data.get('learning') or {}
     release = data.get('release') or {}
+    logic_rules = data.get('logic_rules') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
     return f'''<!doctype html>
@@ -354,6 +380,12 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
       <h2>Release / PR</h2>
       <p>Local release workflow pack for review-ready handoff.</p>
       {release_panel(release)}
+    </section>
+
+    <section class="card span-12">
+      <h2>Project Logic / Rules</h2>
+      <p>Checks whether project rules are available and whether mapped modules form a usable workflow.</p>
+      {logic_rules_panel(logic_rules)}
     </section>
 
     <section class="card span-8">

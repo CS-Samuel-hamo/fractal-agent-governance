@@ -22,6 +22,7 @@ required.extend([
  'scripts/cockpit_demo_fixture_builder.py','scripts/cockpit_quality_gate.py','scripts/cockpit_dogfood_runner.py','scripts/cockpit_ux_report_generator.py','scripts/test_project_cockpit_dogfood.py',
  'scripts/session_state_store.py','scripts/session_budget_manager.py','scripts/session_failure_policy.py','scripts/session_cockpit_sync.py','scripts/session_digest_generator.py','scripts/session_resume_engine.py','scripts/session_step_runner.py','scripts/session_runtime_engine.py','scripts/session_dogfood_runner.py','scripts/session_reliability_gate.py','scripts/session_trace_replayer.py','scripts/session_product_report_generator.py',
  'scripts/worker_interface.py','scripts/worker_registry.py','scripts/worker_capability_profile.py','scripts/worker_health_monitor.py','scripts/worker_router.py','scripts/worker_routing_policy.py','scripts/worker_fallback_engine.py','scripts/task_profile_classifier.py','scripts/worker_execution_adapter.py',
+ 'scripts/bounded_docs_writer.py','scripts/remote_ai_worker_adapter.py','scripts/test_timeout_worker_failover.py',
  'scripts/worker_router_dogfood_runner.py','scripts/worker_router_value_gate.py','scripts/worker_router_trace_replayer.py','scripts/worker_router_product_report_generator.py',
  'scripts/worker_adapter_contract.py','scripts/codex_worker_adapter_hardened.py','scripts/claude_code_worker_detector.py','scripts/local_scanner_worker.py','scripts/worker_installation_diagnostics.py','scripts/worker_environment_report.py','scripts/worker_doctor.py','scripts/worker_adapter_test_harness.py',
  'scripts/real_worker_dogfood_runner.py','scripts/real_worker_value_gate.py','scripts/real_worker_trace_replayer.py','scripts/project_operator_value_report_generator.py',
@@ -52,7 +53,7 @@ required.extend([
  'NEW_PROJECT_GUIDE.md',
  'scripts/job_state_store.py','scripts/job_controller.py','scripts/job_inbox_renderer.py','scripts/background_job_policy.py','scripts/command_ux_linter.py','scripts/first_run_guidance_engine.py',
  'scripts/test_background_job_mode.py','scripts/test_command_simplification_ux.py','scripts/test_first_run_job_guidance.py',
- 'scripts/seed_prompt_discovery.py','scripts/test_intent_first_seed_bootstrap.py',
+ 'scripts/seed_prompt_discovery.py','scripts/prompt_intent_router.py','scripts/seed_action_queue.py','scripts/project_progress_overview.py','scripts/project_logic_rules_check.py','scripts/preview_artifact_writer.py','scripts/test_intent_first_seed_bootstrap.py','scripts/test_unified_prompt_entry.py','scripts/test_project_logic_rules_check.py',
 ])
 missing = [p for p in required if not (root/p).exists()]
 if missing:

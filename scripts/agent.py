@@ -22,6 +22,7 @@ KNOWN_COMMANDS = {
     'config',
     'cockpit',
     'debug',
+    'do',
     'continue',
     'pipeline',
     'pr',
@@ -54,16 +55,16 @@ KNOWN_COMMANDS = {
     'launch',
 }
 COMMAND_TYPO_SUGGESTIONS = {
-    'rum': '"your task" --preview',
-    'runn': '"your task" --preview',
-    'rn': '"your task" --preview',
+    'rum': '"your task"',
+    'runn': '"your task"',
+    'rn': '"your task"',
     'stats': 'status',
     'statuz': 'status',
-    'pipline': '"your task" --preview',
-    'pipeine': '"your task" --preview',
+    'pipline': '"your task"',
+    'pipeine': '"your task"',
     'bakend': 'config',
     'backnd': 'config',
-    'goals': '"your task" --preview',
+    'goals': '"your task"',
 }
 
 from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
@@ -71,6 +72,19 @@ from check_project_readiness import analyze_project_readiness  # noqa: E402
 from update_runtime_metrics import update_metrics  # noqa: E402
 from backend_registry import read_backend_selection  # noqa: E402
 from job_controller import continue_job, show_job_inbox, start_or_update_job, stop_job, undo_job  # noqa: E402
+from bounded_docs_writer import apply_docs_patch  # noqa: E402
+from job_state_store import append_job_event, default_job, load_current_job, save_current_job, write_job_digest  # noqa: E402
+from prompt_intent_router import classify_prompt  # noqa: E402
+from preview_artifact_writer import write_preview_artifact  # noqa: E402
+from project_map_builder import build_project_map, render_markdown  # noqa: E402
+from project_map_schema import map_dir  # noqa: E402
+from project_progress_overview import render_interaction_summary  # noqa: E402
+from seed_action_queue import init_queue as init_seed_queue  # noqa: E402
+from seed_action_queue import load_queue as load_seed_queue  # noqa: E402
+from seed_action_queue import mark_action as mark_seed_action  # noqa: E402
+from seed_action_queue import next_pending_action as next_seed_action  # noqa: E402
+from seed_action_queue import run_batch as run_seed_batch  # noqa: E402
+from seed_action_queue import run_next as run_next_seed_action  # noqa: E402
 
 
 def run_command(command: list[str], cwd: Path) -> int:
@@ -817,6 +831,50 @@ def stop_command(args) -> int:
 
 def continue_command(args) -> int:
     project = project_root(args.workspace)
+    _migrate_legacy_seed_preview_queue(project)
+    queue = load_seed_queue(project)
+    if queue.get('actions') and next_seed_action(project):
+        job = load_current_job(project)
+        goal = str((job or {}).get('goal') or queue.get('goal') or '')
+        result = run_seed_batch(project, goal=goal, max_steps=3)
+        _record_seed_queue_job(project, goal=goal, queue_result=result)
+        changed = [str(item) for item in result.get('changed_files') or []]
+        remaining = int(result.get('remaining') or 0)
+        pending = next_seed_action(project)
+        status = 'Needs attention' if result.get('status') == 'needs_attention' else 'Done'
+        next_text = 'agent continue' if pending else 'agent "<next project goal>"'
+        actions = [str(item.get('title') or item.get('action_id') or '') for item in result.get('actions') or [] if isinstance(item, dict)]
+        why = 'Continued the seed prompt project through a safe reviewable batch.'
+        if actions:
+            why = f'Completed batch: {", ".join(actions)}.'
+        print(
+            _public_report_with_overview(
+                project,
+                status=status,
+                goal=goal,
+                changed_files=changed,
+                why=why,
+                next_action=next_text,
+                attention='; '.join(str(item.get('reason') or item) for item in result.get('blocked') or [] if isinstance(item, dict)) if result.get('status') == 'needs_attention' else '',
+                stop_reason=str(result.get('stop_reason') or 'reviewable_batch_complete'),
+            )
+        )
+        return 0
+    if queue.get('actions') and not next_seed_action(project):
+        job = load_current_job(project)
+        goal = str((job or {}).get('goal') or queue.get('goal') or '')
+        print(
+            _public_report_with_overview(
+                project,
+                status='Done',
+                goal=goal,
+                changed_files=[],
+                why='All safe starter actions from the seed prompt are complete.',
+                next_action='Give the next prompt when you want to keep developing the project.',
+                stop_reason='queue_completed',
+            )
+        )
+        return 0
     steps = getattr(args, 'steps', 0) or args.max_steps or 1
     payload = continue_job(project, mode=args.mode, steps=steps, backend=args.backend)
     print(str(payload.get('message') or '').strip())
@@ -1918,26 +1976,26 @@ def normalize_argv(argv: list[str]) -> list[str]:
 
 
 def product_help() -> str:
-    return f"""usage: agent "<goal>"
+    return f"""usage: agent "<prompt>"
+       agent do "<one-off task>"
        agent
        agent continue
-       agent stop
        agent undo
        agent cockpit
-       agent release
-       agent pr
-       agent "<task>" --preview|--apply
 
 AI Project Operator.
-Give it a project. It keeps moving it forward.
+Give it a project prompt. It understands, executes a safe step, and reports back.
 
 Most of the time:
   agent "prepare this project for public release"
   agent
 
+For independent tasks that should not replace the current project goal:
+  agent do "explain how this workflow is wired"
+  agent do "extend docs/research_workflow.md with evidence and validation steps"
+
 When you want to steer:
   agent continue
-  agent stop
   agent undo
   agent cockpit
 
@@ -1945,21 +2003,20 @@ Compatibility aliases:
   agent start "<project goal>"
   agent status
 
-When preparing release:
+Advanced:
+  agent "<task>" --preview
+  agent "<task>" --apply
   agent release
   agent pr
-
-One-off task:
-  agent "fix README typo" --preview
-  agent "fix README typo" --apply
+  ask -> preview -> apply
 
 examples:
-  agent "improve project readiness"
+  agent "read and execute project_beginning_prompt.md"
+  agent do "show me a temporary overview without changing the project"
+  agent "fix README typo"
   agent
   agent continue
   agent cockpit
-  agent release
-  agent pr
 
 version: {VERSION}
 """
@@ -1969,7 +2026,9 @@ def product_subcommand_help(argv: list[str]) -> str:
     if len(argv) == 2 and argv[1] in {'-h', '--help'}:
         command = argv[0]
         if command == 'ask':
-            return 'usage: agent "<goal>"\n       agent "<task>" [-f file] --preview|--apply\n\nWithout --preview or --apply, this starts or updates a project job.\n'
+            return 'usage: agent "<prompt>"\n       agent "<task>" [-f file] --preview|--apply\n\nWithout --preview or --apply, Agent executes one safe step when possible.\n'
+        if command == 'do':
+            return 'usage: agent do "<one-off task>" [--workspace .]\n\nRun an independent task without replacing the current project job.\n'
         if command == 'undo':
             return 'usage: agent undo [--preview|--apply] [--workspace .]\n\nPreview an undo plan by default.\n'
         if command == 'start':
@@ -2041,6 +2100,390 @@ def pipeline_failure_summary(payload: dict, proc: dict) -> str:
     return 'could not complete; run agent workers --doctor or agent debug status'
 
 
+def _record_unified_job(project: Path, *, goal: str, status: str, changed_files: list[str], next_action: str = '', attention_reason: str = '') -> None:
+    job_status = 'completed' if status == 'Done' else ('needs_attention' if status in {'Needs attention', 'Not applied'} else 'active')
+    job = default_job(project, goal=goal)
+    job.update(
+        {
+            'status': job_status,
+            'last_action': 'unified_prompt_entry',
+            'last_changed_files': changed_files,
+            'next_action': next_action,
+            'attention_required': job_status == 'needs_attention',
+            'attention_reason': attention_reason,
+        }
+    )
+    save_current_job(project, job)
+    append_job_event(project, 'unified_prompt_entry', {'job_id': job.get('job_id', ''), 'status': job_status, 'changed_files': changed_files})
+    write_job_digest(project, job)
+
+
+def _record_seed_queue_job(project: Path, *, goal: str, queue_result: dict) -> dict:
+    remaining = int(queue_result.get('remaining') or 0)
+    pending = next_seed_action(project)
+    job = load_current_job(project) or default_job(project, goal=goal)
+    queue_status = str(queue_result.get('status') or '')
+    job_status = 'needs_attention' if queue_status == 'needs_attention' else ('paused' if remaining else 'completed')
+    job.update(
+        {
+            'goal': goal,
+            'status': job_status,
+            'last_action': str((queue_result.get('action') or {}).get('action_id') or 'seed_action_queue'),
+            'last_changed_files': queue_result.get('changed_files') or [],
+            'next_action': str(pending.get('title') or ('Give the next prompt' if not remaining else 'Continue seed prompt action queue')),
+            'attention_required': job_status == 'needs_attention',
+            'attention_reason': 'seed prompt batch needs attention' if job_status == 'needs_attention' else '',
+            'cockpit_path': '.zoo-agent/cockpit/index.html',
+            'digest_path': '.zoo-agent/jobs/job_digest.md',
+        }
+    )
+    save_current_job(project, job)
+    append_job_event(
+        project,
+        'seed_queue_step_finished',
+        {
+            'job_id': job.get('job_id', ''),
+            'action_id': (queue_result.get('action') or {}).get('action_id', ''),
+            'remaining': remaining,
+            'changed_files': queue_result.get('changed_files') or [],
+        },
+    )
+    write_job_digest(project, job)
+    return job
+
+
+def _write_project_map_for_prompt(project: Path, goal: str) -> None:
+    project_map, state, evidence = build_project_map(project, main_goal=goal)
+    out_dir = map_dir(project)
+    write_json(out_dir / 'project_map.json', project_map)
+    write_json(out_dir / 'project_state.json', state)
+    write_json(out_dir / 'map_evidence.json', evidence)
+    md = out_dir / 'project_map.md'
+    md.parent.mkdir(parents=True, exist_ok=True)
+    md.write_text(render_markdown(project_map), encoding='utf-8')
+
+
+def _same_prompt(left: str, right: str) -> bool:
+    return ' '.join((left or '').lower().split()) == ' '.join((right or '').lower().split())
+
+
+def _active_job_blocks_unified_prompt(project: Path, prompt: str) -> str:
+    existing = load_current_job(project)
+    if not existing or existing.get('status') != 'active':
+        return ''
+    if _same_prompt(str(existing.get('goal') or ''), prompt):
+        return ''
+    return str(existing.get('goal') or 'current project job')
+
+
+def _public_report(project: Path, *, status: str, goal: str, changed_files: list[str] | None = None, why: str = '', next_action: str = '', attention: str = '', stop_reason: str = '') -> str:
+    return '\n'.join(
+        render_interaction_summary(
+            project,
+            status=status,
+            goal=goal,
+            changed_files=changed_files or [],
+            why=why,
+            next_action=next_action,
+            attention=attention,
+            stop_reason=stop_reason,
+        )
+    )
+
+
+def _public_report_with_overview(project: Path, *, status: str, goal: str, changed_files: list[str] | None = None, why: str = '', next_action: str = '', attention: str = '', stop_reason: str = '') -> str:
+    return _public_report(project, status=status, goal=goal, changed_files=changed_files, why=why, next_action=next_action, attention=attention, stop_reason=stop_reason)
+
+
+def _one_off_report(
+    project: Path,
+    *,
+    status: str,
+    goal: str,
+    changed_files: list[str] | None = None,
+    why: str = '',
+    next_action: str = '',
+    attention: str = '',
+    preview_path: str = '',
+) -> str:
+    return '\n'.join(
+        render_interaction_summary(
+            project,
+            status=status,
+            goal=goal,
+            changed_files=changed_files or [],
+            why=why,
+            next_action=next_action,
+            attention=attention,
+            preview_path=preview_path,
+            stop_reason='one_off_task_complete',
+            one_off=True,
+        )
+    )
+
+
+def _run_direct_docs_prompt(project: Path, text: str, target_files: list[str], *, project_step: bool = False) -> tuple[int, str]:
+    result = apply_docs_patch(project, objective=text, target_files=target_files)
+    changed = [str(item) for item in result.get('changed_files') or []]
+    blocked = result.get('blocked') or []
+    skipped = result.get('skipped') or []
+    if blocked and not changed:
+        reason = '; '.join(f'{item.get("path")}: {item.get("reason")}' for item in blocked if isinstance(item, dict)) or 'unsafe documentation target'
+        _record_unified_job(project, goal=text, status='Not applied', changed_files=[], attention_reason=reason)
+        return 2, _public_report_with_overview(
+            project,
+            status='Not applied',
+            goal=text,
+            changed_files=[],
+            why='The requested target is outside the safe documentation area.',
+            next_action='Name a README.md or docs/*.md file, or review the target path.',
+            attention=reason,
+            stop_reason='unsafe_or_unsupported_target',
+        )
+    status = 'Working' if project_step else 'Done'
+    if changed:
+        why = 'The prompt named safe documentation targets, so Agent applied one safe document update.'
+    elif skipped:
+        why = 'The requested document update was already present.'
+    else:
+        why = str(result.get('summary') or 'No file changes were needed.')
+    if not project_step:
+        _record_unified_job(project, goal=text, status='Done', changed_files=changed, next_action='Give another prompt when you want the next change.')
+    next_action = 'Run agent to review the current job, or give the next prompt.' if project_step else 'Give another prompt when you want the next change.'
+    return 0, _public_report_with_overview(project, status=status, goal=text, changed_files=changed, why=why, next_action=next_action, stop_reason='reviewable_batch_complete')
+
+
+def _run_seed_queue_prompt(project: Path, text: str, intent: dict[str, object]) -> tuple[int, str]:
+    _write_project_map_for_prompt(project, text)
+    init_seed_queue(
+        project,
+        goal=text,
+        source_file=str(intent.get('seed_file') or 'project_beginning_prompt.md'),
+        research='docs/research_workflow.md' in [str(item) for item in intent.get('target_files') or []],
+    )
+    result = run_seed_batch(project, goal=text, max_steps=3)
+    _record_seed_queue_job(project, goal=text, queue_result=result)
+    changed = [str(item) for item in result.get('changed_files') or []]
+    remaining = int(result.get('remaining') or 0)
+    status = 'Needs attention' if result.get('status') == 'needs_attention' else 'Done'
+    pending = next_seed_action(project)
+    next_text = 'agent continue' if pending else 'agent "<next project goal>"'
+    why = 'Completed the first reviewable project package from the seed prompt.' if remaining else 'Completed all safe starter actions from the seed prompt.'
+    return 0, _public_report_with_overview(
+        project,
+        status=status,
+        goal=text,
+        changed_files=changed,
+        why=why,
+        next_action=next_text,
+        attention='; '.join(str(item.get('reason') or item) for item in result.get('blocked') or [] if isinstance(item, dict)) if result.get('status') == 'needs_attention' else '',
+        stop_reason=str(result.get('stop_reason') or 'reviewable_batch_complete'),
+    )
+
+
+def _run_preview_artifact_prompt(project: Path, text: str) -> tuple[int, str]:
+    payload = write_preview_artifact(project, objective=text)
+    preview_path = str(payload.get('preview_path') or '.zoo-agent/previews/preview.md')
+    message = _one_off_report(
+        project,
+        status='Done',
+        goal=text,
+        changed_files=[],
+        why='Generated a temporary local preview without changing the current project goal.',
+        next_action=f'Open {preview_path}, then run agent for the project overview.',
+        preview_path=preview_path,
+    )
+    return 0, message
+
+
+def _migrate_legacy_seed_preview_queue(project: Path) -> bool:
+    queue = load_seed_queue(project)
+    if queue.get('actions'):
+        return False
+    job = load_current_job(project)
+    selected = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
+    if not job or selected.get('action_id') != 'action-seed-docs-bootstrap':
+        return False
+    if not (selected.get('preview_only') or selected.get('execution_mode') == 'preview'):
+        return False
+    source_file = str(selected.get('source_file') or 'project_beginning_prompt.md')
+    targets = [str(item) for item in selected.get('target_files') or []]
+    if not targets or not all((project / target).exists() for target in targets):
+        return False
+    queue = init_seed_queue(project, goal=str(job.get('goal') or selected.get('title') or ''), source_file=source_file, research='docs/research_workflow.md' in targets)
+    starter = next((item for item in queue.get('actions') or [] if isinstance(item, dict) and item.get('action_id') == 'seed-starter-docs'), {})
+    if starter:
+        mark_seed_action(project, 'seed-starter-docs', status='completed', changed_files=targets)
+    append_job_event(project, 'legacy_seed_preview_queue_migrated', {'job_id': job.get('job_id', ''), 'source_file': source_file})
+    return True
+
+
+def run_unified_prompt(args, text: str) -> int:
+    project = project_root(args.workspace)
+    intent = classify_prompt(project, text, allowed_files=getattr(args, 'allowed_file', []))
+    intent_name = str(intent.get('intent') or '')
+    blocking_job = _active_job_blocks_unified_prompt(project, text)
+    if blocking_job and intent_name in {'single_step_edit', 'seed_prompt_execution'}:
+        print(
+            _public_report_with_overview(
+                project,
+                status='Needs attention',
+                goal=text,
+                changed_files=[],
+                why='Another project job is currently active.',
+                next_action='Run agent to inspect it, or agent stop before switching tasks.',
+                attention=f'Current job: {blocking_job}',
+                stop_reason='active_job_requires_review',
+            )
+        )
+        return 2
+    if intent_name == 'unsafe_or_needs_confirmation':
+        reason = str(intent.get('reason') or 'high-risk operation')
+        _record_unified_job(project, goal=text, status='Needs attention', changed_files=[], attention_reason=reason)
+        print(
+            _public_report_with_overview(
+                project,
+                status='Needs attention',
+                goal=text,
+                changed_files=[],
+                why='The prompt asks for an operation that should not run automatically.',
+                next_action='Revise the prompt to remove the risky operation, or handle it manually.',
+                attention=reason,
+                stop_reason='safety_boundary',
+            )
+        )
+        return 2
+    if intent_name == 'preview_artifact':
+        code, message = _run_preview_artifact_prompt(project, text)
+        print(message)
+        return code
+    if intent_name == 'single_step_edit' and intent.get('execution_mode') == 'direct_docs_apply':
+        code, message = _run_direct_docs_prompt(project, text, [str(item) for item in intent.get('target_files') or []])
+        print(message)
+        return code
+    if intent_name == 'seed_prompt_execution':
+        code, message = _run_seed_queue_prompt(project, text, intent)
+        print(message)
+        return code
+    if intent_name == 'project_goal':
+        payload = start_or_update_job(project, text, steps=1)
+        status = 'Needs attention' if payload.get('status') == 'blocked' else 'Working'
+        attention = '' if status == 'Working' else 'An existing running job needs to be stopped before switching goals.'
+        print(
+            _public_report_with_overview(
+                project,
+                status=status,
+                goal=text,
+                changed_files=[],
+                why=str(intent.get('reason') or 'The prompt describes a project goal.'),
+                next_action='Run agent to review progress, or agent continue to move the job forward.',
+                attention=attention,
+                stop_reason='project_job_started' if status == 'Working' else 'active_job_requires_review',
+            )
+        )
+        return 0 if status == 'Working' else 2
+    reason = str(intent.get('reason') or 'No safe target file or project seed prompt was identified.')
+    _record_unified_job(project, goal=text, status='Needs attention', changed_files=[], attention_reason=reason)
+    print(
+        _public_report_with_overview(
+            project,
+            status='Needs attention',
+            goal=text,
+            changed_files=[],
+            why=reason,
+            next_action='Name the file to change, or add project_beginning_prompt.md and run the prompt again.',
+            attention=reason,
+            stop_reason='unclear_target',
+        )
+    )
+    return 2
+
+
+def _run_one_off_prompt(project: Path, text: str, *, allowed_files: list[str] | None = None) -> tuple[int, str]:
+    intent = classify_prompt(project, text, allowed_files=allowed_files or [])
+    intent_name = str(intent.get('intent') or '')
+    if intent_name == 'unsafe_or_needs_confirmation':
+        reason = str(intent.get('reason') or 'high-risk operation')
+        return 2, _one_off_report(
+            project,
+            status='Needs attention',
+            goal=text,
+            changed_files=[],
+            why='The one-off request asks for an operation that should not run automatically.',
+            next_action='Revise the request to remove the risky operation, or handle it manually.',
+            attention=reason,
+        )
+    if intent_name == 'single_step_edit' and intent.get('execution_mode') == 'direct_docs_apply':
+        result = apply_docs_patch(project, objective=text, target_files=[str(item) for item in intent.get('target_files') or []])
+        changed = [str(item) for item in result.get('changed_files') or []]
+        blocked = [item for item in result.get('blocked') or [] if isinstance(item, dict)]
+        skipped = [item for item in result.get('skipped') or [] if isinstance(item, dict)]
+        if blocked and not changed:
+            reason = '; '.join(f'{item.get("path")}: {item.get("reason")}' for item in blocked) or 'unsupported target'
+            return 2, _one_off_report(
+                project,
+                status='Not applied',
+                goal=text,
+                changed_files=[],
+                why='The requested target is outside the safe documentation area.',
+                next_action='Use README.md or a docs/*.md / docs/*.txt file, or run agent for project-level work.',
+                attention=reason,
+            )
+        if changed:
+            why = 'The request named safe documentation targets, so Agent applied a bounded one-off document update.'
+        elif skipped:
+            why = 'The requested document update was already present.'
+        else:
+            why = str(result.get('summary') or 'No file changes were needed.')
+        attention = ''
+        if blocked:
+            attention = '; '.join(f'{item.get("path")}: {item.get("reason")}' for item in blocked)
+        return 0, _one_off_report(
+            project,
+            status='Done',
+            goal=text,
+            changed_files=changed,
+            why=why,
+            next_action='Review with git diff, then run agent for the project overview.',
+            attention=attention,
+        )
+    payload = write_preview_artifact(project, objective=text)
+    preview_path = str(payload.get('preview_path') or '.zoo-agent/previews/preview.md')
+    why = 'You used agent do, so Agent kept this separate from the current project goal.'
+    if intent_name in {'seed_prompt_execution', 'project_goal'}:
+        why = 'This looks like project-level work; agent do kept it as an independent preview instead of replacing the current project goal.'
+    return 0, _one_off_report(
+        project,
+        status='Done',
+        goal=text,
+        changed_files=[],
+        why=why,
+        next_action='Open the preview, then use agent "<project goal>" if you want to steer the main project.',
+        preview_path=preview_path,
+    )
+
+
+def do_command(args) -> int:
+    text = ' '.join(args.input).strip()
+    if not text:
+        print(
+            _one_off_report(
+                project_root(args.workspace),
+                status='Needs attention',
+                goal='',
+                changed_files=[],
+                why='No one-off task was provided.',
+                next_action='Run agent do "<one-off task>".',
+                attention='missing task',
+            )
+        )
+        return 2
+    project = project_root(args.workspace)
+    code, message = _run_one_off_prompt(project, text, allowed_files=getattr(args, 'allowed_file', []))
+    print(message)
+    return code
+
+
 def ask(args) -> int:
     if args.preview and args.apply:
         print_json(user_task_result(task=' '.join(args.input).strip(), mode='blocked', result='choose either --preview or --apply, not both'))
@@ -2051,9 +2494,7 @@ def ask(args) -> int:
         return 2
     project = project_root(args.workspace)
     if not args.preview and not args.apply and not args.allowed_file:
-        payload = start_or_update_job(project, text)
-        print(str(payload.get('message') or '').strip())
-        return 0 if payload.get('status') != 'blocked' else 2
+        return run_unified_prompt(args, text)
     mode = 'apply' if args.apply else 'preview'
     ensure_bootstrap_before_run(args)
     selected_backend = str(read_backend_selection(project))
@@ -2105,6 +2546,13 @@ def ask(args) -> int:
     if mode == 'apply' and result != 'COMPLETED':
         print_json(user_task_result(task=text, mode='blocked', result=f'not applied: {result}'))
         return 1
+    if mode == 'apply':
+        fallbacks = {str(item) for item in payload.get('fallback_used') or []}
+        changed = [str(item) for item in payload.get('changed_files') or []]
+        if fallbacks & {'bounded_docs_writer', 'remote_openai_worker'}:
+            result = 'Applied via safe docs fallback'
+            if changed:
+                result = f'{result}: {", ".join(changed)}'
     print_json(user_task_result(task=text, mode=mode, result=result))
     return 0
 
@@ -2204,6 +2652,12 @@ def main(argv: list[str] | None = None) -> int:
     ask_parser.add_argument('--apply', action='store_true')
     ask_parser.add_argument('--debug', action='store_true')
     ask_parser.set_defaults(handler=ask)
+
+    do_parser = sub.add_parser('do', help='Run an independent one-off task.')
+    do_parser.add_argument('input', nargs='*')
+    do_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    do_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
+    do_parser.set_defaults(handler=do_command)
 
     bootstrap_parser = sub.add_parser('bootstrap', help='Initialize CLI-first runtime state once.')
     bootstrap_parser.add_argument('--workspace', '--project', dest='workspace', default='.')

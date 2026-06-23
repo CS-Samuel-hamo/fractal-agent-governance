@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 from claude_code_worker_detector import claude_health  # noqa: E402
 from codex_worker_adapter_hardened import codex_health  # noqa: E402
+from remote_ai_worker_adapter import health as remote_openai_health  # noqa: E402
 from runtime_common import project_root, write_json  # noqa: E402
 
 
@@ -41,6 +42,7 @@ CAPABILITIES = [
 def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
     codex = codex_health(project)
     claude = claude_health(project)
+    remote_openai = remote_openai_health(project)
     codex_is_available = bool(codex.get('available'))
     claude_detected = bool(claude.get('available'))
     return {
@@ -109,6 +111,40 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'health': codex.get('health') or ('healthy' if codex_is_available else 'unavailable'),
             'unavailable_reason': '' if codex_is_available else str(codex.get('reason') or 'codex CLI not found'),
             'reason': str(codex.get('reason') or ''),
+        },
+        'remote_openai_worker': {
+            'worker_name': 'remote_openai_worker',
+            'provider': 'openai_api',
+            'worker_type': 'docs',
+            'capabilities': ['docs_edit', 'analysis', 'safe_preview', 'actual_execution', 'long_context'],
+            'best_for': ['bounded docs generation when explicitly enabled'],
+            'avoid_for': ['unbounded source edits', 'secrets', 'blocked zones'],
+            'risk_limit': 'low',
+            'supports_actual_execution': bool(remote_openai.get('supports_actual_execution')),
+            'supports_preview': True,
+            'supports_session': True,
+            'cost_class': 'unknown',
+            'reliability_score': 0.78 if remote_openai.get('available') else 0.0,
+            'available': bool(remote_openai.get('available')),
+            'health': remote_openai.get('health') or 'unavailable',
+            'unavailable_reason': '' if remote_openai.get('available') else str(remote_openai.get('reason') or 'remote AI worker disabled'),
+            'reason': str(remote_openai.get('reason') or ''),
+        },
+        'bounded_docs_writer': {
+            'worker_name': 'bounded_docs_writer',
+            'provider': 'local_docs',
+            'worker_type': 'docs',
+            'capabilities': ['docs_edit', 'safe_preview', 'actual_execution', 'local_only', 'low_cost', 'high_reliability'],
+            'best_for': ['low-risk single-file docs updates', 'safe docs fallback'],
+            'avoid_for': ['source code edits', 'config changes', 'fictional citations or results'],
+            'risk_limit': 'low',
+            'supports_actual_execution': True,
+            'supports_preview': True,
+            'supports_session': True,
+            'cost_class': 'free',
+            'reliability_score': 0.93,
+            'available': True,
+            'health': 'healthy',
         },
         'claude_worker_stub': {
             'worker_name': 'claude_worker_stub',

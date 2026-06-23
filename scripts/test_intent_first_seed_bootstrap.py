@@ -273,7 +273,7 @@ def test_seed_starter_docs_are_created_once() -> None:
     )
     if inbox.returncode:
         raise AssertionError(f'agent inbox failed\nstdout={inbox.stdout}\nstderr={inbox.stderr}')
-    assert_true('Status:\nCompleted' in inbox.stdout, 'starter docs job should complete after creation')
+    assert_true('Status:\npaused' in inbox.stdout or 'Create literature matrix template' in inbox.stdout, 'starter docs job should expose the next queued seed action')
     cont = subprocess.run(
         [sys.executable, str(AGENT), 'continue', '--workspace', str(project)],
         cwd=project,
@@ -283,8 +283,9 @@ def test_seed_starter_docs_are_created_once() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    assert_true(cont.returncode == 0, f'continue after completion should be harmless\nstdout={cont.stdout}\nstderr={cont.stderr}')
+    assert_true(cont.returncode == 0, f'continue after starter docs should run next seed action\nstdout={cont.stdout}\nstderr={cont.stderr}')
     assert_true((project / 'README.md').read_text(encoding='utf-8') == readme_before, 'continue should not overwrite starter docs')
+    assert_true((project / 'docs' / 'literature_matrix_template.md').exists(), 'continue should create the next queued seed document')
 
 
 def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
@@ -305,7 +306,8 @@ def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
     )
     if first.returncode:
         raise AssertionError(f'first agent command failed\nstdout={first.stdout}\nstderr={first.stderr}')
-    assert_true('Preview recommended' in first.stdout, 'all existing starter docs should preview')
+    assert_true(first.stdout.startswith(('Working.', 'Done.')), 'unified entry should report a concrete state')
+    assert_true('blocked zone' not in first.stdout.lower(), 'seed starter state should not be a vague blocked zone')
     second_goal = 'revise docs/research_workflow.md based on project_beginning_prompt.md'
     second = subprocess.run(
         [sys.executable, str(AGENT), second_goal, '--workspace', str(project)],

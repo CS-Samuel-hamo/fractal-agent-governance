@@ -9,7 +9,35 @@ agent "prepare this project for public release"
 agent
 ```
 
-The first command starts or updates a Project Job. The second command shows the Job Inbox: current status, what happened, what needs attention, and what to do next.
+The first command gives the operator a goal and lets it execute one safe, reviewable batch. The second command shows the Project Overview: current phase, what changed, whether anything is blocked, why the operator stopped, and what choices you have next.
+
+The core loop is:
+
+```text
+goal -> safe batch -> overview -> choice
+```
+
+This is the main product difference from a normal coding CLI. Agent Runtime is meant to manage project progress through a Project Map, not just answer one command.
+
+Every normal result starts with seven beginner-friendly sections:
+
+```text
+Result
+Where you are
+What changed
+How to check
+Next
+If this is not what you wanted
+Details
+```
+
+Read `Result`, `What changed`, and `Next` first. Open `Details` mentally only when you want the Project Map, Landing proof, Project Rules, and Logic Check.
+
+When you need a separate one-off task that should not replace the current project goal, use:
+
+```bash
+agent do "<one-off task>"
+```
 
 ## 1. Start A Project Job
 
@@ -36,7 +64,7 @@ zone` with no explanation.
 agent
 ```
 
-This shows the current job, status, next action, attention items, Cockpit path, and suggested commands.
+This shows the current job, project phase, progress, latest changes, attention items, Cockpit path, and suggested choices.
 
 `agent status` still works, but it is now just the explicit form of `agent`.
 
@@ -56,9 +84,28 @@ agent stop
 agent undo
 ```
 
-Use these only when you want to steer the current job.
+Use `agent continue` only when the overview says there is a planned batch ready to continue. Otherwise, give the next goal directly:
 
-## 5. Prepare Release And PR Artifacts
+```bash
+agent "continue improving the release documentation"
+```
+
+Use `agent stop` to stop the current job safely, and `agent undo` to return to the latest recoverable state.
+
+Important: `agent continue` is not a button to press forever. Use it only when `Next` explicitly recommends it. If the current batch is complete, give a new natural-language goal instead.
+
+## 5. Run Independent One-off Tasks
+
+Use `agent do` for temporary explanations, examples, reviews, or bounded document edits that should not change the current project job.
+
+```bash
+agent do "show me how the current workflow is wired"
+agent do "extend docs/research_workflow.md with evidence validation steps"
+```
+
+If the one-off task names a safe docs target, Agent may update that document. If it looks like a project-level goal, Agent keeps it separate and writes a temporary preview artifact under `.zoo-agent/previews/`.
+
+## 6. Prepare Release And PR Artifacts
 
 ```bash
 agent release
@@ -76,9 +123,9 @@ These commands generate local artifacts only:
 
 They do not call GitHub, push, merge, create a remote PR, read tokens, or read `.env` contents.
 
-## One-off Task Mode
+## Advanced Preview / Apply Flags
 
-For a bounded single task, be explicit:
+For compatibility, explicit preview/apply flags are still available:
 
 ```bash
 agent "fix README typo" --preview
@@ -95,3 +142,18 @@ to see whether a real code worker is available on this machine.
 - AI IDEs are good editing environments.
 - Codex App can assist by running, inspecting, and explaining agent commands.
 - Codex, Claude, local scanner, mock, and dry-run are workers, not the product.
+
+## What The Overview Means
+
+Every normal output should make the project state visible:
+
+- `Product model`: confirms this is the AI Project Operator path.
+- `Project`: names the inferred project or workflow.
+- `Project Map`: explains that progress is tracked through project state, phases, evidence, and next actions.
+- `Current position`: tells you where the project is in the plan.
+- `Landing proof`: shows changed files, local verification command, Cockpit status, and whether the result is done or needs review.
+- `Blocked`: tells you whether the operator is stuck.
+- `Recommended next move`: tells you what to do next.
+- `Choices`: gives concrete commands you can run.
+- `Project Rules`: shows whether project instructions and code standards are available.
+- `Logic Check`: shows whether mapped modules form a connected workflow, whether quality gates are covered, and where links are weak or missing.

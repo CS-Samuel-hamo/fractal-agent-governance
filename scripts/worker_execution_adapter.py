@@ -13,10 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from runtime_common import load_json, project_root, write_json  # noqa: E402
+from bounded_docs_writer import apply_docs_patch, is_safe_docs_target  # noqa: E402
 from worker_fallback_engine import fallback_for_result  # noqa: E402
 from worker_interface import worker_result  # noqa: E402
 from codex_worker_adapter_hardened import codex_health  # noqa: E402
 from local_scanner_worker import execute as execute_local_scan  # noqa: E402
+from remote_ai_worker_adapter import execute_docs_patch as execute_remote_docs_patch  # noqa: E402
 
 TRUSTED_STARTER_DOCS = {'README.md', 'docs/project_plan.md', 'docs/research_workflow.md'}
 
@@ -242,6 +244,38 @@ def execute_starter_docs(project: Path, *, action: dict[str, Any], routing_decis
 def execute_routed_worker(project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int) -> dict[str, Any]:
     if is_starter_docs_action(action, routing_decision):
         return execute_starter_docs(project, action=action, routing_decision=routing_decision, step_number=step_number)
+    provider = routing_decision.get('selected_provider')
+    targets = [str(item).replace('\\', '/') for item in action.get('target_files') or []]
+    if provider in {'local_docs', 'openai_api'} and targets and all(is_safe_docs_target(target) for target in targets):
+        payload = (
+            execute_remote_docs_patch(project, objective=str(action.get('title') or action.get('objective') or ''), target_files=targets)
+            if provider == 'openai_api'
+            else apply_docs_patch(project, objective=str(action.get('title') or action.get('objective') or ''), target_files=targets)
+        )
+        changed = [str(item) for item in payload.get('changed_files') or []]
+        final_result = {'final_verdict': 'COMPLETED' if changed else 'DRY_RUN_COMPLETE', 'changed_files': changed, 'worker_result': payload}
+        execution = {'leaf_results': [{'delivery_outcome': 'delivered' if changed else 'preview', 'business_changed_files': changed}], 'worker_result': payload}
+        worker_payload = worker_result(
+            worker_name=str(routing_decision.get('selected_worker') or provider),
+            worker_type='docs',
+            provider=str(provider),
+            status='success' if changed else 'skipped',
+            changed_files=changed,
+            summary=str(payload.get('summary') or payload.get('reason') or 'docs update'),
+            confidence=0.9 if changed else 0.6,
+            safe_for_user_output=True,
+        )
+        write_json(project / '.zoo-agent' / 'workers' / 'worker_execution_result.json', worker_payload)
+        return {
+            'run_id': f'docs-worker-{time.strftime("%Y%m%d%H%M%S", time.gmtime())}-{step_number:02d}',
+            'plan_path': '',
+            'execution_path': '.zoo-agent/workers/worker_execution_result.json',
+            'final_path': '',
+            'execution': execution,
+            'final_result': final_result,
+            'worker_result': worker_payload,
+            'command_result': {'returncode': 0, 'stdout_tail': worker_payload['summary'], 'stderr_tail': ''},
+        }
     if routing_decision.get('selected_provider') == 'local_scanner':
         worker_payload = execute_local_scan(project, task=action, context={'routing_decision': routing_decision, 'step_number': step_number})
         final_result = {'final_verdict': 'DRY_RUN_COMPLETE', 'worker_result': worker_payload}

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,12 +15,14 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 from runtime_common import load_json, utc_now, write_json  # noqa: E402
 from backend_registry import default_registry  # noqa: E402
+from bounded_docs_writer import apply_docs_patch, is_safe_docs_target  # noqa: E402
 from execution_fallback_router import fallback_decision  # noqa: E402
 from execution_health_scoring import score_execution_health  # noqa: E402
 from execution_interface import ExecutionContext, ExecutionTask  # noqa: E402
 from execution_level_splitter import split_leaf_execution  # noqa: E402
 from execution_result_model import build_execution_result_model, delivery_outcome_from_execution_status  # noqa: E402
 from execution_retry_controller import retry_decision  # noqa: E402
+from remote_ai_worker_adapter import execute_docs_patch as execute_remote_docs_patch  # noqa: E402
 
 
 FORBIDDEN_RESPONSIBILITIES = [
@@ -155,6 +158,69 @@ def expected_files_for_leaf(leaf: dict[str, Any]) -> list[str]:
             continue
         expected.append(value)
     return expected
+
+
+def env_truthy(name: str, default: str = '') -> bool:
+    value = str(os.environ.get(name, default)).strip().lower()
+    return value in {'1', 'true', 'yes', 'on'}
+
+
+def env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except Exception:
+        return default
+
+
+def is_low_risk_docs_leaf(leaf: dict[str, Any]) -> bool:
+    targets = expected_files_for_leaf(leaf)
+    risk = normalize_risk_level(leaf.get('risk_level'))
+    return bool(
+        risk == 'low'
+        and targets
+        and len(targets) <= 3
+        and all(is_safe_docs_target(target) for target in targets)
+    )
+
+
+def apply_docs_failover(workspace: Path, leaf: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    targets = expected_files_for_leaf(leaf)
+    objective = str(leaf.get('objective') or '')
+    remote_result = execute_remote_docs_patch(workspace, objective=objective, target_files=targets)
+    if remote_result.get('status') in {'success', 'blocked'}:
+        result = remote_result
+        provider = 'remote_openai_worker' if remote_result.get('status') == 'success' else 'remote_openai_worker_blocked'
+    else:
+        result = apply_docs_patch(workspace, objective=objective, target_files=targets)
+        provider = 'bounded_docs_writer'
+    changed = [str(item).replace('\\', '/') for item in result.get('changed_files') or []]
+    blocked = result.get('blocked') or []
+    status = 'success' if changed else ('blocked' if blocked else 'skipped')
+    delivery = {
+        'delivery_outcome': 'delivered' if changed else ('blocked' if blocked else 'dry_run_only'),
+        'reason': f'{provider}:{result.get("summary") or result.get("reason") or reason}',
+        'scope_guard_status': 'pass' if not blocked else 'fail',
+        'business_changed_files': changed,
+        'runtime_changed_files': [],
+        'denied_files_touched': [],
+        'out_of_scope_files': [item.get('path') for item in blocked if isinstance(item, dict)],
+    }
+    model = build_execution_result_model(
+        task_id=str(leaf.get('leaf_id') or 'leaf'),
+        backend_returncode=0 if status in {'success', 'skipped'} else 1,
+        worker_status='succeeded' if status == 'success' else status,
+        business_changed_files=changed,
+        expected_files=targets,
+        out_of_scope_files=delivery['out_of_scope_files'],
+        fallback_used=provider,
+        notes=reason,
+    )
+    return {
+        'provider': provider,
+        'result': result,
+        'delivery': delivery,
+        'model': model,
+    }
 
 
 def create_task_pack(task_dir: Path, workspace: Path, leaf: dict[str, Any], plan: dict[str, Any]) -> None:
@@ -372,6 +438,7 @@ def resilient_execute_leaf(
     max_retries: int,
     backend_name: str,
     backend_options: dict[str, Any] | None = None,
+    docs_failover_enabled: bool = False,
 ) -> dict[str, Any]:
     fallback_history: list[str] = []
     primary = execute_unit_with_retries(
@@ -394,6 +461,20 @@ def resilient_execute_leaf(
     fallback_used = ''
 
     if final_model.get('execution_status') != 'success' and final_delivery.get('delivery_outcome') != 'unsafe':
+        if docs_failover_enabled and is_low_risk_docs_leaf(leaf):
+            docs = apply_docs_failover(workspace, leaf, reason=str(final_model.get('reason') or final_delivery.get('reason') or 'backend_failed'))
+            fallback_used = str(docs.get('provider') or 'bounded_docs_writer')
+            fallback_history.append(fallback_used)
+            final_model = docs.get('model') or {}
+            final_delivery = docs.get('delivery') or {}
+            return {
+                'attempts': attempts,
+                'split_results': split_results,
+                'fallback_history': fallback_history,
+                'fallback_used': fallback_used,
+                'final_model': final_model,
+                'final_delivery': final_delivery,
+            }
         retryable = bool((final_attempt.get('retry_decision') or {}).get('retryable'))
         split_available = True
         decision = fallback_decision(final_model, retry_available=False if attempts else retryable, split_available=split_available, fallback_history=fallback_history)
@@ -537,16 +618,20 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                 }
             )
         elif actual_requested and execution_mode == 'actual_allowed' and leaf.get('resolution') == 'execute':
+            docs_failover_enabled = env_truthy('AGENT_ENABLE_BOUNDED_DOCS_FALLBACK', 'true') and is_low_risk_docs_leaf(leaf)
+            effective_max_retries = 0 if docs_failover_enabled and backend_name == 'codex' else args.max_retries
+            effective_timeout = min(args.timeout_seconds, max(30, env_int('AGENT_DOCS_CODEX_TIMEOUT_SECONDS', 90))) if docs_failover_enabled and backend_name == 'codex' else args.timeout_seconds
             resilient = resilient_execute_leaf(
                 workspace=workspace,
                 task_dir=task_dir,
                 leaf=leaf,
                 plan=plan,
                 sandbox=args.sandbox,
-                timeout_seconds=args.timeout_seconds,
-                max_retries=args.max_retries,
+                timeout_seconds=effective_timeout,
+                max_retries=effective_max_retries,
                 backend_name=backend_name,
                 backend_options=backend_options,
+                docs_failover_enabled=docs_failover_enabled,
             )
             backend_invoked = True
             final_delivery = resilient.get('final_delivery') or {}
