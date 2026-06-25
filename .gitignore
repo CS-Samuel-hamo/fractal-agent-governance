@@ -19,3 +19,7 @@ __pycache__/
 *.log
 .DS_Store
 Thumbs.db
+*.egg-info/
+dist/
+build/
+

@@ -1,9 +1,12 @@
 [build-system]
 requires = ["setuptools>=64.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
-[tool.setuptools.package-data]
-scripts = ["*.py"]
+[tool.setuptools.packages.find]
+include = ["scripts", "scripts.*"]
+
+[tool.setuptools]
+include-package-data = true
 
 [project]
 name = "zoo-agent-runtime"
@@ -32,7 +35,7 @@ Homepage = "https://github.com/CS-Samuel-hamo/fractal-agent-governance"
 Repository = "https://github.com/CS-Samuel-hamo/fractal-agent-governance"
 
 [project.scripts]
-agent = "agent:main"
+agent = "scripts.agent:main"
 
 [project.optional-dependencies]
 dev = [
@@ -47,9 +50,6 @@ typecheck = [
 
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }
-
-[tool.setuptools.packages.find]
-include = ["scripts.*"]
 
 # ── Ruff (linter + formatter) ──────────────────────────────────────────────
 

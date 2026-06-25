@@ -67,7 +67,14 @@ from agent_commands_ux import (
 from agent_utils import print_json, user_task_result
 from runtime_common import project_root
 
-VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip() if (ROOT / 'VERSION').exists() else '1.0.0-alpha.1'
+try:
+    from importlib.metadata import version as _pkg_ver
+
+    VERSION = _pkg_ver('zoo-agent-runtime')
+except Exception:
+    VERSION = (
+        (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip() if (ROOT / 'VERSION').exists() else '1.0.0-alpha.1'
+    )
 
 KNOWN_COMMANDS = {
     'alpha',
