@@ -1,8 +1,43 @@
 # Post Launch Status
 
-Generated: 2026-06-21T11:05:20Z
+## v1.1.0-alpha.1 Session & Cockpit Improvement
 
-## Published Alpha
+Generated: 2026-06-25T22:30:00Z
+
+### Published
+
+- Version: `v1.1.0-alpha.1`
+- Release branch: `feat/v1.1-session-cockpit`
+- Tag: `v1.1.0-alpha.1`
+- Release URL: https://github.com/CS-Samuel-hamo/fractal-agent-governance/releases/tag/v1.1.0-alpha.1
+
+### What's New
+
+- **Undo apply**: `agent undo --apply --yes` performs git checkout with auto-stash
+- **Undo preview**: shows changed files, diff stat, checkpoint commit
+- **Session recovery**: cockpit sync failure no longer blocks continuation
+- **Cockpit timeline**: merged chronological sort, duration, file counts
+- **Attention panel**: severity badges, related modules, file paths
+- **Package**: pip-installable via `pip install zoo-agent-runtime`
+- **Tests**: 41 fast unit tests (0.56s) added for core modules
+- **CI/CD**: automated release and PyPI publishing workflows
+
+### Engineering
+
+- agent.py split from 3072 lines into 5 focused modules
+- 336 Python files unified under ruff format + lint
+- Pre-commit hooks active for automated quality
+- Docs reorganized from 44 root files to subdirectories
+
+### Known Limitations
+
+- Git push over HTTPS may fail on some networks (SSL renegotiation);
+  use `gh release create` as workaround
+- No external worker (Codex/Claude) guaranteed without local setup
+- undo --apply requires --yes confirmation for safety
+- undo only reverts files tracked by git checkout; new files not removed
+
+## v1.0.0-alpha.2
 
 - Version: `v1.0.0-alpha.2`
 - Release branch: `release/v1.0.0-alpha.2`

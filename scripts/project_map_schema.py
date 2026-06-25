@@ -17,6 +17,46 @@ SENSITIVE_PATTERNS = [
     '.codex/**',
 ]
 
+# Filesystem inventory constants (used by map builder and alignment checker)
+GENERATED_PATH_PATTERNS = [
+    '.zoo-agent/runs/**',
+    '.zoo-agent/tmp/**',
+    '.zoo-agent/worktrees/**',
+    '.steward/runs/**',
+    '.steward/reports/**',
+    '.steward/logs/**',
+    '.antigravity/**',
+    '.roo-backups/**',
+    '.codex-home/**',
+    'frontend/.next/**',
+    'frontend/out/**',
+    'frontend/.tmp/**',
+    'frontend/.product-runs/**',
+    'frontend/.product-trial-graphs/**',
+    'frontend/.product-trial-recovery/**',
+    'artifacts/**',
+    'outputs/**',
+    'reports/**',
+    'data/**',
+    'data_test/**',
+    'node_modules/**',
+    'frontend/node_modules/**',
+    '**/__pycache__/**',
+    '.pytest_cache/**',
+]
+SOURCE_ROOT_CANDIDATES = ['src', 'app', 'lib', 'packages', 'services', 'frontend/src', 'scripts']
+TEST_ROOT_CANDIDATES = ['tests', 'test', 'spec', 'frontend/tests', 'frontend/spec']
+MANIFEST_CANDIDATES = [
+    'package.json',
+    'frontend/package.json',
+    'pyproject.toml',
+    'requirements.txt',
+    'setup.cfg',
+    'pytest.ini',
+    'Cargo.toml',
+    'go.mod',
+]
+
 
 def map_dir(project: Path) -> Path:
     return project / '.zoo-agent' / 'map'

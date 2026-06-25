@@ -2,12 +2,18 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 from project_map_evidence_collector import collect_evidence
 from project_map_schema import (
+    GENERATED_PATH_PATTERNS,
+    MANIFEST_CANDIDATES,
+    SOURCE_ROOT_CANDIDATES,
+    TEST_ROOT_CANDIDATES,
     action_row,
     capability_row,
     default_project_map,
@@ -16,7 +22,7 @@ from project_map_schema import (
     module_row,
     risk_row,
 )
-from runtime_common import latest_goal, project_root, utc_now, write_json
+from runtime_common import latest_goal, load_json, project_root, utc_now, write_json
 
 
 def _evidence_by_path(evidence: list[dict[str, Any]], path: str) -> list[dict[str, Any]]:
@@ -256,6 +262,63 @@ def render_markdown(project_map: dict[str, Any]) -> str:
     return '\n'.join(lines)
 
 
+# ── Filesystem inventory (consolidated from check_project_map_alignment.py) ──
+
+
+def _normalize(value: str) -> str:
+    return value.replace('\\', '/').rstrip('/')
+
+
+def _matches_any(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(path, pat) for pat in patterns)
+
+
+def _existing_paths(project: Path, candidates: list[str]) -> list[str]:
+    return [item for item in candidates if (project / item).exists()]
+
+
+def _source_roots(project: Path) -> list[str]:
+    profile = load_json(project / '.zoo-agent' / 'project-profile.json')
+    roots = [_normalize(str(item)) for item in profile.get('source_roots') or [] if str(item)]
+    roots = [item for item in roots if (project / item).exists() and not _matches_any(item, GENERATED_PATH_PATTERNS)]
+    return sorted(set(roots)) if roots else _existing_paths(project, SOURCE_ROOT_CANDIDATES)
+
+
+def build_inventory(project: Path) -> dict[str, Any]:
+    """Build a filesystem inventory snapshot, used for alignment checking."""
+    roots = _source_roots(project)
+    tests = _existing_paths(project, TEST_ROOT_CANDIDATES)
+    manifests = _existing_paths(project, MANIFEST_CANDIDATES)
+    rows: list[dict[str, Any]] = []
+    for root in roots + tests + manifests:
+        base = project / root
+        if not base.exists():
+            continue
+        targets = [base] if base.is_file() else sorted(base.rglob('*'))
+        for path in targets:
+            if not path.is_file():
+                continue
+            rel = _normalize(str(path.relative_to(project)))
+            if _matches_any(rel, GENERATED_PATH_PATTERNS):
+                continue
+            try:
+                stat = path.stat()
+                rows.append({'path': rel, 'size': stat.st_size, 'mtime_ns': stat.st_mtime_ns})
+            except OSError:
+                continue
+    h = hashlib.sha256()
+    for row in sorted(rows, key=lambda r: r['path']):
+        h.update(f'{row["path"]}\0{row["size"]}\0{row["mtime_ns"]}\n'.encode())
+    return {
+        'source_roots': roots,
+        'test_roots': tests,
+        'manifests': manifests,
+        'filesystem_digest': h.hexdigest(),
+        'inventory_file_count': len(rows),
+        'sample_files': [r['path'] for r in sorted(rows, key=lambda r: r['path'])][:100],
+    }
+
+
 def build_project_map(project: Path, *, main_goal: str = '') -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     evidence_payload = collect_evidence(project, main_goal=main_goal)
     evidence = list(evidence_payload.get('evidence') or [])
@@ -267,6 +330,7 @@ def build_project_map(project: Path, *, main_goal: str = '') -> tuple[dict[str, 
     project_map['risks'] = build_risks(evidence_payload)
     project_map['next_actions'] = build_next_actions(evidence, project_map['capabilities'])
     project_map['last_updated'] = utc_now()
+    project_map['inventory'] = build_inventory(project)
     project_state = default_project_state(project, main_goal=goal)
     project_state['status'] = 'mapped' if project_map['modules'] else 'unknown'
     project_state['progress'] = '10%' if project_map['modules'] else '0%'
@@ -277,6 +341,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Build an evidence-backed project map.')
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--goal', default='')
+    parser.add_argument(
+        '--check-alignment', action='store_true', help='Check alignment and exit with code 10 if misaligned.'
+    )
     args = parser.parse_args()
     project = project_root(args.workspace)
     payload, state, evidence = build_project_map(project, main_goal=args.goal)
@@ -287,12 +354,27 @@ def main() -> int:
     md = out_dir / 'project_map.md'
     md.parent.mkdir(parents=True, exist_ok=True)
     md.write_text(render_markdown(payload), encoding='utf-8')
+
+    # Write inventory separately for alignment checking
+    inventory = payload.get('inventory') or {}
+    write_json(out_dir / 'inventory.json', inventory)
+
+    # Alignment check (compare current digest vs stored)
+    if args.check_alignment:
+        stored = load_json(out_dir / 'inventory.json')
+        current = build_inventory(project)
+        aligned = stored.get('filesystem_digest') == current.get('filesystem_digest')
+        if not aligned:
+            print(json.dumps({'status': 'misaligned', 'digest_changed': True}, ensure_ascii=False, indent=2))
+            return 10
+
     print(
         json.dumps(
             {
                 'status': 'ok',
                 'project_map': str(out_dir / 'project_map.json'),
                 'next_action_count': len(payload.get('next_actions') or []),
+                'filesystem_digest': inventory.get('filesystem_digest', ''),
             },
             ensure_ascii=False,
             indent=2,
