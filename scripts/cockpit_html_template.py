@@ -319,6 +319,13 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     logic_rules = data.get('logic_rules') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
+    map_version = project_map.get('_version') or ''
+    map_changelog = project_map.get('_changelog') or []
+    map_updated = project_map.get('last_updated') or data.get('generated_at', '')
+    version_html = ''
+    if map_version:
+        log_items = ''.join(f'<li>{esc(item)}</li>' for item in map_changelog[-5:])
+        version_html = f'<div class="meta" style="margin-top:4px">Map v{esc(map_version)} | {esc(map_updated)}<details style="display:inline;margin-left:8px"><summary>changes</summary><ul style="margin:4px 0 0 18px">{log_items}</ul></details></div>'
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -398,6 +405,7 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
     <div>{badge(project.get('state'))}</div>
     <p class="goal">{esc(project.get('main_goal') or 'No project goal available yet.')}</p>
     <p>Type: {esc(project.get('type') or 'not available')} | Last updated: {esc(project.get('last_updated') or data.get('generated_at') or 'not available')}</p>
+    {version_html}
   </header>
 
   <section class="grid">

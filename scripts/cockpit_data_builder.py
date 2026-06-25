@@ -434,6 +434,9 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
         'next_action': actions[0]['title'] if actions else '',
     }
     data['map'] = {
+        '_version': project_map.get('_version'),
+        '_changelog': project_map.get('_changelog', []),
+        'last_updated': project_map.get('last_updated'),
         'modules': build_module_rows(project_map),
         'capabilities': build_capability_rows(project_map),
         'risks': build_risk_rows(project_map),
