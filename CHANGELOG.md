@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.1.0-session-cockpit
+
+- Added undo apply: `agent undo --apply --yes` now performs git checkout to revert files.
+- Added undo preview: shows changed files, diff stat summary, and checkpoint commit hash.
+- Fixed session recovery: cockpit sync failure no longer blocks session continuation.
+- Added session diagnostics: lock PID/age info and `--verify` mode for file integrity checks.
+- Enhanced cockpit timeline: merged chronological sort (up to 20 entries), duration, file counts.
+- Enhanced attention panel: severity badges (blocking/warning/info), related modules, file paths.
+- Added pyproject.toml with ruff, pytest, and coverage configuration.
+- Split agent.py from 3072 lines into 5 focused modules: `agent_utils.py`, `agent_commands.py`, `agent_commands_ux.py`, `agent_commands_release.py`.
+- Reorganized root documentation: 44 files → 22 at root, moved to `docs/{releases,alpha,planning,feedback}/`.
+- Unified code style: ruff format + lint applied to all 336 Python files.
+- Added test infrastructure: `conftest.py`, `test_helpers.py`, pytest configuration.
+- Added CI: `.github/workflows/ci.yml` for lint, format, and test gates.
+- Added pre-commit hooks for automated quality checks.
+
 ## v1.0.0-alpha.2
 
 - Packaged 1.0.6, 1.0.7, and 1.0.8 post-alpha patches into a new public alpha source release.
