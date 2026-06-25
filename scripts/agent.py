@@ -17,28 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from agent_commands import (
-    aggregate_big,
     backend_command,
-    bootstrap,
-    codex_health,
     config_command,
-    decompose_big,
-    global_loop,
-    goal_command,
-    goal_loop,
-    integration_check,
     learning_command,
-    loop_command,
     map_command,
-    pipeline,
-    plan_big,
     reroute,
-    review,
     rollback,
-    run,
     session_command,
     standards,
     workers_command,
+)
+from agent_commands_goal import (
+    codex_health,
+    goal_command,
+    loop_command,
+    review,
 )
 from agent_commands_release import (
     alpha_command,
@@ -48,6 +41,17 @@ from agent_commands_release import (
     pr_command,
     publish_command,
     release_command,
+)
+from agent_commands_session import (
+    aggregate_big,
+    bootstrap,
+    decompose_big,
+    global_loop,
+    goal_loop,
+    integration_check,
+    pipeline,
+    plan_big,
+    run,
 )
 from agent_commands_ux import (
     ask,

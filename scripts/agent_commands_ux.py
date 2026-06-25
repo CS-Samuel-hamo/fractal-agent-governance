@@ -14,11 +14,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 from agent_commands import (
     backend_command,
+    reroute,
+    rollback,
+)
+from agent_commands_goal import (
     goal_command,
     loop_command,
-    reroute,
     review,
-    rollback,
+)
+from agent_commands_session import (
     run,
 )
 from agent_utils import (

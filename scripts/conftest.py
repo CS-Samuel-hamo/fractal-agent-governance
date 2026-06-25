@@ -3,14 +3,17 @@
 This conftest provides shared fixtures and pytest integration.
 Test files can also be run directly with `python test_*.py`.
 """
+
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
 
-from test_helpers import AGENT, ROOT, repo, run_agent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_helpers import repo, run_agent
 
 
 @pytest.fixture

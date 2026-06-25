@@ -1,0 +1,69 @@
+# Release workflow for the AI Project Operator
+#
+# Creates a GitHub Release and optionally publishes to PyPI
+# when a tag matching v* is pushed.
+#
+# This is the ONLY automated publish path. Normal development
+# commits do not trigger releases.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify version tag
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          FILE_VER=$(cat VERSION)
+          if [ "$TAG" != "$FILE_VER" ]; then
+            echo "Tag v$TAG does not match VERSION $FILE_VER"
+            exit 1
+          fi
+          echo "Version verified: $TAG"
+
+      - name: Build package
+        run: |
+          pip install build
+          python -m build
+
+      - name: Generate release body
+        run: |
+          if [ -f "docs/releases/RELEASE_NOTES.md" ]; then
+            # Extract section for this version
+            awk "/^## v$TAG/,/^## v/{if(!/^## v$TAG/ && /^## v/) exit; print}" \
+              docs/releases/RELEASE_NOTES.md > _release_body.md
+            if [ ! -s _release_body.md ]; then
+              echo "No matching release notes found for v$TAG" > _release_body.md
+            fi
+          else
+            echo "Release notes not found" > _release_body.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: _release_body.md
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+          draft: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}

@@ -2,6 +2,9 @@
 requires = ["setuptools>=64.0"]
 build-backend = "setuptools.backends._legacy:_Backend"
 
+[tool.setuptools.package-data]
+scripts = ["*.py"]
+
 [project]
 name = "zoo-agent-runtime"
 dynamic = ["version"]
@@ -84,8 +87,8 @@ line-ending = "auto"
 minversion = "7.0"
 testpaths = ["scripts"]
 python_files = ["test_*.py"]
-python_classes = []
-python_functions = []
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 # ── coverage.py ─────────────────────────────────────────────────────────────

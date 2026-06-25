@@ -5,6 +5,7 @@ Import these helpers instead of redefining them in each test file.
 All test files should remain runnable via `python test_*.py` directly
 while also working with `pytest`.
 """
+
 from __future__ import annotations
 
 import json
@@ -12,19 +13,18 @@ import os
 import subprocess
 import sys
 import tempfile
-from collections.abc import Generator
 from pathlib import Path
 
 # Re-export commonly used stdlib for convenience
 __all__ = [
-    'ROOT',
     'AGENT',
+    'ROOT',
+    'assert_eq',
+    'assert_true',
+    'load_json',
     'repo',
     'run_agent',
     'run_script',
-    'load_json',
-    'assert_true',
-    'assert_eq',
     'write_file',
 ]
 
@@ -33,6 +33,7 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 # ── Test environment ──────────────────────────────────────────────────────
+
 
 def repo(name: str) -> Path:
     """Create a temporary directory for a test project."""
@@ -83,6 +84,7 @@ def write_file(project: Path, path: str, content: str) -> Path:
 
 
 # ── Assertions (usable without pytest) ────────────────────────────────────
+
 
 def assert_true(value: object, message: str = '') -> None:
     if not value:
