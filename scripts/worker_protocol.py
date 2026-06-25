@@ -132,24 +132,34 @@ def parse_worker_output(output: str) -> dict[str, Any]:
 def apply_worker_result(project: Path, result: dict[str, Any]) -> dict[str, Any]:
     """Apply structured worker result back to project state.
 
-    Updates changed_files, risks, and next actions in the project map.
+    Updates the project map (versioned), session state, and next actions.
+    Uses project_map_updater for versioned map updates.
     """
-    from runtime_common import load_json, write_json
+    from project_map_updater import update_project_map
+    from runtime_common import load_json, utc_now, write_json
 
     actions = []
-
-    # Update changed files in session state
     changed = result.get('changed_files') or []
-    if changed:
-        session_path = project / '.zoo-agent' / 'session' / 'session_state.json'
-        session = load_json(session_path) if session_path.exists() else {}
-        existing = session.get('last_changed_files', [])
-        session['last_changed_files'] = list(set(existing + changed))
-        write_json(session_path, session)
-        actions.append(f'updated changed_files: {len(changed)} files')
-
-    # Record new risks
     new_risks = result.get('new_risks') or []
+
+    # Update project map via the versioned updater
+    update_project_map(
+        project,
+        run_id='protocol-' + utc_now(),
+        action={'title': result.get('summary', 'worker task')},
+        execution_result={'leaf_results': [{'changed_files': changed}]},
+        final_result={'final_verdict': 'COMPLETED'},
+    )
+    actions.extend(
+        a
+        for a in [
+            f'updated project map: {len(changed)} file(s)' if changed else '',
+            f'added {len(new_risks)} risk(s)' if new_risks else '',
+        ]
+        if a
+    )
+
+    # Record new risks directly (update_project_map doesn't handle risks)
     if new_risks:
         map_path = project / '.zoo-agent' / 'map' / 'project_map.json'
         project_map = load_json(map_path) if map_path.exists() else {}
@@ -169,7 +179,8 @@ def apply_worker_result(project: Path, result: dict[str, Any]) -> dict[str, Any]
         actions.append(f'suggested next: {suggested[:60]}')
 
     return {
-        'actions_applied': actions,
+        'actions_applied': [a for a in actions if a],
         'changed_files': changed,
         'new_risks': len(new_risks),
+        'map_version': (load_json(project / '.zoo-agent' / 'map' / 'project_map.json') or {}).get('_version'),
     }
