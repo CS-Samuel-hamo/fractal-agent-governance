@@ -28,6 +28,40 @@ def _changed_files(execution_result: dict[str, Any]) -> list[str]:
     return changed
 
 
+def _version_path(out_dir: Path, version: int) -> Path:
+    return out_dir / 'history' / f'v{version}.json'
+
+
+def _next_version(out_dir: Path) -> int:
+    history_dir = out_dir / 'history'
+    history_dir.mkdir(parents=True, exist_ok=True)
+    existing = [int(p.stem[1:]) for p in history_dir.glob('v*.json') if p.stem[1:].isdigit()]
+    return (max(existing) if existing else 0) + 1
+
+
+def _changelog_entry(current: dict[str, Any], previous: dict[str, Any] | None) -> list[str]:
+    """Compute a human-readable list of changes between two map versions."""
+    entries: list[str] = []
+    if previous is None:
+        return ['initial map build']
+    prev_modules = {m.get('module_id'): m for m in previous.get('modules') or []}
+    curr_modules = {m.get('module_id'): m for m in current.get('modules') or []}
+    for mid, mod in curr_modules.items():
+        if mid not in prev_modules:
+            entries.append(f'module added: {mod.get("name")}')
+        elif prev_modules[mid].get('status') != mod.get('status'):
+            entries.append(f'module {mod.get("name")}: {prev_modules[mid].get("status")} → {mod.get("status")}')
+    prev_risks = {(r.get('description'), r.get('severity')) for r in previous.get('risks') or []}
+    curr_risks = {(r.get('description'), r.get('severity')) for r in current.get('risks') or []}
+    for risk, sev in curr_risks - prev_risks:
+        entries.append(f'risk added: [{sev}] {risk[:60]}')
+    prev_count = len(previous.get('next_actions') or [])
+    curr_count = len(current.get('next_actions') or [])
+    if curr_count != prev_count:
+        entries.append(f'next_actions: {prev_count} → {curr_count}')
+    return entries if entries else ['minor update']
+
+
 def update_project_map(
     project: Path,
     *,
@@ -66,7 +100,23 @@ def update_project_map(
                 item['last_result'] = verdict or 'unknown'
                 item['last_run_id'] = run_id
                 item['last_updated'] = now
+
+    # Versioning: save previous version to history
+    version = _next_version(out_dir)
+    previous = load_json(out_dir / 'project_map.json') or None
+    changelog = _changelog_entry(current, previous)
+    current['_version'] = version
+    current['_changelog'] = changelog
+    current['_updated_by'] = run_id or 'manual'
     current['last_updated'] = now
+
+    # Write versioned history
+    if previous:
+        vpath = _version_path(out_dir, version)
+        vpath.parent.mkdir(parents=True, exist_ok=True)
+        write_json(vpath, previous)
+
+    # Write current
     write_json(out_dir / 'project_map.json', current)
     md = out_dir / 'project_map.md'
     md.parent.mkdir(parents=True, exist_ok=True)
