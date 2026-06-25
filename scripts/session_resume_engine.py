@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -58,24 +59,36 @@ def recovery_report(project: Path) -> dict[str, Any]:
                 'reason': 'last_session_failed',
             }
         )
-    if lock.get('locked') and lock.get('stale'):
-        report.update(
-            {
-                'recovery_needed': True,
-                'recovery_status': 'recovered',
-                'safe_to_continue': True,
-                'reason': 'stale_lock_recovered',
-            }
-        )
-    elif lock.get('locked') and not lock.get('stale'):
-        report.update(
-            {
-                'recovery_needed': True,
-                'recovery_status': 'needs_attention',
-                'safe_to_continue': False,
-                'reason': 'session_locked',
-            }
-        )
+    if lock.get('locked'):
+        lock_detail = lock.get('lock', {})
+        lock_age_secs = 0
+        created = float(lock_detail.get('created_monotonic') or 0.0)
+        if created:
+            lock_age_secs = int(time.monotonic() - created)
+        lock_info = {
+            'lock_pid': lock_detail.get('pid'),
+            'lock_age_seconds': lock_age_secs,
+        }
+        if lock.get('stale'):
+            report.update(
+                {
+                    'recovery_needed': True,
+                    'recovery_status': 'recovered',
+                    'safe_to_continue': True,
+                    'reason': 'stale_lock_recovered',
+                    **lock_info,
+                }
+            )
+        else:
+            report.update(
+                {
+                    'recovery_needed': True,
+                    'recovery_status': 'needs_attention',
+                    'safe_to_continue': False,
+                    'reason': 'session_locked',
+                    **lock_info,
+                }
+            )
     return report
 
 
@@ -92,13 +105,14 @@ def recover_session(project: Path) -> dict[str, Any]:
         md.write_text(render_markdown(project_map), encoding='utf-8')
         report.update({'recovery_needed': True, 'recovery_status': 'recovered', 'reason': 'project_map_rebuilt'})
     sync = sync_cockpit(project)
-    if sync.get('status') == 'failed' and report.get('safe_to_continue'):
+    if sync.get('status') == 'failed':
         report.update(
             {
                 'recovery_needed': True,
-                'recovery_status': 'needs_attention',
-                'safe_to_continue': False,
+                'recovery_status': 'cockpit_warning',
+                'safe_to_continue': report.get('safe_to_continue', True),
                 'reason': 'cockpit_sync_failed',
+                'cockpit_warning': 'Cockpit rendering failed. Session can continue but the visual dashboard may be outdated. Run `agent cockpit` to regenerate.',
             }
         )
     state, _ = load_session_state(project)
@@ -113,13 +127,69 @@ def recover_session(project: Path) -> dict[str, Any]:
     return report
 
 
+def verify_session_files(project: Path) -> dict[str, Any]:
+    """Verify all session files are well-formed and schema-compatible."""
+    from session_state_store import (
+        session_events_path,
+        session_history_path,
+        session_lock_path,
+        session_state_path,
+    )
+
+    results: dict[str, Any] = {'status': 'ok', 'files': {}}
+    checks = [
+        ('session_state.json', session_state_path(project)),
+        ('session_history.json', session_history_path(project)),
+        ('session_lock.json', session_lock_path(project)),
+    ]
+    for label, path in checks:
+        entry: dict[str, Any] = {'exists': path.exists()}
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding='utf-8-sig'))
+                entry['valid_json'] = True
+                entry['type'] = type(data).__name__
+            except (json.JSONDecodeError, ValueError) as exc:
+                entry['valid_json'] = False
+                entry['error'] = str(exc)
+                results['status'] = 'issues_found'
+        results['files'][label] = entry
+
+    events_path = session_events_path(project)
+    if events_path.exists():
+        valid_lines = 0
+        bad_lines = 0
+        last_error = ''
+        for line in events_path.read_text(encoding='utf-8-sig').splitlines():
+            if line.strip():
+                try:
+                    json.loads(line)
+                    valid_lines += 1
+                except json.JSONDecodeError as exc:
+                    bad_lines += 1
+                    last_error = str(exc)
+        results['files']['session_events.jsonl'] = {
+            'exists': True,
+            'valid_lines': valid_lines,
+            'bad_lines': bad_lines,
+        }
+        if bad_lines:
+            results['status'] = 'issues_found'
+            results['files']['session_events.jsonl']['last_error'] = last_error
+    return results
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Recover or inspect a long-running session.')
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--check-only', action='store_true')
+    parser.add_argument('--verify', action='store_true', help='Validate all session file integrity.')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    payload = recovery_report(project) if args.check_only else recover_session(project)
+    if args.verify:
+        payload = verify_session_files(project)
+    else:
+        payload = recovery_report(project) if args.check_only else recover_session(project)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
