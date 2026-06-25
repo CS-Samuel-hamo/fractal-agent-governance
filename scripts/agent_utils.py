@@ -32,6 +32,13 @@ from seed_action_queue import next_pending_action as next_seed_action
 from seed_action_queue import run_batch as run_seed_batch
 
 
+def ensure_bootstrap_before_run(args) -> None:
+    project = project_root(args.workspace)
+    if is_bootstrapped(project):
+        return
+    return
+
+
 def run_command(command: list[str], cwd: Path) -> int:
     proc = subprocess.run(command, cwd=cwd)
     return proc.returncode
@@ -91,7 +98,7 @@ def print_json(payload: dict) -> None:
 
 
 def clean_progress(value: object) -> str:
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return f'{max(0, min(int(value), 100))}%'
     text = str(value or '').strip()
     if not text:
