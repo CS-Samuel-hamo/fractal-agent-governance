@@ -625,11 +625,47 @@ def undo_command(args) -> int:
     except Exception:
         pass
     checkpoint = session_payload.get('checkpoint') if isinstance(session_payload.get('checkpoint'), dict) else {}
+    diff_info = session_payload.get('diff') if isinstance(session_payload.get('diff'), dict) else {}
+
     if checkpoint:
-        print_json(
-            user_task_result(task='undo', mode=mode, result=f'checkpoint available: {checkpoint.get("checkpoint_id")}')
-        )
-        return 0
+        checkpoint_id = str(checkpoint.get('checkpoint_id') or 'unknown')
+        if diff_info.get('available'):
+            changed_files = diff_info.get('changed_files') or []
+            summary = str(diff_info.get('summary') or f'{len(changed_files)} files changed')
+            file_list = changed_files[:20]
+            file_hint = f' ({len(changed_files)} total)' if len(changed_files) > 20 else ''
+            if mode == 'preview':
+                lines = [
+                    f'Checkpoint: {checkpoint_id} at {diff_info["checkpoint_commit"]}',
+                    f'Changes since checkpoint: {summary}',
+                ]
+                if file_list:
+                    lines.append('Affected files:')
+                    for f in file_list:
+                        lines.append(f'  - {f}')
+                    if file_hint:
+                        lines.append(f'  ... and {len(changed_files) - 20} more{file_hint}')
+                lines.append('')
+                lines.append('To undo: run `agent undo --apply` to restore checkpoint state via git checkout.')
+                print('\n'.join(lines))
+                return 0
+            else:
+                # apply mode — will be handled in Task #12
+                print_json(
+                    user_task_result(
+                        task='undo',
+                        mode='blocked',
+                        result=f'{checkpoint_id}: {summary} ({len(changed_files)} files). Use preview first, then confirm with --yes.',
+                    )
+                )
+                return 2
+        else:
+            reason = str(diff_info.get('reason') or 'checkpoint commit unreachable')
+            print_json(
+                user_task_result(task='undo', mode='blocked', result=f'{checkpoint_id} found but cannot undo: {reason}')
+            )
+            return 2
+
     latest = latest_run_id(project)
     if not latest:
         print_json(user_task_result(task='undo', mode=mode, result='nothing to undo'))

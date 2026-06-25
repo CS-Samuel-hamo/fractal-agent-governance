@@ -210,11 +210,42 @@ def stop_session(project: Path) -> dict[str, Any]:
     return {'status': 'stopped', 'state': state}
 
 
+def _checkpoint_diff(project: Path, checkpoint: dict[str, Any]) -> dict[str, Any]:
+    """Compute a human-readable diff summary between checkpoint git state and current HEAD."""
+    from runtime_common import run_command_capture
+
+    git_head = str(checkpoint.get('git_head') or '')
+    if not git_head:
+        return {'available': False, 'reason': 'checkpoint has no git_head reference'}
+    # Check if the checkpoint commit is still an ancestor of HEAD
+    ancestor = run_command_capture(['git', 'merge-base', '--is-ancestor', git_head, 'HEAD'], project)
+    if ancestor.get('returncode') != 0:
+        return {
+            'available': False,
+            'reason': 'checkpoint commit is no longer in current history (rebased or reset)',
+        }
+    # Get list of files changed between checkpoint and HEAD
+    diff_files = run_command_capture(['git', 'diff', '--name-only', git_head, 'HEAD'], project)
+    changed_files = [f for f in (diff_files.get('stdout') or '').splitlines() if f.strip()]
+    # Get short stat summary
+    diff_stat = run_command_capture(['git', 'diff', '--stat', git_head, 'HEAD'], project)
+    stat_lines = [line for line in (diff_stat.get('stdout') or '').splitlines() if line.strip()]
+    return {
+        'available': True,
+        'checkpoint_commit': git_head[:12] if len(git_head) > 12 else git_head,
+        'changed_files': changed_files[:50],  # cap at 50 files for display
+        'total_changed': len(changed_files),
+        'summary': stat_lines[-1] if stat_lines else f'{len(changed_files)} files changed',
+        'diff_stat': stat_lines,
+    }
+
+
 def undo_session(project: Path) -> dict[str, Any]:
     state, _ = load_session_state(project)
     checkpoint = latest_checkpoint(project)
     if not state:
         state = default_session_state(project)
+    diff_info = _checkpoint_diff(project, checkpoint) if checkpoint else {}
     if checkpoint:
         state.update(
             {
@@ -230,7 +261,12 @@ def undo_session(project: Path) -> dict[str, Any]:
         )
     generate_digest(project)
     sync_cockpit(project)
-    return {'status': 'ok' if checkpoint else 'empty', 'state': state, 'checkpoint': checkpoint}
+    return {
+        'status': 'ok' if checkpoint else 'empty',
+        'state': state,
+        'checkpoint': checkpoint,
+        'diff': diff_info,
+    }
 
 
 def recover(project: Path) -> dict[str, Any]:
