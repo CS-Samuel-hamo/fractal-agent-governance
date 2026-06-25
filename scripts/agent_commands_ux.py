@@ -650,15 +650,44 @@ def undo_command(args) -> int:
                 print('\n'.join(lines))
                 return 0
             else:
-                # apply mode — will be handled in Task #12
-                print_json(
-                    user_task_result(
-                        task='undo',
-                        mode='blocked',
-                        result=f'{checkpoint_id}: {summary} ({len(changed_files)} files). Use preview first, then confirm with --yes.',
+                confirmed = getattr(args, 'yes', False)
+                if not confirmed:
+                    print(
+                        'Undo apply requires confirmation.\n'
+                        f'  This will revert {len(changed_files)} file(s) to checkpoint {checkpoint_id} state.\n'
+                        '  Run `agent undo --apply --yes` to confirm.'
                     )
-                )
-                return 2
+                    return 2
+                # Check for uncommitted changes
+                status_proc = run_command_capture(['git', 'status', '--porcelain'], project)
+                has_uncommitted = bool((status_proc.get('stdout') or '').strip())
+                if has_uncommitted:
+                    stash_proc = run_command_capture(
+                        ['git', 'stash', 'push', '-m', f'auto-stash before undo {checkpoint_id}'], project
+                    )
+                    if stash_proc.get('returncode') != 0:
+                        print(f'Warning: could not stash uncommitted changes ({stash_proc.get("stderr", "")}).')
+                commit_hash = str(diff_info.get('checkpoint_commit') or checkpoint.get('git_head') or '')
+                restored = []
+                failed = []
+                for filepath in changed_files:
+                    checkout = run_command_capture(['git', 'checkout', commit_hash, '--', filepath], project)
+                    if checkout.get('returncode') == 0:
+                        restored.append(filepath)
+                    else:
+                        failed.append(filepath)
+                print(f'Undo applied: checkpoint {checkpoint_id} ({commit_hash})\n  Files restored: {len(restored)}')
+                if restored:
+                    print('  Restored:')
+                    for f in restored[:20]:
+                        print(f'    - {f}')
+                    if len(restored) > 20:
+                        print(f'    ... and {len(restored) - 20} more')
+                if failed:
+                    print(f'  Failed: {len(failed)} file(s) could not be reverted')
+                    for f in failed[:10]:
+                        print(f'    - {f}')
+                return 0 if not failed else 1
         else:
             reason = str(diff_info.get('reason') or 'checkpoint commit unreachable')
             print_json(

@@ -573,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
     undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     undo_parser.add_argument('--preview', action='store_true')
     undo_parser.add_argument('--apply', action='store_true')
+    undo_parser.add_argument('--yes', action='store_true', help='Confirm undo apply.')
     undo_parser.set_defaults(handler=undo_command)
 
     # -- rollback (suppressed)
