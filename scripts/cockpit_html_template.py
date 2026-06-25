@@ -104,20 +104,67 @@ def action_cards(actions: list[dict[str, Any]]) -> str:
 def timeline(progress: dict[str, Any]) -> str:
     completed = progress.get('completed_actions') or []
     blocked = progress.get('blocked_actions') or []
+    # Merge and sort by timestamp descending (completed first, then blocked by latest)
+    merged: list[dict[str, Any]] = []
+    for item in completed:
+        tagged = dict(item)
+        tagged['_kind'] = 'completed'
+        merged.append(tagged)
+    for item in blocked:
+        tagged = dict(item)
+        tagged['_kind'] = 'blocked'
+        merged.append(tagged)
+    # Sort by updated_at descending, fall back to created_at
+    merged.sort(
+        key=lambda i: str(i.get('updated_at') or i.get('created_at') or ''),
+        reverse=True,
+    )
+    # Show up to 20 entries (expanded from 6+4)
+    merged = merged[:20]
     rows = []
-    for item in completed[-6:]:
+    for idx, item in enumerate(merged):
+        kind = item.get('_kind', 'completed')
+        dot_class = 'good-dot' if kind == 'completed' else 'bad-dot'
+        title = esc(item.get('title') or 'Action')
+        status = esc(item.get('status') or kind)
+        changed = item.get('changed_files') or []
+        file_count = len(changed)
+        file_info = f' | {file_count} file(s)' if file_count else ''
+        # Compute duration from checkpoint timing if available
+        duration = ''
+        created = item.get('created_at') or ''
+        updated = item.get('updated_at') or ''
+        if created and updated and created < updated:
+            try:
+                from datetime import datetime
+
+                c = datetime.fromisoformat(created.replace('Z', '+00:00'))
+                u = datetime.fromisoformat(updated.replace('Z', '+00:00'))
+                delta = u - c
+                total_secs = int(delta.total_seconds())
+                if total_secs < 120:
+                    duration = f' | {total_secs}s'
+                elif total_secs < 7200:
+                    duration = f' | {total_secs // 60}m'
+                else:
+                    duration = f' | {total_secs // 3600}h'
+            except (ValueError, TypeError):
+                pass
+        dot_style = f'animation: pulse {1.5 + idx * 0.1}s ease-in-out infinite;' if kind == 'active' else ''
         rows.append(
-            f'<li><span class="dot good-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>'
-        )
-    for item in blocked[-4:]:
-        rows.append(
-            f'<li><span class="dot bad-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>'
+            f'<li><span class="dot {dot_class}" style="{dot_style}"></span>'
+            f'<b>{title}</b><small>{status}{duration}{file_info}</small></li>'
         )
     if not rows:
         rows.append(
             '<li><span class="dot"></span><b>No actions recorded yet.</b><small>Start a session to build progress.</small></li>'
         )
-    return '<ol class="timeline">' + ''.join(rows) + '</ol>'
+    return (
+        '<style>'
+        '@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }'
+        '</style>'
+        '<ol class="timeline">' + ''.join(rows) + '</ol>'
+    )
 
 
 def attention_panel(attention: dict[str, Any]) -> str:
@@ -126,11 +173,22 @@ def attention_panel(attention: dict[str, Any]) -> str:
         return '<div class="empty">No attention needed right now.</div>'
     rows = []
     for item in items:
+        severity = str(item.get('severity') or 'warning')
+        sev_badge = {'blocking': 'bad', 'warning': 'warn', 'info': 'good'}.get(severity, 'warn')
+        sev_html = f'<span class="badge {sev_badge}">{esc(severity)}</span>'
+        related = item.get('related_modules') or []
+        related_html = (
+            '<div class="meta">Related: ' + ', '.join(esc(m) for m in related[:5]) + '</div>' if related else ''
+        )
+        changed = item.get('changed_files') or []
+        file_html = '<div class="meta">Files: ' + ', '.join(esc(f) for f in changed[:8]) + '</div>' if changed else ''
         rows.append(
             f"""<article class="item">
-  <div class="item-head"><strong>{esc(item.get('reason'))}</strong>{badge('needs_attention')}</div>
+  <div class="item-head"><strong>{esc(item.get('reason'))}</strong>{sev_html}</div>
   <p>{esc(item.get('suggested_next_step'))}</p>
   <div class="meta">{esc(item.get('action'))}</div>
+  {related_html}
+  {file_html}
 </article>"""
         )
     return ''.join(rows)
