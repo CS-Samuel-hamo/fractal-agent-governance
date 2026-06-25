@@ -4,8 +4,15 @@
 Usage:
   python check_codex_scope.py <task_id> [--tasks TASKS.yaml] [--json-output scope.json]
 """
+
 from __future__ import annotations
-import argparse, fnmatch, json, subprocess, sys, re
+
+import argparse
+import fnmatch
+import json
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 try:
@@ -23,17 +30,17 @@ def _simple_yaml_tasks(text: str):
         line = raw.rstrip()
         if not line.strip() or line.strip().startswith('#'):
             continue
-        if re.match(r"\s*-\s+id:\s*", line):
+        if re.match(r'\s*-\s+id:\s*', line):
             if current:
                 tasks.append(current)
             current = {}
             current_key = None
-            val = line.split('id:',1)[1].strip().strip('"\'')
+            val = line.split('id:', 1)[1].strip().strip('"\'')
             current['id'] = val
             continue
         if current is None:
             continue
-        m = re.match(r"\s{4}([A-Za-z0-9_]+):\s*(.*)$", line)
+        m = re.match(r'\s{4}([A-Za-z0-9_]+):\s*(.*)$', line)
         if m:
             key, val = m.group(1), m.group(2).strip()
             current_key = key
@@ -42,7 +49,7 @@ def _simple_yaml_tasks(text: str):
             else:
                 current[key] = val.strip('"\'')
             continue
-        m = re.match(r"\s{6}-\s*(.*)$", line)
+        m = re.match(r'\s{6}-\s*(.*)$', line)
         if m and current_key:
             current.setdefault(current_key, [])
             if not isinstance(current[current_key], list):
@@ -61,10 +68,14 @@ def load_tasks(path: Path):
 
 
 def git_changed_files():
-    out = subprocess.check_output(['git','diff','--name-only'], text=True, encoding='utf-8', errors='replace')
-    staged = subprocess.check_output(['git','diff','--cached','--name-only'], text=True, encoding='utf-8', errors='replace')
-    status = subprocess.check_output(['git','status','--porcelain','--untracked-files=all'], text=True, encoding='utf-8', errors='replace')
-    files = set([x.strip().replace('\\','/') for x in (out + '\n' + staged).splitlines() if x.strip()])
+    out = subprocess.check_output(['git', 'diff', '--name-only'], text=True, encoding='utf-8', errors='replace')
+    staged = subprocess.check_output(
+        ['git', 'diff', '--cached', '--name-only'], text=True, encoding='utf-8', errors='replace'
+    )
+    status = subprocess.check_output(
+        ['git', 'status', '--porcelain', '--untracked-files=all'], text=True, encoding='utf-8', errors='replace'
+    )
+    files = set([x.strip().replace('\\', '/') for x in (out + '\n' + staged).splitlines() if x.strip()])
     for line in status.splitlines():
         if not line.strip():
             continue
@@ -73,15 +84,15 @@ def git_changed_files():
         if ' -> ' in path:
             path = path.split(' -> ', 1)[1]
         if path:
-            files.add(path.replace('\\','/'))
+            files.add(path.replace('\\', '/'))
     return sorted(files)
 
 
 def matches_any(path: str, patterns):
-    p = path.replace('\\','/')
+    p = path.replace('\\', '/')
     for pat in patterns or []:
-        pat = str(pat).replace('\\','/')
-        if fnmatch.fnmatch(p, pat) or fnmatch.fnmatch('/'+p, pat):
+        pat = str(pat).replace('\\', '/')
+        if fnmatch.fnmatch(p, pat) or fnmatch.fnmatch('/' + p, pat):
             return True
     return False
 
@@ -151,7 +162,7 @@ def main():
     if violations:
         print('Scope check FAILED.')
         for v in violations:
-            print(f" - {v['file']}: {v['reason']}")
+            print(f' - {v["file"]}: {v["reason"]}')
         return 1
     print('Scope check passed.')
     if changed:
@@ -161,6 +172,7 @@ def main():
     else:
         print('No changed files detected.')
     return 0
+
 
 if __name__ == '__main__':
     raise SystemExit(main())

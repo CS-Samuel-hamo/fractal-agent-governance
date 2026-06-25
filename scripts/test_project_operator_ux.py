@@ -12,7 +12,16 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, env: dict[str, str], check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -33,7 +42,16 @@ def init_repo(env: dict[str, str]) -> Path:
 
 def assert_no_internal_leakage(text: str) -> None:
     lowered = text.lower()
-    for term in ['eval', 'governance', 'planner', 'verifier', 'scheduler', 'policy internals', 'loop internals', 'backend internals']:
+    for term in [
+        'eval',
+        'governance',
+        'planner',
+        'verifier',
+        'scheduler',
+        'policy internals',
+        'loop internals',
+        'backend internals',
+    ]:
         assert term not in lowered, f'public output leaked internal term: {term}'
 
 
@@ -41,13 +59,22 @@ def main() -> int:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='operator-codex-home-')).resolve()))
     help_text = run([sys.executable, str(AGENT), '--help'], ROOT, env=env).stdout
-    for visible in ['agent "<task>"', 'agent start "<project goal>"', 'agent status', 'agent continue', 'agent stop', 'agent undo']:
+    for visible in [
+        'agent "<task>"',
+        'agent start "<project goal>"',
+        'agent status',
+        'agent continue',
+        'agent stop',
+        'agent undo',
+    ]:
         assert visible in help_text
     assert_no_internal_leakage(help_text)
 
     repo = init_repo(env)
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=env)
-    start = run([sys.executable, str(AGENT), 'start', 'improve project readiness', '--workspace', str(repo)], repo, env=env).stdout
+    start = run(
+        [sys.executable, str(AGENT), 'start', 'improve project readiness', '--workspace', str(repo)], repo, env=env
+    ).stdout
     assert 'Done.' in start or 'Needs attention.' in start
     assert 'Undo:' in start or 'Suggested next step:' in start
     assert_no_internal_leakage(start)

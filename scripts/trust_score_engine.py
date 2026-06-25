@@ -50,7 +50,9 @@ def build_trust_score(project: Path, eval_payload: dict[str, Any], impact: dict[
     false_success_penalty = 0.25 if eval_payload.get('false_success_detected') else 0.0
     fallback_frequency = 0.0
     if history:
-        fallback_frequency = sum(1 for item in history if str(item.get('recommended_internal_action') or 'none') not in {'', 'none'}) / len(history)
+        fallback_frequency = sum(
+            1 for item in history if str(item.get('recommended_internal_action') or 'none') not in {'', 'none'}
+        ) / len(history)
     failure_history = 0.0
     if history:
         failure_history = sum(1 for item in history if str(item.get('failure_type') or 'none') != 'none') / len(history)
@@ -71,10 +73,10 @@ def build_trust_score(project: Path, eval_payload: dict[str, Any], impact: dict[
     risk = _risk_level(impact, confidence)
     recommendation = _recommendation(risk, confidence, bool(eval_payload.get('false_success_detected')))
     reasoning = (
-        f"Recommendation is {recommendation}. Trust is {confidence} because the latest run scored "
-        f"{current_quality:.2f}, recent recovery frequency is {fallback_frequency:.2f}, "
-        f"and impact risk is {impact.get('cross_module_risk', 'unknown')}. "
-        "This score is advisory and cannot grant execution permission."
+        f'Recommendation is {recommendation}. Trust is {confidence} because the latest run scored '
+        f'{current_quality:.2f}, recent recovery frequency is {fallback_frequency:.2f}, '
+        f'and impact risk is {impact.get("cross_module_risk", "unknown")}. '
+        'This score is advisory and cannot grant execution permission.'
     )
     return {
         'schema_version': '1.0',

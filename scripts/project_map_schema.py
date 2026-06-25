@@ -6,7 +6,6 @@ from typing import Any
 
 from runtime_common import utc_now
 
-
 MAP_SCHEMA_VERSION = '1.0'
 SENSITIVE_PATTERNS = [
     '.env',
@@ -61,7 +60,16 @@ def evidence_item(kind: str, path: str, summary: str, *, confidence: float = 0.7
     }
 
 
-def module_row(module_id: str, name: str, purpose: str, paths: list[str], evidence: list[dict[str, Any]], *, status: str = 'mapped', confidence: float = 0.6) -> dict[str, Any]:
+def module_row(
+    module_id: str,
+    name: str,
+    purpose: str,
+    paths: list[str],
+    evidence: list[dict[str, Any]],
+    *,
+    status: str = 'mapped',
+    confidence: float = 0.6,
+) -> dict[str, Any]:
     return {
         'module_id': module_id,
         'name': name,
@@ -73,7 +81,9 @@ def module_row(module_id: str, name: str, purpose: str, paths: list[str], eviden
     }
 
 
-def capability_row(capability_id: str, name: str, status: str, evidence: list[dict[str, Any]], related_modules: list[str]) -> dict[str, Any]:
+def capability_row(
+    capability_id: str, name: str, status: str, evidence: list[dict[str, Any]], related_modules: list[str]
+) -> dict[str, Any]:
     return {
         'capability_id': capability_id,
         'name': name,
@@ -83,7 +93,9 @@ def capability_row(capability_id: str, name: str, status: str, evidence: list[di
     }
 
 
-def risk_row(risk_id: str, description: str, severity: str, affected_files: list[str], evidence: list[dict[str, Any]]) -> dict[str, Any]:
+def risk_row(
+    risk_id: str, description: str, severity: str, affected_files: list[str], evidence: list[dict[str, Any]]
+) -> dict[str, Any]:
     return {
         'risk_id': risk_id,
         'description': description,

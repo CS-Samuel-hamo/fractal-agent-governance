@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -8,13 +8,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -100,8 +101,22 @@ def assert_sticky_preserved(before: dict, after: dict, goal_id: str) -> None:
 
 def setup_goals(repo: Path) -> None:
     set_goal(repo, 'goal-a', 'Add diagnostics docs outline', priority=80, resource='diagnostics-report')
-    set_goal(repo, 'goal-b', 'Update diagnostics report output format docs', priority=70, resource='diagnostics-report', no_activate=True)
-    set_goal(repo, 'goal-c', 'Change public API response and database schema', priority=90, resource='api_contract:*', no_activate=True)
+    set_goal(
+        repo,
+        'goal-b',
+        'Update diagnostics report output format docs',
+        priority=70,
+        resource='diagnostics-report',
+        no_activate=True,
+    )
+    set_goal(
+        repo,
+        'goal-c',
+        'Change public API response and database schema',
+        priority=90,
+        resource='api_contract:*',
+        no_activate=True,
+    )
     set_goal(repo, 'goal-d', 'Improve README onboarding wording', priority=20, resource='README.md', no_activate=True)
     run([sys.executable, str(AGENT), 'goal', 'block', '--workspace', str(repo), '--goal-id', 'goal-c'], repo)
     run([sys.executable, str(AGENT), 'goal', 'backlog', '--workspace', str(repo), '--goal-id', 'goal-d'], repo)
@@ -126,7 +141,11 @@ def run_active_aggregation(repo: Path) -> None:
         repo,
         check=False,
     )
-    run([sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', run_id, '--goal-id', 'goal-a'], repo, check=False)
+    run(
+        [sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', run_id, '--goal-id', 'goal-a'],
+        repo,
+        check=False,
+    )
 
 
 def test_071_pollution_regression() -> None:
@@ -149,7 +168,17 @@ def test_071_pollution_regression() -> None:
     assert_sticky_preserved(before, after, 'goal-b')
     assert_sticky_preserved(before, after, 'goal-c')
     assert_sticky_preserved(before, after, 'goal-d')
-    proc = run([sys.executable, str(ROOT / 'scripts' / 'check_goal_state_invariants.py'), '--workspace', str(repo), '--before', str(before_path)], repo)
+    proc = run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'check_goal_state_invariants.py'),
+            '--workspace',
+            str(repo),
+            '--before',
+            str(before_path),
+        ],
+        repo,
+    )
     assert json.loads(proc.stdout)['status'] == 'pass'
 
 
@@ -167,7 +196,18 @@ def test_patch_revision_and_illegal_transitions() -> None:
     }
     stale_path = repo / '.zoo-agent' / 'goal' / 'stale-patch.json'
     write_json(stale_path, stale_patch)
-    proc = run([sys.executable, str(ROOT / 'scripts' / 'apply_goal_state_patch.py'), '--workspace', str(repo), '--patch', str(stale_path)], repo, check=False)
+    proc = run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'apply_goal_state_patch.py'),
+            '--workspace',
+            str(repo),
+            '--patch',
+            str(stale_path),
+        ],
+        repo,
+        check=False,
+    )
     assert proc.returncode == 10
 
     illegal_patch = {
@@ -180,7 +220,18 @@ def test_patch_revision_and_illegal_transitions() -> None:
     }
     illegal_path = repo / '.zoo-agent' / 'goal' / 'illegal-patch.json'
     write_json(illegal_path, illegal_patch)
-    proc2 = run([sys.executable, str(ROOT / 'scripts' / 'apply_goal_state_patch.py'), '--workspace', str(repo), '--patch', str(illegal_path)], repo, check=False)
+    proc2 = run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'apply_goal_state_patch.py'),
+            '--workspace',
+            str(repo),
+            '--patch',
+            str(illegal_path),
+        ],
+        repo,
+        check=False,
+    )
     assert proc2.returncode == 10
     assert by_id(state(repo), 'goal-c')['status'] == 'blocked'
 
@@ -195,11 +246,29 @@ def test_legal_patch_transitions() -> None:
         'source': 'aggregation',
         'reason': 'aggregation completed active goal',
         'base_revision': int(current.get('revision') or 0),
-        'changes': [{'goal_id': 'goal-a', 'op': 'set_completion', 'from': 'active', 'to': 'completed', 'reason': 'aggregation completed active goal'}],
+        'changes': [
+            {
+                'goal_id': 'goal-a',
+                'op': 'set_completion',
+                'from': 'active',
+                'to': 'completed',
+                'reason': 'aggregation completed active goal',
+            }
+        ],
     }
     path = repo / '.zoo-agent' / 'goal' / 'complete-patch.json'
     write_json(path, patch)
-    run([sys.executable, str(ROOT / 'scripts' / 'apply_goal_state_patch.py'), '--workspace', str(repo), '--patch', str(path)], repo)
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'apply_goal_state_patch.py'),
+            '--workspace',
+            str(repo),
+            '--patch',
+            str(path),
+        ],
+        repo,
+    )
     assert by_id(state(repo), 'goal-a')['status'] == 'completed'
 
     current = state(repo)
@@ -209,11 +278,29 @@ def test_legal_patch_transitions() -> None:
         'source': 'scheduler',
         'reason': 'scheduler selected next goal',
         'base_revision': int(current.get('revision') or 0),
-        'changes': [{'goal_id': 'goal-b', 'op': 'set_status', 'from': 'paused', 'to': 'active', 'reason': 'scheduler selected next goal'}],
+        'changes': [
+            {
+                'goal_id': 'goal-b',
+                'op': 'set_status',
+                'from': 'paused',
+                'to': 'active',
+                'reason': 'scheduler selected next goal',
+            }
+        ],
     }
     path2 = repo / '.zoo-agent' / 'goal' / 'resume-patch.json'
     write_json(path2, patch2)
-    run([sys.executable, str(ROOT / 'scripts' / 'apply_goal_state_patch.py'), '--workspace', str(repo), '--patch', str(path2)], repo)
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'apply_goal_state_patch.py'),
+            '--workspace',
+            str(repo),
+            '--patch',
+            str(path2),
+        ],
+        repo,
+    )
     assert state(repo)['global_loop_state']['active_goal_id'] == 'goal-b'
     assert by_id(state(repo), 'goal-b')['status'] == 'active'
 

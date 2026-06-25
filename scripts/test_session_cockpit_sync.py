@@ -8,13 +8,21 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if proc.returncode:
@@ -51,7 +59,11 @@ def main() -> int:
     Path(env['CODEX_HOME']).mkdir(parents=True, exist_ok=True)
     repo = init_repo(env)
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=env)
-    run([sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(repo)], repo, env=env)
+    run(
+        [sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(repo)],
+        repo,
+        env=env,
+    )
     cockpit = repo / '.zoo-agent' / 'cockpit' / 'index.html'
     data_path = repo / '.zoo-agent' / 'cockpit' / 'cockpit_data.json'
     digest = repo / '.zoo-agent' / 'session' / 'session_digest.md'

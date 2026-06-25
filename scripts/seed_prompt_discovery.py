@@ -10,7 +10,6 @@ from typing import Any
 
 from runtime_common import project_root, utc_now, write_json
 
-
 SEED_BOOTSTRAP_ENV = 'AGENT_ENABLE_INTENT_FIRST_BOOTSTRAP'
 MAX_SEED_BYTES = 128 * 1024
 SEED_PRIORITY = [

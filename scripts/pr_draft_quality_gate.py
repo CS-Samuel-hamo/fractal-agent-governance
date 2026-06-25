@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 SECRET_RE = [
     re.compile(r'ghp_[A-Za-z0-9_]{20,}'),
@@ -40,7 +39,17 @@ def read_text(path: Path) -> str:
 
 
 def heading_score(draft: str) -> float:
-    headings = ['## Summary', '## What changed', '## Why', '## Evidence', '## Test plan', '## Risks', '## Rollback', '## Review focus', '## Not included']
+    headings = [
+        '## Summary',
+        '## What changed',
+        '## Why',
+        '## Evidence',
+        '## Test plan',
+        '## Risks',
+        '## Rollback',
+        '## Review focus',
+        '## Not included',
+    ]
     found = sum(1 for item in headings if item in draft)
     return round(found / len(headings), 2)
 
@@ -59,7 +68,16 @@ def evaluate_pr_draft(project: Path, *, output_project: Path | None = None) -> d
         failed.append('missing_pr_title')
     if not plan.get('summary') or '## Summary' not in draft:
         failed.append('missing_summary')
-    for heading in ['## What changed', '## Why', '## Evidence', '## Test plan', '## Risks', '## Rollback', '## Review focus', '## Not included']:
+    for heading in [
+        '## What changed',
+        '## Why',
+        '## Evidence',
+        '## Test plan',
+        '## Risks',
+        '## Rollback',
+        '## Review focus',
+        '## Not included',
+    ]:
         if heading not in draft:
             failed.append(f'missing_{heading.lower().replace("## ", "").replace(" ", "_")}')
     fake_changed = any(item not in git_changed for item in changed)
@@ -72,7 +90,11 @@ def evaluate_pr_draft(project: Path, *, output_project: Path | None = None) -> d
         failed.append('fabricated_test_result')
     if 'Not run in this workflow' not in draft:
         failed.append('missing_not_run_notice')
-    secret_leak = any(pattern.search(draft) for pattern in SECRET_RE) or bool(ABS_PATH_RE.search(draft)) or 'RAW_BACKEND_LOG' in draft
+    secret_leak = (
+        any(pattern.search(draft) for pattern in SECRET_RE)
+        or bool(ABS_PATH_RE.search(draft))
+        or 'RAW_BACKEND_LOG' in draft
+    )
     if secret_leak:
         failed.append('secret_or_path_leak')
     if not safety.get('safe', False):
@@ -82,7 +104,13 @@ def evaluate_pr_draft(project: Path, *, output_project: Path | None = None) -> d
     test_score = 0.0 if fabricated_tests else (1.0 if 'Not run in this workflow' in draft else 0.75)
     risk_score = 1.0 if '## Risks' in draft and 'Risk level:' in draft else 0.6
     review_score = 1.0 if '## Review focus' in draft and (plan.get('review_focus') or []) else 0.7
-    honesty_score = 1.0 if not fabricated_tests and not fake_changed and (changed or 'Draft only; no code changes included yet.' in draft) else 0.0
+    honesty_score = (
+        1.0
+        if not fabricated_tests
+        and not fake_changed
+        and (changed or 'Draft only; no code changes included yet.' in draft)
+        else 0.0
+    )
     privacy_score = 0.0 if secret_leak else 1.0
     quality = round(min(copy_score, test_score, risk_score, review_score, honesty_score, privacy_score), 2)
     recommendation = 'pass'

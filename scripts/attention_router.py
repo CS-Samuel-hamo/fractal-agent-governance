@@ -9,7 +9,9 @@ from typing import Any
 from runtime_common import load_json, project_root, utc_now, write_json
 
 
-def mark_attention(project: Path, *, reason: str, suggested_next_step: str, action: dict[str, Any] | None = None) -> dict[str, Any]:
+def mark_attention(
+    project: Path, *, reason: str, suggested_next_step: str, action: dict[str, Any] | None = None
+) -> dict[str, Any]:
     payload = {
         'schema_version': '1.0',
         'generated_by': 'attention_router.py',

@@ -13,8 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, safe_name, utc_now, write_json
 
 RUNTIME_PATTERNS = [
     '.zoo-agent/**',
@@ -62,8 +61,7 @@ def run_git(args: list[str], cwd: Path) -> str:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return proc.stdout if proc.returncode == 0 else ''
 
@@ -81,7 +79,9 @@ def status_paths(lines: list[str]) -> list[str]:
 
 def matches_any(path: str, patterns: list[str]) -> bool:
     normalized = path.replace('\\', '/')
-    return any(fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns)
+    return any(
+        fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns
+    )
 
 
 def should_skip_content(path: str, absolute: Path) -> tuple[bool, str]:
@@ -173,7 +173,12 @@ def compare(args: argparse.Namespace) -> dict[str, Any]:
     notes: list[str] = []
 
     for path in current_paths:
-        exists_at_baseline = path in tracked_paths or path in baseline_existing_diff or path in baseline_hashes or path in baseline_skipped
+        exists_at_baseline = (
+            path in tracked_paths
+            or path in baseline_existing_diff
+            or path in baseline_hashes
+            or path in baseline_skipped
+        )
         if path in baseline_existing_diff:
             before_hash = baseline_hashes.get(path, '')
             after_hash, skip_reason = file_hash(workspace, path)
@@ -183,7 +188,9 @@ def compare(args: argparse.Namespace) -> dict[str, Any]:
                 unchanged_existing_diff.append(path)
             elif path in baseline_skipped:
                 unchanged_existing_diff.append(path)
-                notes.append(f'{path}: baseline hash skipped ({baseline_skipped[path]}); treated as pre-existing diff unless later classified unsafe.')
+                notes.append(
+                    f'{path}: baseline hash skipped ({baseline_skipped[path]}); treated as pre-existing diff unless later classified unsafe.'
+                )
             elif skip_reason == 'missing_or_not_file':
                 deleted_since_baseline.append(path)
             else:
@@ -234,7 +241,17 @@ def compare(args: argparse.Namespace) -> dict[str, Any]:
         'denied_files_touched': sorted(set(denied_files_touched)),
         'notes': notes,
     }
-    output = Path(args.output).resolve() if args.output else workspace / '.zoo-agent' / 'runs' / payload['run_id'] / 'tasks' / safe_name(payload['task_id']) / 'task-delta.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else workspace
+        / '.zoo-agent'
+        / 'runs'
+        / payload['run_id']
+        / 'tasks'
+        / safe_name(payload['task_id'])
+        / 'task-delta.json'
+    )
     write_json(output, payload)
     payload['path'] = str(output)
     return payload

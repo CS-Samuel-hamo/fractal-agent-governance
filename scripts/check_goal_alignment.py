@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import alignment_report, project_root, safe_name, write_json  # noqa: E402
+from runtime_common import alignment_report, project_root, safe_name, write_json
 
 
 def main() -> int:
@@ -39,7 +39,11 @@ def main() -> int:
         goal_id=args.goal_id,
         source='check_goal_alignment.py',
     )
-    output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'runs' / args.run_id / 'goal-alignment' / f'{safe_name(args.task_id)}.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else project / '.zoo-agent' / 'runs' / args.run_id / 'goal-alignment' / f'{safe_name(args.task_id)}.json'
+    )
     write_json(output, report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if report['status'] == 'blocked':

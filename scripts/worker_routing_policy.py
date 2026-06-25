@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 TYPE_CAPABILITY = {
     'docs_update': 'docs_edit',
     'test_update': 'tests_edit',
@@ -20,7 +19,9 @@ def risk_value(risk: str) -> int:
 
 
 def worker_risk_limit_ok(worker: dict[str, Any], task_profile: dict[str, Any]) -> bool:
-    return risk_value(str(task_profile.get('risk_level') or 'medium')) <= risk_value(str(worker.get('risk_limit') or 'low'))
+    return risk_value(str(task_profile.get('risk_level') or 'medium')) <= risk_value(
+        str(worker.get('risk_limit') or 'low')
+    )
 
 
 def required_capability(task_profile: dict[str, Any]) -> str:

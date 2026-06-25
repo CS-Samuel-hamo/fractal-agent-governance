@@ -13,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
-def run(cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         cmd,
         cwd=cwd,
@@ -50,7 +52,9 @@ def init_repo(env: dict[str, str]) -> Path:
     return repo
 
 
-def write_backend_profile(repo: Path, *, health_status: str, allow_fast_actual: bool, allow_parallel_actual: bool) -> Path:
+def write_backend_profile(
+    repo: Path, *, health_status: str, allow_fast_actual: bool, allow_parallel_actual: bool
+) -> Path:
     profile_path = repo / '.zoo-agent' / 'backend' / 'codex-backend-profile.json'
     profile_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -83,7 +87,9 @@ def write_backend_profile(repo: Path, *, health_status: str, allow_fast_actual: 
     }
     profile_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
     health_path = repo / '.zoo-agent' / 'backend' / 'codex-health-full.json'
-    health_path.write_text(json.dumps({'health_verdict': health_status.upper(), 'generated_at': utc_now()}, indent=2), encoding='utf-8')
+    health_path.write_text(
+        json.dumps({'health_verdict': health_status.upper(), 'generated_at': utc_now()}, indent=2), encoding='utf-8'
+    )
     return profile_path
 
 
@@ -248,7 +254,9 @@ def test_route_blocks_parallel_actual_with_warning_profile(repo: Path, env: dict
     run(['git', 'add', 'docs/a.md', 'docs/b.md'], repo, env=env)
     run(['git', 'commit', '-m', 'add docs'], repo, env=env)
     health_path = repo / '.zoo-agent' / 'backend' / 'codex-health-full.json'
-    write_backend_profile(repo, health_status='healthy_with_warnings', allow_fast_actual=True, allow_parallel_actual=False)
+    write_backend_profile(
+        repo, health_status='healthy_with_warnings', allow_fast_actual=True, allow_parallel_actual=False
+    )
     before = health_path.stat().st_mtime_ns
     task = 'update docs/a.md\nupdate docs/b.md'
     proc = run(

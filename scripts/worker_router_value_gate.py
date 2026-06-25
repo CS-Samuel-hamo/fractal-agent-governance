@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 REQUIRED_SCENARIOS = [
     'docs_update',
@@ -52,7 +51,9 @@ def _text(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False).lower()
 
 
-def evaluate_worker_router_value(trace: dict[str, Any], registry: dict[str, Any] | None = None, *, cockpit_html: str = '', help_text: str = '') -> dict[str, Any]:
+def evaluate_worker_router_value(
+    trace: dict[str, Any], registry: dict[str, Any] | None = None, *, cockpit_html: str = '', help_text: str = ''
+) -> dict[str, Any]:
     registry = registry or {}
     failed: list[str] = []
     runs = _runs(trace)
@@ -68,7 +69,14 @@ def evaluate_worker_router_value(trace: dict[str, Any], registry: dict[str, Any]
 
     registry_rows = _registry_workers(trace, registry)
     names = {str(item.get('name') or '') for item in registry_rows}
-    required_workers = {'mock_worker', 'dry_run_worker', 'local_scanner_worker', 'codex_worker_existing_adapter', 'claude_worker_stub', 'local_worker_stub'}
+    required_workers = {
+        'mock_worker',
+        'dry_run_worker',
+        'local_scanner_worker',
+        'codex_worker_existing_adapter',
+        'claude_worker_stub',
+        'local_worker_stub',
+    }
     if not required_workers <= names:
         failed.append('worker_registry_incomplete')
 
@@ -104,7 +112,9 @@ def evaluate_worker_router_value(trace: dict[str, Any], registry: dict[str, Any]
             failed.append(f'stub_selected_for_actual:{scenario}')
         if selected_available is False and execution_mode == 'auto':
             failed.append(f'unavailable_worker_actual:{scenario}')
-        if task_profile.get('trust_zone') == 'blocked' and (decision.get('execution_allowed') or execution_mode == 'auto'):
+        if task_profile.get('trust_zone') == 'blocked' and (
+            decision.get('execution_allowed') or execution_mode == 'auto'
+        ):
             unsafe_behavior = True
             failed.append(f'blocked_zone_executed:{scenario}')
         if run.get('fallback_used') and not run.get('fallback_safe', False):
@@ -125,13 +135,24 @@ def evaluate_worker_router_value(trace: dict[str, Any], registry: dict[str, Any]
         elif 'provider_name' in basis or 'provider_hardcode' in str(decision.get('routing_reason') or ''):
             failed.append(f'provider_hardcode:{scenario}')
 
-        if run.get('fallback_used') or scenario in {'blocked_zone', 'degraded_worker', 'all_actual_workers_unavailable'}:
+        if run.get('fallback_used') or scenario in {
+            'blocked_zone',
+            'degraded_worker',
+            'all_actual_workers_unavailable',
+        }:
             fallback_total += 1
-            if run.get('fallback_safe') and not (task_profile.get('trust_zone') == 'blocked' and decision.get('execution_allowed')):
+            if run.get('fallback_safe') and not (
+                task_profile.get('trust_zone') == 'blocked' and decision.get('execution_allowed')
+            ):
                 fallback_good += 1
 
         if scenario == 'session_integration':
-            if run.get('session_updated') and run.get('checkpoint_created') and run.get('cockpit_synced') and run.get('selected_action_source') == 'project_map.next_actions':
+            if (
+                run.get('session_updated')
+                and run.get('checkpoint_created')
+                and run.get('cockpit_synced')
+                and run.get('selected_action_source') == 'project_map.next_actions'
+            ):
                 session_good += 1
             else:
                 failed.append('session_router_integration_incomplete')
@@ -159,7 +180,9 @@ def evaluate_worker_router_value(trace: dict[str, Any], registry: dict[str, Any]
     cockpit_score = 1.0 if cockpit_product_role_visible else round(min(1.0, cockpit_good / max(len(runs), 1)), 3)
     provider_score = round(provider_good / max(provider_total, 1), 3)
     scenario_score = round(sum(1 for item in runs if item.get('outcome') == 'pass') / max(len(runs), 1), 3)
-    router_value_score = round((scenario_score + capability_score + fallback_score + session_score + provider_score) / 5, 3)
+    router_value_score = round(
+        (scenario_score + capability_score + fallback_score + session_score + provider_score) / 5, 3
+    )
 
     recommendation = 'pass'
     if unsafe_behavior or fake_capability or internal_leakage:

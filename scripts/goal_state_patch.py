@@ -10,8 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_state_manager import build_state_patch  # noqa: E402
-from runtime_common import project_root, write_json  # noqa: E402
+from goal_state_manager import build_state_patch
+from runtime_common import project_root, write_json
 
 
 def parse_change(raw: str) -> dict[str, Any]:

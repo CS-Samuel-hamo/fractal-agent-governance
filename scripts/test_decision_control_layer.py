@@ -11,11 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-import pipeline_executor  # noqa: E402
-from explanation_engine import build_execution_explanation  # noqa: E402
-from safety_summary_generator import build_safety_summary  # noqa: E402
-from trust_score_engine import build_trust_score  # noqa: E402
-from runtime_common import write_json  # noqa: E402
+import pipeline_executor
+from explanation_engine import build_execution_explanation
+from runtime_common import write_json
+from safety_summary_generator import build_safety_summary
+from trust_score_engine import build_trust_score
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -127,7 +127,9 @@ def test_advisory_schema(repo: Path) -> None:
         impact=impact,
         trust=trust,
     )
-    safety = build_safety_summary(explanation, impact, trust, {'run_id': 'decision-advisory', 'final_verdict': 'COMPLETED'})
+    safety = build_safety_summary(
+        explanation, impact, trust, {'run_id': 'decision-advisory', 'final_verdict': 'COMPLETED'}
+    )
     assert_advisory_payload(trust)
     assert_advisory_payload(explanation)
     assert_advisory_payload(safety)

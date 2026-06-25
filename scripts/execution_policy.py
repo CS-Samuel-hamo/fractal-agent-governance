@@ -6,7 +6,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-
 HARD_RISK_TERMS = [
     'auth',
     'authorization',
@@ -131,7 +130,11 @@ def normalized_file_pattern(pattern: str) -> str:
 def is_test_pattern(pattern: str) -> bool:
     normalized = normalized_file_pattern(pattern).lower()
     parts = [p.strip('*').lower() for p in normalized.split('/') if p]
-    return any(part in {'test', 'tests', 'spec', 'specs'} for part in parts) or 'test' in normalized or 'spec' in normalized
+    return (
+        any(part in {'test', 'tests', 'spec', 'specs'} for part in parts)
+        or 'test' in normalized
+        or 'spec' in normalized
+    )
 
 
 def conflict_key_for_pattern(pattern: str) -> str:
@@ -314,7 +317,9 @@ def build_execution_graph(
         'chain_weight': chain_weight(recommended_path),
         'judgment_nodes': nodes,
         'judgment_node_count': len(nodes),
-        'misroute_risk': misroute_risk(policy_input, recommended_path, hard_risk_hits, cross_surface_hits, verification_mode),
+        'misroute_risk': misroute_risk(
+            policy_input, recommended_path, hard_risk_hits, cross_surface_hits, verification_mode
+        ),
         'verification_weight': verification_weight(verification_mode),
         'parallel_contract': {
             'parallelizable': parallelizable,

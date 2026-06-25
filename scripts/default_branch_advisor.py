@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 RECOMMENDED_DEFAULT_BRANCH = 'release/v1.0.0-alpha.1'
 POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
@@ -20,7 +19,15 @@ POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
 
 def run_git(project: Path, args: list[str], timeout: int = 30) -> dict[str, Any]:
     try:
-        proc = subprocess.run(['git', *args], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        proc = subprocess.run(
+            ['git', *args],
+            cwd=project,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+            timeout=timeout,
+        )
         return {'ok': proc.returncode == 0, 'stdout': proc.stdout.strip(), 'stderr': proc.stderr.strip()}
     except Exception as exc:
         return {'ok': False, 'stdout': '', 'stderr': str(exc)}

@@ -10,8 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import feedback_dir, load_items, write_schema  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from feedback_intake_schema import feedback_dir, load_items, write_schema
+from runtime_common import project_root, utc_now, write_json
 
 
 def analyze(project: Path) -> dict[str, Any]:
@@ -19,8 +19,10 @@ def analyze(project: Path) -> dict[str, Any]:
     items = load_items(project, create_sample=True)
     confusing: list[str] = []
     for item in items:
-        text = f"{item.get('summary', '')} {item.get('raw_feedback_sanitized', '')}".lower()
-        if any(marker in text for marker in ['codex wrapper', 'just use codex', 'why not just use codex', 'github bot']):
+        text = f'{item.get("summary", "")} {item.get("raw_feedback_sanitized", "")}'.lower()
+        if any(
+            marker in text for marker in ['codex wrapper', 'just use codex', 'why not just use codex', 'github bot']
+        ):
             confusing.append(str(item.get('feedback_id')))
     total = max(len(items), 1)
     confusion_rate = round(len(confusing) / total, 3)

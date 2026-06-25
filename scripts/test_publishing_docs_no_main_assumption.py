@@ -8,13 +8,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from post_publish_report_generator import generate as generate_report  # noqa: E402
-from publishing_command_linter import lint_project  # noqa: E402
-from test_post_publish_remote_verification import make_repo  # noqa: E402
+from post_publish_report_generator import generate as generate_report
+from publishing_command_linter import lint_project
+from test_post_publish_remote_verification import make_repo
 
 
 def run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
 
 
 def test_public_docs_are_branch_aware() -> None:
@@ -29,7 +29,9 @@ def test_postlaunch_hidden_cli_and_report() -> None:
     help_result = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'], ROOT)
     assert help_result.returncode == 0
     assert 'postlaunch' not in help_result.stdout
-    verify_result = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'postlaunch', '--verify', '--workspace', str(repo)], ROOT)
+    verify_result = run(
+        [sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'postlaunch', '--verify', '--workspace', str(repo)], ROOT
+    )
     assert verify_result.returncode == 0, verify_result.stderr + verify_result.stdout
     report = generate_report(repo)
     assert report['status'] == 'READY_FOR_POST_LAUNCH_FEEDBACK_TRIAGE', report

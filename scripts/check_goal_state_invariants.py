@@ -10,9 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_state_manager import load_goal_state  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from goal_state_manager import load_goal_state
+from runtime_common import load_json, project_root, write_json
 
 CRITICAL_MARKERS = ('api_contract', 'database', 'schema', 'auth_security')
 
@@ -58,11 +57,21 @@ def check_state(state: dict[str, Any], before: dict[str, Any] | None = None) -> 
                 continue
             if old.get('priority') != new.get('priority') and not event_allows(state, goal_id, 'set_priority'):
                 blockers.append(f'priority_changed_without_patch:{goal_id}')
-            if old.get('status') == 'blocked' and new.get('status') == 'paused' and not event_allows(state, goal_id, 'set_status'):
+            if (
+                old.get('status') == 'blocked'
+                and new.get('status') == 'paused'
+                and not event_allows(state, goal_id, 'set_status')
+            ):
                 blockers.append(f'blocked_to_paused_without_reason:{goal_id}')
-            if old.get('status') == 'backlog' and new.get('status') == 'paused' and not event_allows(state, goal_id, 'set_status'):
+            if (
+                old.get('status') == 'backlog'
+                and new.get('status') == 'paused'
+                and not event_allows(state, goal_id, 'set_status')
+            ):
                 blockers.append(f'backlog_to_paused_without_reason:{goal_id}')
-            if old.get('resource_usage') != new.get('resource_usage') and not event_allows(state, goal_id, 'set_resource_usage'):
+            if old.get('resource_usage') != new.get('resource_usage') and not event_allows(
+                state, goal_id, 'set_resource_usage'
+            ):
                 blockers.append(f'resource_usage_changed_without_patch:{goal_id}')
     return {
         'status': 'pass' if not blockers else 'fail',

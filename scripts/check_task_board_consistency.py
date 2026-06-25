@@ -8,7 +8,6 @@ import re
 import subprocess
 from pathlib import Path
 
-
 STALE_PATTERNS = [
     re.compile(r'\bstale\b', re.IGNORECASE),
     re.compile(r'\bblocked\b', re.IGNORECASE),
@@ -28,8 +27,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -97,11 +95,11 @@ def scan_boards(paths: list[Path]) -> tuple[str, list[dict]]:
 
 def write_markdown(path: Path, payload: dict) -> None:
     lines = [
-        f"# Task Board Consistency: {payload['run_id']}",
+        f'# Task Board Consistency: {payload["run_id"]}',
         '',
-        f"- status: {payload['status']}",
-        f"- observed_task_count: {len(payload.get('observed_task_ids') or [])}",
-        f"- warning_count: {len(payload.get('warnings') or [])}",
+        f'- status: {payload["status"]}',
+        f'- observed_task_count: {len(payload.get("observed_task_ids") or [])}',
+        f'- warning_count: {len(payload.get("warnings") or [])}',
         '',
         '## Warnings',
         '',
@@ -110,12 +108,14 @@ def write_markdown(path: Path, payload: dict) -> None:
         lines.append('- none')
     else:
         for warning in payload['warnings']:
-            lines.append(f"- {warning.get('id')}: {warning.get('message')}")
+            lines.append(f'- {warning.get("id")}: {warning.get("message")}')
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='Check whether Zoo run task-board evidence matches observed run artifacts.')
+    ap = argparse.ArgumentParser(
+        description='Check whether Zoo run task-board evidence matches observed run artifacts.'
+    )
     ap.add_argument('--workspace', required=True)
     ap.add_argument('--run-id', required=True)
     ap.add_argument('--expect-task', action='append', default=[])

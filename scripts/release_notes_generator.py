@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def release_dir(project: Path) -> Path:
@@ -27,12 +27,12 @@ def build_release_notes(project: Path) -> dict[str, str]:
     readiness = load_json(release_dir(project) / 'release_readiness.json')
     session_history = load_json(project / '.zoo-agent' / 'session' / 'session_history.json')
     capabilities = [
-        f"{item.get('name') or item.get('capability_id')}: {item.get('status')}"
+        f'{item.get("name") or item.get("capability_id")}: {item.get("status")}'
         for item in project_map.get('capabilities') or []
         if isinstance(item, dict) and item.get('status') in {'implemented', 'verified'}
     ][:10]
     partial = [
-        f"{item.get('name') or item.get('capability_id')}: {item.get('status')}"
+        f'{item.get("name") or item.get("capability_id")}: {item.get("status")}'
         for item in project_map.get('capabilities') or []
         if isinstance(item, dict) and item.get('status') in {'partial', 'missing'}
     ][:10]
@@ -40,15 +40,15 @@ def build_release_notes(project: Path) -> dict[str, str]:
         '# Release Notes Draft',
         '',
         '## Overview',
-        f"- Project: {project_map.get('project_name') or project.name}",
-        f"- Release stage: {readiness.get('stage') or 'unknown'}",
+        f'- Project: {project_map.get("project_name") or project.name}',
+        f'- Release stage: {readiness.get("stage") or "unknown"}',
         '- This is a local draft. It does not create a public release.',
         '',
         '## Added',
         *rows(capabilities, 'No implemented capability claims were found in the Project Map.'),
         '',
         '## Changed',
-        *rows([f"Release readiness stage: {readiness.get('stage')}"], 'No release-stage change detected.'),
+        *rows([f'Release readiness stage: {readiness.get("stage")}'], 'No release-stage change detected.'),
         '',
         '## Fixed',
         *rows([], 'No specific fixes are claimed by this workflow.'),
@@ -59,7 +59,7 @@ def build_release_notes(project: Path) -> dict[str, str]:
         '## Not included',
         '- No remote release was created.',
         '- No remote PR was created.',
-        f"- Session entries considered: {len(session_history.get('history') or session_history.get('steps') or [])}",
+        f'- Session entries considered: {len(session_history.get("history") or session_history.get("steps") or [])}',
         '',
     ]
     path = release_dir(project) / 'release_notes_draft.md'

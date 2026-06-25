@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import datetime
@@ -6,10 +6,10 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,8 +23,7 @@ def run(command: list[str], cwd: Path, *, timeout: int = 0, env: dict[str, str] 
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout or None,
             env=env,
         )
@@ -87,7 +86,7 @@ def create_fake_codex(fake_dir: Path) -> Path:
     fake_dir.mkdir(parents=True, exist_ok=True)
     fake_py = fake_dir / 'fake_codex.py'
     fake_py.write_text(
-        r'''
+        r"""
 from __future__ import annotations
 import os
 import sys
@@ -117,11 +116,13 @@ if out:
 if mode == "nonzero":
     sys.exit(1)
 sys.exit(0)
-'''.lstrip(),
+""".lstrip(),
         encoding='utf-8',
     )
     fake_cmd = fake_dir / 'codex.cmd'
-    fake_cmd.write_text(f'@echo off\r\n"{sys.executable}" "%~dp0fake_codex.py" %*\r\nexit /b %ERRORLEVEL%\r\n', encoding='utf-8')
+    fake_cmd.write_text(
+        f'@echo off\r\n"{sys.executable}" "%~dp0fake_codex.py" %*\r\nexit /b %ERRORLEVEL%\r\n', encoding='utf-8'
+    )
     return fake_cmd
 
 
@@ -200,14 +201,26 @@ def capture_baseline(repo: Path, run_id: str, task_id: str) -> Path:
 
 
 def compare_baseline(repo: Path, baseline: Path) -> Path:
-    result = run([sys.executable, str(ROOT / 'scripts' / 'compare_task_baseline.py'), '--workspace', str(repo), '--baseline', str(baseline)], ROOT)
+    result = run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'compare_task_baseline.py'),
+            '--workspace',
+            str(repo),
+            '--baseline',
+            str(baseline),
+        ],
+        ROOT,
+    )
     if result['returncode'] != 0:
         raise AssertionError(result['stderr'] or result['stdout'])
     payload = json.loads(result['stdout'])
     return Path(payload['path'])
 
 
-def write_optimistic_attempt(repo: Path, run_id: str, task_id: str, worker_status: dict[str, Any], final_message: str = '') -> None:
+def write_optimistic_attempt(
+    repo: Path, run_id: str, task_id: str, worker_status: dict[str, Any], final_message: str = ''
+) -> None:
     task_dir = repo / '.zoo-agent' / 'runs' / run_id / 'codex-tasks' / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     status_path = task_dir / 'codex-worker-status.json'
@@ -235,7 +248,9 @@ def write_optimistic_attempt(repo: Path, run_id: str, task_id: str, worker_statu
     write_json(repo / '.zoo-agent' / 'runs' / run_id / 'optimistic-runs' / f'{task_id}.json', report)
 
 
-def delivery_case(root: Path, name: str, worker_status: dict[str, Any], *, modify_readme: bool = False, final_message: str = '') -> dict[str, Any]:
+def delivery_case(
+    root: Path, name: str, worker_status: dict[str, Any], *, modify_readme: bool = False, final_message: str = ''
+) -> dict[str, Any]:
     repo = root / f'delivery-{name}'
     git_init(repo)
     (repo / 'README.md').write_text('# Demo\n\nInitial.\n', encoding='utf-8')
@@ -270,14 +285,39 @@ def delivery_case(root: Path, name: str, worker_status: dict[str, Any], *, modif
     )
     payload = load_json(repo / '.zoo-agent' / 'runs' / run_id / 'delivery-outcome.json')
     payload['_returncode'] = outcome['returncode']
-    gate = run([sys.executable, str(ROOT / 'scripts' / 'check_fast_path_gate.py'), '--workspace', str(repo), '--run-id', run_id, '--task-id', task_id], ROOT)
+    gate = run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'check_fast_path_gate.py'),
+            '--workspace',
+            str(repo),
+            '--run-id',
+            run_id,
+            '--task-id',
+            task_id,
+        ],
+        ROOT,
+    )
     payload['_fast_gate'] = load_json(repo / '.zoo-agent' / 'runs' / run_id / 'fast-path-gate.json')
     payload['_fast_gate_returncode'] = gate['returncode']
     return payload
 
 
 def real_codex_actual(root: Path) -> dict[str, Any]:
-    health = run([sys.executable, str(ROOT / 'scripts' / 'check_codex_worker_health.py'), '--codex-home', os.environ.get('CODEX_HOME', ''), '--timeout-seconds', '240', '--no-output-timeout-seconds', '120'], ROOT, timeout=360)
+    health = run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'check_codex_worker_health.py'),
+            '--codex-home',
+            os.environ.get('CODEX_HOME', ''),
+            '--timeout-seconds',
+            '240',
+            '--no-output-timeout-seconds',
+            '120',
+        ],
+        ROOT,
+        timeout=360,
+    )
     latest = load_json(ROOT / '.tmp' / 'codex-worker-health-latest.json')
     if latest.get('verdict') not in {'HEALTHY', 'HEALTHY_WITH_WARNINGS'}:
         return {'status': 'REAL_CODEX_SKIPPED', 'reason': 'health_not_ok', 'health': latest, 'health_command': health}
@@ -285,10 +325,14 @@ def real_codex_actual(root: Path) -> dict[str, Any]:
     git_init(repo)
     (repo / 'README.md').write_text('# Worker Stability\n\nInitial.\n', encoding='utf-8')
     git_commit_all(repo, 'init')
-    boot = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'bootstrap', '--workspace', str(repo)], ROOT, timeout=120)
+    boot = run(
+        [sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'bootstrap', '--workspace', str(repo)], ROOT, timeout=120
+    )
     if boot['returncode'] != 0:
         return {'status': 'REAL_CODEX_UNSTABLE', 'reason': 'bootstrap_failed', 'bootstrap': boot}
-    task = 'append exact line "Agent runtime worker stability OK" to README.md and do not modify any other business files'
+    task = (
+        'append exact line "Agent runtime worker stability OK" to README.md and do not modify any other business files'
+    )
     actual = run(
         [
             sys.executable,
@@ -309,7 +353,11 @@ def real_codex_actual(root: Path) -> dict[str, Any]:
         timeout=1080,
     )
     runs_dir = repo / '.zoo-agent' / 'runs'
-    reports = sorted(runs_dir.glob('*/delivery-outcome.json'), key=lambda path: path.stat().st_mtime, reverse=True) if runs_dir.exists() else []
+    reports = (
+        sorted(runs_dir.glob('*/delivery-outcome.json'), key=lambda path: path.stat().st_mtime, reverse=True)
+        if runs_dir.exists()
+        else []
+    )
     outcome = load_json(reports[0]) if reports else {}
     if actual['returncode'] == 0 and outcome.get('delivery_outcome') == 'delivered':
         return {'status': 'REAL_CODEX_DELIVERED', 'agent_run': actual, 'delivery_outcome': outcome}
@@ -325,7 +373,11 @@ def main() -> int:
     warnings: list[str] = []
 
     success = run_fake_adapter(root, fake_cmd, 'success')
-    if success.get('status') != 'succeeded' or success.get('returncode') != 0 or not success.get('output_last_message_exists'):
+    if (
+        success.get('status') != 'succeeded'
+        or success.get('returncode') != 0
+        or not success.get('output_last_message_exists')
+    ):
         failures.append('fake_succeeded_worker_failed')
 
     nonzero = run_fake_adapter(root, fake_cmd, 'nonzero')
@@ -347,11 +399,17 @@ def main() -> int:
         failures.append('fake_invalid_unicode_crashed')
 
     delivered = delivery_case(root, 'delivered', {'status': 'succeeded', 'returncode': 0}, modify_readme=True)
-    if delivered.get('delivery_outcome') != 'delivered' or delivered.get('_fast_gate', {}).get('verdict') != 'FAST_DELIVERED':
+    if (
+        delivered.get('delivery_outcome') != 'delivered'
+        or delivered.get('_fast_gate', {}).get('verdict') != 'FAST_DELIVERED'
+    ):
         failures.append('delivered_readme_not_fast_delivered')
 
     no_delivery = delivery_case(root, 'no-delivery', {'status': 'succeeded', 'returncode': 0})
-    if no_delivery.get('delivery_outcome') != 'no_delivery' or no_delivery.get('_fast_gate', {}).get('verdict') != 'FAST_NO_DELIVERY':
+    if (
+        no_delivery.get('delivery_outcome') != 'no_delivery'
+        or no_delivery.get('_fast_gate', {}).get('verdict') != 'FAST_NO_DELIVERY'
+    ):
         failures.append('returncode_zero_no_diff_not_no_delivery')
 
     noop = delivery_case(

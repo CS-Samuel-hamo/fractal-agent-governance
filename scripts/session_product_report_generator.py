@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 READY = 'READY_FOR_096_MULTI_BACKEND_ROUTER'
 FIX = 'FIX_BEFORE_096'
@@ -59,7 +58,7 @@ def build_readiness(report: dict[str, Any]) -> dict[str, Any]:
 def build_report(trace: dict[str, Any], reliability: dict[str, Any], readiness: dict[str, Any]) -> str:
     scenarios = [run for run in trace.get('runs') or [] if isinstance(run, dict)]
     scenario_lines = [
-        f"- {run.get('scenario', 'unknown').replace('_', ' ')}: {run.get('scenario_result', 'unknown')}"
+        f'- {run.get("scenario", "unknown").replace("_", " ")}: {run.get("scenario_result", "unknown")}'
         for run in scenarios
     ]
     failed = [str(item) for item in reliability.get('failed_checks') or []]
@@ -70,9 +69,9 @@ def build_report(trace: dict[str, Any], reliability: dict[str, Any], readiness: 
         'The session path behaves like an AI Project Operator when every step is selected from the project map, checkpointed, and reflected in the digest and cockpit.',
         '',
         '## Does Session Feel Like AI Project Operator?',
-        f"- recommendation: {readiness.get('readiness')}",
-        f"- reliability score: {reliability.get('session_reliability_score')}",
-        f"- map-backed score: {reliability.get('map_backed_execution_score')}",
+        f'- recommendation: {readiness.get("readiness")}',
+        f'- reliability score: {reliability.get("session_reliability_score")}',
+        f'- map-backed score: {reliability.get("map_backed_execution_score")}',
         '',
         '## Can User Understand Current Session Status?',
         '- Yes, the digest and status output expose session state, next action, attention, and recovery commands.',
@@ -84,11 +83,11 @@ def build_report(trace: dict[str, Any], reliability: dict[str, Any], readiness: 
         '- Yes, next actions are selected from the project map and summarized after each step.',
         '',
         '## Can User Safely Continue / Stop / Undo?',
-        f"- resume reliability: {reliability.get('resume_reliability_score')}",
-        f"- undo reliability: {reliability.get('undo_reliability_score')}",
+        f'- resume reliability: {reliability.get("resume_reliability_score")}',
+        f'- undo reliability: {reliability.get("undo_reliability_score")}',
         '',
         '## Does Cockpit Reflect Session State?',
-        f"- cockpit sync score: {reliability.get('cockpit_sync_score')}",
+        f'- cockpit sync score: {reliability.get("cockpit_sync_score")}',
         '',
         '## Does Digest Explain Progress?',
         '- Yes, every dogfood step requires digest refresh.',

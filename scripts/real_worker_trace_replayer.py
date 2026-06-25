@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -19,9 +19,9 @@ def dogfood_dir(project: Path) -> Path:
 
 def row_line(row: dict[str, Any]) -> str:
     return (
-        f"- {str(row.get('scenario') or 'scenario').replace('_', ' ')}: {row.get('outcome', 'unknown')}; "
-        f"worker {row.get('worker_role') or row.get('selected_worker') or 'not selected'}; "
-        f"mode {row.get('execution_mode', 'unknown')}"
+        f'- {str(row.get("scenario") or "scenario").replace("_", " ")}: {row.get("outcome", "unknown")}; '
+        f'worker {row.get("worker_role") or row.get("selected_worker") or "not selected"}; '
+        f'mode {row.get("execution_mode", "unknown")}'
     )
 
 
@@ -32,8 +32,10 @@ def build_replay(project: Path) -> str:
     codex = load_json(project / '.zoo-agent' / 'workers' / 'codex_adapter_health.json')
     claude = load_json(project / '.zoo-agent' / 'workers' / 'claude_code_detection.json')
     workers = doctor.get('workers') or []
-    available = [f"{item.get('role')} ({item.get('health')})" for item in workers if item.get('available')]
-    unavailable = [f"{item.get('role')}: {item.get('why_unavailable')}" for item in workers if not item.get('available')]
+    available = [f'{item.get("role")} ({item.get("health")})' for item in workers if item.get('available')]
+    unavailable = [
+        f'{item.get("role")}: {item.get("why_unavailable")}' for item in workers if not item.get('available')
+    ]
     runs = [item for item in trace.get('runs') or [] if isinstance(item, dict)]
     available_lines = [f'- {item}' for item in available] if available else ['- No available workers recorded.']
     unavailable_lines = [f'- {item}' for item in unavailable] if unavailable else ['- No unavailable workers recorded.']
@@ -47,13 +49,13 @@ def build_replay(project: Path) -> str:
         *unavailable_lines,
         '',
         '## Local Scanner',
-        f"- Scanned files: {scanner.get('files_scanned', 0)}",
-        f"- Evidence rows: {len((scanner.get('map_support') or {}).get('evidence') or [])}",
+        f'- Scanned files: {scanner.get("files_scanned", 0)}',
+        f'- Evidence rows: {len((scanner.get("map_support") or {}).get("evidence") or [])}',
         '- Secret-like files are recorded as skipped metadata only.',
         '',
         '## Graceful Degradation',
-        f"- Code Worker health: {codex.get('health', 'unknown')} ({codex.get('reason', 'not available')})",
-        f"- Claude Code detection: {claude.get('status', 'unknown')} ({claude.get('reason', 'not available')})",
+        f'- Code Worker health: {codex.get("health", "unknown")} ({codex.get("reason", "not available")})',
+        f'- Claude Code detection: {claude.get("status", "unknown")} ({claude.get("reason", "not available")})',
         '- If an external worker is unavailable, the system keeps repo scan, preview, dry-run, or needs-attention flows available.',
         '',
         '## Session And Routing',

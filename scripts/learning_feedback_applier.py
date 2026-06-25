@@ -10,9 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import load_store, store_dir  # noqa: E402
-from runtime_common import project_root, write_json  # noqa: E402
-
+from cross_project_store import load_store, store_dir
+from runtime_common import project_root, write_json
 
 FORBIDDEN_EFFECTS = {'execute_blocked_zone', 'skip_checkpoint', 'auto_push', 'auto_merge', 'read_secret'}
 ALLOWED_TARGETS = {'map_task_selector', 'worker_router', 'cockpit', 'session_digest'}
@@ -40,7 +39,12 @@ def apply_feedback(project: Path) -> dict[str, Any]:
             skipped.append({'insight_id': insight_id, 'reason': 'unsupported_target'})
             continue
         applied.append({'target': target, 'insight_id': insight_id, 'effect': effect, 'safe': True})
-    payload = {'schema_version': '1.0', 'generated_by': 'learning_feedback_applier.py', 'applied': applied, 'skipped': skipped}
+    payload = {
+        'schema_version': '1.0',
+        'generated_by': 'learning_feedback_applier.py',
+        'applied': applied,
+        'skipped': skipped,
+    }
     write_json(store_dir(project) / 'learning_feedback_applied.json', payload)
     return payload
 

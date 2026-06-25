@@ -10,9 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import leaf_readiness, load_backend_profile, load_leaf_contracts, project_root  # noqa: E402
-from leaf_resolution_policy import DEFAULT_MAX_REFINEMENTS, leaf_resolution_policy, refinement_count  # noqa: E402
-from runtime_common import load_json, utc_now, write_json  # noqa: E402
+from big_task_common import leaf_readiness, load_backend_profile, load_leaf_contracts, project_root
+from leaf_resolution_policy import DEFAULT_MAX_REFINEMENTS, leaf_resolution_policy, refinement_count
+from runtime_common import load_json, utc_now, write_json
 
 
 def _leaf_path(project: Path, run_id: str, leaf_id: str) -> Path:
@@ -33,7 +33,9 @@ def _refine_leaf(leaf: dict[str, Any]) -> dict[str, Any]:
     refined['generated_by'] = 'leaf_convergence_controller.py'
     refined['refined_at'] = utc_now()
     if not refined.get('acceptance') and refined.get('allowed_files'):
-        refined['acceptance'] = [f"Bounded change for {refined.get('objective') or refined.get('leaf_id')} is reviewable and satisfies parent criteria."]
+        refined['acceptance'] = [
+            f'Bounded change for {refined.get("objective") or refined.get("leaf_id")} is reviewable and satisfies parent criteria.'
+        ]
     return refined
 
 
@@ -66,11 +68,19 @@ def _record_action_buckets(project: Path, run_id: str, resolutions: list[dict[st
         if action == 'defer':
             backlog.append({'leaf_id': leaf_id, 'reason': item.get('reason'), 'next_action': item.get('next_action')})
         elif action == 'merge':
-            merged.append({'leaf_id': leaf_id, 'reason': item.get('reason'), 'parent_action': 'parent_aggregation_owns_obligation'})
+            merged.append(
+                {
+                    'leaf_id': leaf_id,
+                    'reason': item.get('reason'),
+                    'parent_action': 'parent_aggregation_owns_obligation',
+                }
+            )
         elif action == 'collapse':
             collapsed.append({'leaf_id': leaf_id, 'reason': item.get('reason'), 'micro_task_allowed': True})
         elif action == 'execute':
-            execution_queue.append({'leaf_id': leaf_id, 'reason': item.get('reason'), 'requires_explicit_confirmation': True})
+            execution_queue.append(
+                {'leaf_id': leaf_id, 'reason': item.get('reason'), 'requires_explicit_confirmation': True}
+            )
     base = project / '.zoo-agent' / 'runs' / run_id
     write_json(base / 'follow-up-backlog.json', {'run_id': run_id, 'items': backlog})
     write_json(base / 'leaf-merge-to-parent.json', {'run_id': run_id, 'items': merged})
@@ -135,7 +145,9 @@ def resolve_one_leaf(
             break
         if action == 'refine':
             current = _refine_leaf(current)
-            refined_path = _resource_path(project, run_id, 'refined-leaves', f'{leaf_id}-refined-{refinement_count(current)}.json')
+            refined_path = _resource_path(
+                project, run_id, 'refined-leaves', f'{leaf_id}-refined-{refinement_count(current)}.json'
+            )
             write_json(refined_path, current)
             refined_paths.append(str(refined_path))
             continue
@@ -241,7 +253,9 @@ def run_leaf_convergence(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Resolve leaf tasks into execute/refine/merge/defer/collapse outcomes.')
+    parser = argparse.ArgumentParser(
+        description='Resolve leaf tasks into execute/refine/merge/defer/collapse outcomes.'
+    )
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--max-refinements', type=int, default=DEFAULT_MAX_REFINEMENTS)
@@ -260,4 +274,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-

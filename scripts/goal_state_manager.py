@@ -10,9 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from classify_goal_domain import classify_goal  # noqa: E402
-from runtime_common import load_json, project_root, resolve_goal, safe_name, utc_now, write_json  # noqa: E402
-
+from classify_goal_domain import classify_goal
+from runtime_common import load_json, project_root, resolve_goal, safe_name, utc_now, write_json
 
 GOAL_STATUSES = {'active', 'paused', 'completed', 'blocked', 'backlog'}
 STICKY_FIELDS = {
@@ -60,7 +59,7 @@ def infer_resource_usage(goal: dict[str, Any], explicit: list[str] | None = None
     lowered = text.lower()
     inferred: set[str] = set()
     try:
-        from big_task_common import infer_paths  # noqa: WPS433
+        from big_task_common import infer_paths
 
         inferred.update(infer_paths(text))
     except Exception:
@@ -113,9 +112,13 @@ def goal_record_from_payload(
         'execution_mode': classified['execution_mode'],
         'status': goal_status,
         'priority': normalized_priority,
-        'progress': normalize_progress(goal.get('progress') if goal.get('progress') is not None else goal.get('progress_score')),
+        'progress': normalize_progress(
+            goal.get('progress') if goal.get('progress') is not None else goal.get('progress_score')
+        ),
         'resource_usage': infer_resource_usage(goal, resources),
-        'depends_on': [str(item) for item in depends_on if str(item).strip()] if depends_on is not None else [str(item) for item in goal.get('depends_on') or []],
+        'depends_on': [str(item) for item in depends_on if str(item).strip()]
+        if depends_on is not None
+        else [str(item) for item in goal.get('depends_on') or []],
         'blocks': [str(item) for item in goal.get('blocks') or []],
         'last_active': str(goal.get('last_active') or ''),
         'continuous_iterations': int(goal.get('continuous_iterations') or 0),
@@ -197,7 +200,9 @@ def write_goal_state(project: Path, state: dict[str, Any]) -> dict[str, str]:
     state.setdefault('event_log', [])
     state['updated_at'] = utc_now()
     goals = state.get('goals') if isinstance(state.get('goals'), list) else []
-    active_goal_id = str((state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or '')
+    active_goal_id = str(
+        (state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or ''
+    )
     active = next((item for item in goals if item.get('goal_id') == active_goal_id), {})
     state['goal_id'] = active_goal_id
     state['active_goal_id'] = active_goal_id
@@ -339,7 +344,15 @@ def apply_goal_state_patch_data(
                     goal['status'] = 'paused'
                     goal['freeze_reason'] = reason or 'backend_unhealthy_freeze'
                     goal['updated_at'] = utc_now()
-                    events.append({'goal_id': goal.get('goal_id'), 'op': 'set_status', 'from': 'active', 'to': 'paused', 'reason': reason or 'backend_unhealthy_freeze'})
+                    events.append(
+                        {
+                            'goal_id': goal.get('goal_id'),
+                            'op': 'set_status',
+                            'from': 'active',
+                            'to': 'paused',
+                            'reason': reason or 'backend_unhealthy_freeze',
+                        }
+                    )
             continue
 
         goal = _goal_or_fail(state, goal_id)
@@ -397,7 +410,9 @@ def apply_goal_state_patch_data(
             if loop.get('active_goal_id') == goal_id:
                 loop['active_goal_id'] = ''
                 loop['active_goal'] = ''
-            events.append({'goal_id': goal_id, 'op': op, 'from': old_status, 'to': 'blocked', 'reason': goal['blocking_reason']})
+            events.append(
+                {'goal_id': goal_id, 'op': op, 'from': old_status, 'to': 'blocked', 'reason': goal['blocking_reason']}
+            )
         elif op == 'set_backlog':
             _validate_status_transition(old_status, 'backlog', reason or 'backlog_set')
             goal['status'] = 'backlog'
@@ -406,7 +421,9 @@ def apply_goal_state_patch_data(
             if loop.get('active_goal_id') == goal_id:
                 loop['active_goal_id'] = ''
                 loop['active_goal'] = ''
-            events.append({'goal_id': goal_id, 'op': op, 'from': old_status, 'to': 'backlog', 'reason': goal['backlog_reason']})
+            events.append(
+                {'goal_id': goal_id, 'op': op, 'from': old_status, 'to': 'backlog', 'reason': goal['backlog_reason']}
+            )
         elif op == 'set_completion':
             _validate_status_transition(old_status, 'completed', reason or 'goal_completed')
             goal['status'] = 'completed'
@@ -415,7 +432,15 @@ def apply_goal_state_patch_data(
             if loop.get('active_goal_id') == goal_id:
                 loop['active_goal_id'] = ''
                 loop['active_goal'] = ''
-            events.append({'goal_id': goal_id, 'op': op, 'from': old_status, 'to': 'completed', 'reason': reason or 'goal_completed'})
+            events.append(
+                {
+                    'goal_id': goal_id,
+                    'op': op,
+                    'from': old_status,
+                    'to': 'completed',
+                    'reason': reason or 'goal_completed',
+                }
+            )
         else:
             raise ValueError(f'unsupported_patch_op:{op}')
 
@@ -447,10 +472,10 @@ def render_state_diff(before: dict[str, Any], after: dict[str, Any], patch: dict
     lines = [
         '# Goal State Diff',
         '',
-        f"- patch_id: `{patch.get('patch_id') or ''}`",
-        f"- source: `{patch.get('source') or ''}`",
-        f"- reason: `{patch.get('reason') or ''}`",
-        f"- revision: `{before.get('revision', 0)}` -> `{after.get('revision', 0)}`",
+        f'- patch_id: `{patch.get("patch_id") or ""}`',
+        f'- source: `{patch.get("source") or ""}`',
+        f'- reason: `{patch.get("reason") or ""}`',
+        f'- revision: `{before.get("revision", 0)}` -> `{after.get("revision", 0)}`',
         '',
         '## Changes',
     ]
@@ -459,8 +484,8 @@ def render_state_diff(before: dict[str, Any], after: dict[str, Any], patch: dict
         changed: list[str] = []
         for field in ['status', 'priority', 'progress', 'resource_usage', 'depends_on', 'blocks']:
             if before_goal.get(field) != after_goal.get(field):
-                changed.append(f"- `{goal_id}.{field}`: `{before_goal.get(field)}` -> `{after_goal.get(field)}`")
-        lines.extend(changed or [f"- `{goal_id}` unchanged"])
+                changed.append(f'- `{goal_id}.{field}`: `{before_goal.get(field)}` -> `{after_goal.get(field)}`')
+        lines.extend(changed or [f'- `{goal_id}` unchanged'])
     return '\n'.join(lines) + '\n'
 
 
@@ -487,7 +512,9 @@ def sync_goals(project: Path) -> dict[str, Any]:
         else:
             existing[goal_id] = goal_record_from_payload(payload, status='paused')
     state['goals'] = list(existing.values())
-    active_goal_id = str((state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or '')
+    active_goal_id = str(
+        (state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or ''
+    )
     if active_goal_id and not any(item.get('goal_id') == active_goal_id for item in state['goals']):
         state.setdefault('global_loop_state', {})['active_goal_id'] = ''
     write_goal_state(project, state)
@@ -512,7 +539,12 @@ def upsert_goal_record(
     goal_id = str(goal_payload.get('goal_id') or goal_id)
     goals = [dict(item) for item in state.get('goals') or [] if item.get('goal_id') != goal_id]
     existing = next((item for item in state.get('goals') or [] if item.get('goal_id') == goal_id), {})
-    merged_goal = {**goal_payload, **existing, 'goal_id': goal_id, 'goal': goal_payload.get('goal') or existing.get('goal') or goal_id}
+    merged_goal = {
+        **goal_payload,
+        **existing,
+        'goal_id': goal_id,
+        'goal': goal_payload.get('goal') or existing.get('goal') or goal_id,
+    }
     record = goal_record_from_payload(
         merged_goal,
         status=status or str(existing.get('status') or goal_payload.get('status') or 'paused'),
@@ -628,7 +660,9 @@ def update_goal_from_goal_loop(project: Path, goal_loop_report: dict[str, Any]) 
             }
         )
     patch = build_state_patch(project, source='goal_loop', reason='goal_loop_result', changes=changes)
-    patch_path = project / '.zoo-agent' / 'runs' / str(goal_loop_report.get('run_id') or 'unknown') / 'goal-state-patch.json'
+    patch_path = (
+        project / '.zoo-agent' / 'runs' / str(goal_loop_report.get('run_id') or 'unknown') / 'goal-state-patch.json'
+    )
     write_json(patch_path, patch)
     result = apply_goal_state_patch_data(project, patch)
     return {'patch_path': str(patch_path), **result.get('paths', {})}
@@ -676,7 +710,13 @@ def main() -> int:
     else:
         if not args.goal_id:
             raise SystemExit('--goal-id is required')
-        status_map = {'pause': 'paused', 'resume': 'active', 'complete': 'completed', 'backlog': 'backlog', 'block': 'blocked'}
+        status_map = {
+            'pause': 'paused',
+            'resume': 'active',
+            'complete': 'completed',
+            'backlog': 'backlog',
+            'block': 'blocked',
+        }
         state = set_goal_status(project, safe_name(args.goal_id), status_map[args.action])
     report = render_report(project, state)
     print(json.dumps(report, ensure_ascii=False, indent=2))

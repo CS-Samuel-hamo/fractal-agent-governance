@@ -11,9 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from execution_policy import detect_hard_risk  # noqa: E402
-from runtime_common import safe_name, utc_now, write_json  # noqa: E402
-
+from execution_policy import detect_hard_risk
+from runtime_common import safe_name, utc_now, write_json
 
 PATH_RE = re.compile(
     r'([A-Za-z0-9_.-]+[\\/])+[A-Za-z0-9_.@-]+\.(py|ts|tsx|js|jsx|json|md|yml|yaml|toml|css|scss|html|go|rs|java|cs)\b',
@@ -76,14 +75,22 @@ def evaluate(text: str, allowed_files: list[str], *, route: str = 'fast') -> dic
     architecture_needed = any(term in lowered for term in ARCHITECTURE_TERMS)
 
     if route == 'fast' and hard_risk_hits:
-        blockers.append({'id': 'hard_risk_terms', 'message': 'Fast path cannot execute high-risk terms.', 'hits': hard_risk_hits})
+        blockers.append(
+            {'id': 'hard_risk_terms', 'message': 'Fast path cannot execute high-risk terms.', 'hits': hard_risk_hits}
+        )
     if route == 'fast' and architecture_needed:
-        blockers.append({'id': 'architecture_judgment_required', 'message': 'Task appears to need architecture judgment.'})
+        blockers.append(
+            {'id': 'architecture_judgment_required', 'message': 'Task appears to need architecture judgment.'}
+        )
     if route == 'fast' and (is_ambiguous(text) or not explicit_scope or looks_broad_allowed(allowed_files)):
-        blockers.append({'id': 'ambiguous_fast_task', 'message': 'Fast path task lacks a precise file/directory scope.'})
+        blockers.append(
+            {'id': 'ambiguous_fast_task', 'message': 'Fast path task lacks a precise file/directory scope.'}
+        )
         questions.append('Which exact file or directory should be changed?')
     if route == 'fast' and not clear_intent:
-        blockers.append({'id': 'missing_modification_intent', 'message': 'Fast path task lacks a clear modification intent.'})
+        blockers.append(
+            {'id': 'missing_modification_intent', 'message': 'Fast path task lacks a clear modification intent.'}
+        )
         questions.append('What should change in the target file?')
     if route == 'fast' and not acceptance_hint:
         warnings.append({'id': 'acceptance_not_explicit', 'message': 'No explicit acceptance cue was found.'})
@@ -139,7 +146,12 @@ def main() -> int:
     elif args.run_id:
         workspace = Path(args.workspace).resolve()
         write_json(
-            workspace / '.zoo-agent' / 'runs' / args.run_id / 'task-specificity' / f'{safe_name(args.task_id or "task")}.json',
+            workspace
+            / '.zoo-agent'
+            / 'runs'
+            / args.run_id
+            / 'task-specificity'
+            / f'{safe_name(args.task_id or "task")}.json',
             payload,
         )
     print(json.dumps(payload, ensure_ascii=False, indent=2))

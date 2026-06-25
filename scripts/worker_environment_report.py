@@ -10,18 +10,23 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def status_text(value: Any) -> str:
     return str(value or 'unknown').replace('_', ' ')
 
 
-def build_environment_report(project: Path, *, registry: dict[str, Any] | None = None, diagnostics: dict[str, Any] | None = None) -> str:
+def build_environment_report(
+    project: Path, *, registry: dict[str, Any] | None = None, diagnostics: dict[str, Any] | None = None
+) -> str:
     registry = registry or load_json(project / '.zoo-agent' / 'workers' / 'worker_registry.json')
     diagnostics = diagnostics or load_json(project / '.zoo-agent' / 'workers' / 'installation_diagnostics.json')
     workers = [item for item in registry.get('workers') or [] if isinstance(item, dict)]
-    real_actual_available = any(item.get('supports_actual_execution') and item.get('available') and item.get('provider') != 'mock' for item in workers)
+    real_actual_available = any(
+        item.get('supports_actual_execution') and item.get('available') and item.get('provider') != 'mock'
+        for item in workers
+    )
     lines = [
         '# Worker Environment Report',
         '',
@@ -32,29 +37,31 @@ def build_environment_report(project: Path, *, registry: dict[str, Any] | None =
         availability = 'available' if worker.get('available') else 'unavailable'
         health = status_text(worker.get('health'))
         notes = status_text(worker.get('notes'))
-        lines.append(f"- {role}: {availability}, {health}. {notes}")
+        lines.append(f'- {role}: {availability}, {health}. {notes}')
     if not workers:
         lines.append('- No worker registry available yet.')
     lines.extend(
         [
             '',
             '## System Status',
-            f"- Project map: {'supported' if any('repo_scan' in (item.get('capabilities') or []) for item in workers) else 'limited'}",
-            f"- Preview: {'supported' if any(item.get('supports_preview') for item in workers) else 'unavailable'}",
-            f"- Actual code execution: {'available' if real_actual_available else 'unavailable'}",
-            f"- Autopilot: {'available with safe fallback' if workers else 'not ready'}",
+            f'- Project map: {"supported" if any("repo_scan" in (item.get("capabilities") or []) for item in workers) else "limited"}',
+            f'- Preview: {"supported" if any(item.get("supports_preview") for item in workers) else "unavailable"}',
+            f'- Actual code execution: {"available" if real_actual_available else "unavailable"}',
+            f'- Autopilot: {"available with safe fallback" if workers else "not ready"}',
             '',
             '## Local Environment',
-            f"- OS: {status_text((diagnostics.get('os') or {}).get('system'))}",
-            f"- Git: {status_text((diagnostics.get('git') or {}).get('summary'))}",
-            f"- Codex CLI: {status_text((diagnostics.get('codex_cli') or {}).get('reason'))}",
-            f"- Claude Code CLI: {status_text((diagnostics.get('claude_code_cli') or {}).get('reason'))}",
+            f'- OS: {status_text((diagnostics.get("os") or {}).get("system"))}',
+            f'- Git: {status_text((diagnostics.get("git") or {}).get("summary"))}',
+            f'- Codex CLI: {status_text((diagnostics.get("codex_cli") or {}).get("reason"))}',
+            f'- Claude Code CLI: {status_text((diagnostics.get("claude_code_cli") or {}).get("reason"))}',
             '',
             '## Suggested Fixes',
         ]
     )
     if not any(item.get('available') and item.get('provider') == 'codex' for item in workers):
-        lines.append('- Code Worker is unavailable. You can still use local scan, preview, dry-run, and needs-attention flows.')
+        lines.append(
+            '- Code Worker is unavailable. You can still use local scan, preview, dry-run, and needs-attention flows.'
+        )
     if not any(item.get('available') and item.get('name') == 'local_scanner_worker' for item in workers):
         lines.append('- Local Scanner is unavailable; check write permissions and rerun worker doctor.')
     if not lines[-1].startswith('- '):
@@ -63,7 +70,9 @@ def build_environment_report(project: Path, *, registry: dict[str, Any] | None =
     return '\n'.join(lines)
 
 
-def write_environment_report(project: Path, *, registry: dict[str, Any] | None = None, diagnostics: dict[str, Any] | None = None) -> Path:
+def write_environment_report(
+    project: Path, *, registry: dict[str, Any] | None = None, diagnostics: dict[str, Any] | None = None
+) -> Path:
     path = project / '.zoo-agent' / 'workers' / 'worker_environment_report.md'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(build_environment_report(project, registry=registry, diagnostics=diagnostics), encoding='utf-8')

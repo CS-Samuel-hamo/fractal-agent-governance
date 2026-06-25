@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -8,13 +8,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -108,8 +109,14 @@ def test_multiple_goals_scheduling() -> None:
 def test_conflict_detection_pauses_lower_priority_api_goal() -> None:
     repo = init_repo('conflict')
     set_goal(repo, 'goal-api-a', 'Change public API response for A', priority=80, resource='api_contract:*')
-    set_goal(repo, 'goal-api-b', 'Change public API response for B', priority=20, resource='api_contract:*', no_activate=True)
-    proc = run([sys.executable, str(ROOT / 'scripts' / 'goal_conflict_detector.py'), '--workspace', str(repo), '--apply'], repo, check=False)
+    set_goal(
+        repo, 'goal-api-b', 'Change public API response for B', priority=20, resource='api_contract:*', no_activate=True
+    )
+    proc = run(
+        [sys.executable, str(ROOT / 'scripts' / 'goal_conflict_detector.py'), '--workspace', str(repo), '--apply'],
+        repo,
+        check=False,
+    )
     assert proc.returncode == 10
     report = load(repo / '.zoo-agent' / 'goal' / 'goal-conflicts.json')
     assert report['conflicts']
@@ -141,7 +148,9 @@ def test_goal_switching_after_completion() -> None:
 def test_backend_unhealthy_freezes_actual_execution() -> None:
     repo = init_repo('backend-unhealthy')
     set_goal(repo, 'goal-a', 'Update docs/a.md', priority=90, resource='docs/a.md')
-    proc = run([sys.executable, str(AGENT), 'global-loop', '--workspace', str(repo), '--backend-health', 'unhealthy'], repo)
+    proc = run(
+        [sys.executable, str(AGENT), 'global-loop', '--workspace', str(repo), '--backend-health', 'unhealthy'], repo
+    )
     report = json.loads(proc.stdout)
     assert report['actual_execution_frozen'] is True
     assert report['system_status'] == 'degraded'
@@ -162,7 +171,10 @@ def test_starvation_prevention_rotates_low_priority_goal() -> None:
             item['starvation_count'] = 10
     write_json(repo / '.zoo-agent' / 'goal' / 'goal_state.json', state)
     write_json(repo / '.zoo-agent' / 'goal_state.json', state)
-    run([sys.executable, str(AGENT), 'goal', 'schedule', '--workspace', str(repo), '--max-continuous-iterations', '1'], repo)
+    run(
+        [sys.executable, str(AGENT), 'goal', 'schedule', '--workspace', str(repo), '--max-continuous-iterations', '1'],
+        repo,
+    )
     assert goal_state(repo)['global_loop_state']['active_goal_id'] == 'goal-low'
 
 

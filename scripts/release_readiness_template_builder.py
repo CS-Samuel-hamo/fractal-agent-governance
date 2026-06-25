@@ -10,8 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import load_store, write_store  # noqa: E402
-from runtime_common import project_root  # noqa: E402
+from cross_project_store import load_store, write_store
+from runtime_common import project_root
 
 
 def step(number: int, action_type: str, reason: str, evidence: list[str]) -> dict[str, Any]:
@@ -28,9 +28,19 @@ def build_templates(project: Path) -> dict[str, Any]:
             'goal': 'cli_tool_release',
             'recommended_sequence': [
                 step(1, 'repo_scan', 'Build evidence before selecting release tasks.', ['local_scanner_report']),
-                step(2, 'docs_update', 'README and quickstart should be clear before public release.', ['README', 'QUICKSTART']),
+                step(
+                    2,
+                    'docs_update',
+                    'README and quickstart should be clear before public release.',
+                    ['README', 'QUICKSTART'],
+                ),
                 step(3, 'test_update', 'Smoke tests should pass before release claims.', ['tests']),
-                step(4, 'worker_doctor', 'Confirm local worker capability before real execution.', ['worker_doctor_report']),
+                step(
+                    4,
+                    'worker_doctor',
+                    'Confirm local worker capability before real execution.',
+                    ['worker_doctor_report'],
+                ),
                 step(5, 'cockpit', 'Generate a readable project state view.', ['cockpit']),
             ],
             'must_have': ['README', 'install instructions', 'quickstart', 'tests or smoke validation'],
@@ -86,7 +96,9 @@ def build_templates(project: Path) -> dict[str, Any]:
             'evidence': evidence,
         },
     ]
-    return write_store(project, 'release_templates', {'generated_by': 'release_readiness_template_builder.py', 'templates': templates})
+    return write_store(
+        project, 'release_templates', {'generated_by': 'release_readiness_template_builder.py', 'templates': templates}
+    )
 
 
 def main() -> int:

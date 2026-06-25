@@ -1,7 +1,6 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import json
 import subprocess
 import sys
@@ -11,13 +10,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from backend_registry import default_registry  # noqa: E402
-from runtime_core import RuntimeCore  # noqa: E402
-from runtime_common import write_json  # noqa: E402
+from backend_registry import default_registry
+from runtime_common import write_json
+from runtime_core import RuntimeCore
 
 
 def run(cmd: list[str], cwd: Path) -> str:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     if proc.returncode:
         raise AssertionError(proc.stdout)
     return proc.stdout
@@ -40,7 +41,9 @@ def current_execution_result(payload: dict) -> dict:
     assert iterations, payload
     execution_ref = iterations[-1].get('execution_result_ref')
     if not execution_ref:
-        execution_ref = str(Path((payload.get('result') or {}).get('final_result_ref', '')).parent / 'execution_result.json')
+        execution_ref = str(
+            Path((payload.get('result') or {}).get('final_result_ref', '')).parent / 'execution_result.json'
+        )
     return json.loads(Path(execution_ref).read_text(encoding='utf-8-sig'))
 
 

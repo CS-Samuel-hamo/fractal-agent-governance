@@ -10,14 +10,21 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, resolve_goal, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, resolve_goal, utc_now, write_json
 
 
 def run_dir(project: Path, run_id: str) -> Path:
     return project / '.zoo-agent' / 'runs' / run_id
 
 
-def _candidate(candidate_id: str, title: str, rationale: str, *, priority: str = 'medium', execution_policy: str = 'suggestion_only') -> dict[str, Any]:
+def _candidate(
+    candidate_id: str,
+    title: str,
+    rationale: str,
+    *,
+    priority: str = 'medium',
+    execution_policy: str = 'suggestion_only',
+) -> dict[str, Any]:
     return {
         'candidate_id': candidate_id,
         'title': title,
@@ -31,7 +38,11 @@ def _candidate(candidate_id: str, title: str, rationale: str, *, priority: str =
 def suggest_next_goals(project: Path, run_id: str, goal_id: str = '') -> dict[str, Any]:
     goal = resolve_goal(project, goal_id, run_id)
     completion = load_json(run_dir(project, run_id) / 'goal-completion.json')
-    matrix = completion.get('goal_coverage_matrix') if isinstance(completion.get('goal_coverage_matrix'), dict) else load_json(run_dir(project, run_id) / 'goal-coverage-matrix.json')
+    matrix = (
+        completion.get('goal_coverage_matrix')
+        if isinstance(completion.get('goal_coverage_matrix'), dict)
+        else load_json(run_dir(project, run_id) / 'goal-coverage-matrix.json')
+    )
     resource_map = load_json(project / '.zoo-agent' / 'project-resource-map.json')
     verdict = str(matrix.get('goal_completion_verdict') or '')
     missing = matrix.get('missing_success_criteria') or []

@@ -10,23 +10,21 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from backend_registry import read_backend_selection  # noqa: E402
-from runtime_common import project_root, set_active_goal, utc_now  # noqa: E402
-from session_budget_manager import DEFAULT_BUDGET  # noqa: E402
-from session_cockpit_sync import sync_cockpit  # noqa: E402
-from session_digest_generator import generate_digest, latest_checkpoint, selected_action  # noqa: E402
-from session_resume_engine import recover_session  # noqa: E402
-from session_state_store import (  # noqa: E402
+from backend_registry import read_backend_selection
+from runtime_common import project_root, set_active_goal, utc_now
+from session_budget_manager import DEFAULT_BUDGET
+from session_cockpit_sync import sync_cockpit
+from session_digest_generator import generate_digest, latest_checkpoint, selected_action
+from session_resume_engine import recover_session
+from session_state_store import (
     acquire_session_lock,
     append_session_event,
     default_session_state,
     load_session_state,
     release_session_lock,
     save_session_state,
-    session_digest_path,
 )
-from session_step_runner import ensure_project_map, run_session_step  # noqa: E402
-
+from session_step_runner import ensure_project_map, run_session_step
 
 ACTIVE_STATUSES = {'active', 'paused', 'needs_attention'}
 
@@ -75,13 +73,27 @@ def status_payload(project: Path) -> dict[str, Any]:
     return {'task': state.get('goal') or 'session', 'mode': 'status', 'result': result}
 
 
-def start_session(project: Path, *, goal: str, mode: str = 'standard', max_steps: int = 0, backend: str = '', steps: int = 0) -> dict[str, Any]:
+def start_session(
+    project: Path, *, goal: str, mode: str = 'standard', max_steps: int = 0, backend: str = '', steps: int = 0
+) -> dict[str, Any]:
     existing, _ = load_session_state(project)
     if existing and existing.get('status') in ACTIVE_STATUSES:
-        return {'status': 'blocked', 'state': existing, 'message': 'A session is already available. Run agent continue or agent stop.'}
+        return {
+            'status': 'blocked',
+            'state': existing,
+            'message': 'A session is already available. Run agent continue or agent stop.',
+        }
     total_budget = max_steps or DEFAULT_BUDGET['max_steps']
     state = default_session_state(project, goal=goal, max_steps=total_budget)
-    state.update({'status': 'active', 'created_at': utc_now(), 'updated_at': utc_now(), 'mode': mode, 'backend': backend or read_backend_selection(project, default='auto')})
+    state.update(
+        {
+            'status': 'active',
+            'created_at': utc_now(),
+            'updated_at': utc_now(),
+            'mode': mode,
+            'backend': backend or read_backend_selection(project, default='auto'),
+        }
+    )
     set_active_goal(project, goal, source='session_runtime_engine.py')
     ensure_project_map(project, goal)
     save_session_state(project, state)
@@ -90,7 +102,13 @@ def start_session(project: Path, *, goal: str, mode: str = 'standard', max_steps
     result: dict[str, Any] = {'state': state}
     lock = acquire_session_lock(project, session_id=state['session_id'])
     if not lock.get('acquired'):
-        state.update({'status': 'needs_attention', 'attention_required': True, 'pause_reason': lock.get('reason', 'session lock unavailable')})
+        state.update(
+            {
+                'status': 'needs_attention',
+                'attention_required': True,
+                'pause_reason': lock.get('reason', 'session lock unavailable'),
+            }
+        )
         save_session_state(project, state)
         generate_digest(project)
         sync_cockpit(project)
@@ -100,7 +118,13 @@ def start_session(project: Path, *, goal: str, mode: str = 'standard', max_steps
             current, _ = load_session_state(project)
             if current.get('status') in {'stopped', 'completed', 'failed'}:
                 break
-            result = run_session_step(project, state=current, mode=mode, backend=str(state.get('backend') or 'auto'), budget={'max_steps': total_budget})
+            result = run_session_step(
+                project,
+                state=current,
+                mode=mode,
+                backend=str(state.get('backend') or 'auto'),
+                budget={'max_steps': total_budget},
+            )
             state = result['state']
             if state.get('status') != 'active':
                 break
@@ -115,16 +139,30 @@ def continue_session(project: Path, *, mode: str = 'standard', steps: int = 1, b
     recover = recover_session(project)
     state, meta = load_session_state(project)
     if not state:
-        return {'status': 'blocked', 'state': {}, 'message': recover.get('reason') or meta.get('status') or 'no session found'}
+        return {
+            'status': 'blocked',
+            'state': {},
+            'message': recover.get('reason') or meta.get('status') or 'no session found',
+        }
     if state.get('status') in {'stopped', 'completed', 'failed'}:
         generate_digest(project)
         sync_cockpit(project)
-        return {'status': 'blocked', 'state': state, 'message': f'session is {state.get("status")}; start a new session to continue'}
+        return {
+            'status': 'blocked',
+            'state': state,
+            'message': f'session is {state.get("status")}; start a new session to continue',
+        }
     if not recover.get('safe_to_continue', True):
         return {'status': 'needs_attention', 'state': state, 'message': recover.get('reason') or 'recovery needed'}
     lock = acquire_session_lock(project, session_id=str(state.get('session_id') or ''))
     if not lock.get('acquired'):
-        state.update({'status': 'needs_attention', 'attention_required': True, 'pause_reason': lock.get('reason', 'session lock unavailable')})
+        state.update(
+            {
+                'status': 'needs_attention',
+                'attention_required': True,
+                'pause_reason': lock.get('reason', 'session lock unavailable'),
+            }
+        )
         save_session_state(project, state)
         generate_digest(project)
         sync_cockpit(project)
@@ -136,7 +174,13 @@ def continue_session(project: Path, *, mode: str = 'standard', steps: int = 1, b
             if current.get('status') in {'stopped', 'completed', 'failed'}:
                 break
             current.update({'status': 'active', 'attention_required': False, 'pause_reason': ''})
-            result = run_session_step(project, state=current, mode=mode or str(current.get('mode') or 'standard'), backend=backend or str(current.get('backend') or read_backend_selection(project, default='auto')), budget={'max_steps': int(current.get('max_steps') or DEFAULT_BUDGET['max_steps'])})
+            result = run_session_step(
+                project,
+                state=current,
+                mode=mode or str(current.get('mode') or 'standard'),
+                backend=backend or str(current.get('backend') or read_backend_selection(project, default='auto')),
+                budget={'max_steps': int(current.get('max_steps') or DEFAULT_BUDGET['max_steps'])},
+            )
             if result['state'].get('status') != 'active':
                 break
     finally:
@@ -150,7 +194,15 @@ def stop_session(project: Path) -> dict[str, Any]:
     state, _ = load_session_state(project)
     if not state:
         state = default_session_state(project)
-    state.update({'status': 'stopped', 'resume_available': False, 'attention_required': False, 'pause_reason': '', 'updated_at': utc_now()})
+    state.update(
+        {
+            'status': 'stopped',
+            'resume_available': False,
+            'attention_required': False,
+            'pause_reason': '',
+            'updated_at': utc_now(),
+        }
+    )
     save_session_state(project, state)
     append_session_event(project, 'session_stopped', {'session_id': state.get('session_id', '')})
     generate_digest(project)
@@ -164,9 +216,18 @@ def undo_session(project: Path) -> dict[str, Any]:
     if not state:
         state = default_session_state(project)
     if checkpoint:
-        state.update({'status': 'paused', 'pause_reason': f'undo available at {checkpoint.get("checkpoint_id")}', 'resume_available': True, 'attention_required': False})
+        state.update(
+            {
+                'status': 'paused',
+                'pause_reason': f'undo available at {checkpoint.get("checkpoint_id")}',
+                'resume_available': True,
+                'attention_required': False,
+            }
+        )
         save_session_state(project, state)
-        append_session_event(project, 'undo_checkpoint_selected', {'checkpoint_id': checkpoint.get('checkpoint_id', '')})
+        append_session_event(
+            project, 'undo_checkpoint_selected', {'checkpoint_id': checkpoint.get('checkpoint_id', '')}
+        )
     generate_digest(project)
     sync_cockpit(project)
     return {'status': 'ok' if checkpoint else 'empty', 'state': state, 'checkpoint': checkpoint}

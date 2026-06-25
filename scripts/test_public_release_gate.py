@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -9,14 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_release_gate import evaluate_gate  # noqa: E402
-from public_release_packager import VERSION, write_release_manifest  # noqa: E402
+from public_release_gate import evaluate_gate
+from public_release_packager import VERSION, write_release_manifest
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(cmd, cwd=ROOT, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -53,7 +52,15 @@ def test_public_release_gate_passes() -> None:
 
 def test_agent_publish_preflight_runs_and_help_hides_it() -> None:
     help_proc = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'])
-    forbidden = ['agent publish', 'publish --preflight', 'worker dogfood', 'learning dogfood', 'alpha audit', 'release dogfood', 'session dogfood']
+    forbidden = [
+        'agent publish',
+        'publish --preflight',
+        'worker dogfood',
+        'learning dogfood',
+        'alpha audit',
+        'release dogfood',
+        'session dogfood',
+    ]
     for item in forbidden:
         assert item not in help_proc.stdout.lower()
     proc = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'publish', '--preflight', '--workspace', str(ROOT)])

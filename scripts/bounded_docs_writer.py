@@ -11,12 +11,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 DOC_SUFFIXES = ('.md', '.txt')
 SENSITIVE_RE = re.compile(r'(?i)(^|/|\\|\.)(env|secret|key|token|password|credential|private|cert)(\.|/|\\|$)')
-SOURCE_RE = re.compile(r'(?i)([\w.\-/\\]*project_beginning_prompt\.md|[\w.\-/\\]*project_prompt\.md|[\w.\-/\\]*prompt\.md|[\w.\-/\\]*brief\.md|[\w.\-/\\]*requirements\.md)')
+SOURCE_RE = re.compile(
+    r'(?i)([\w.\-/\\]*project_beginning_prompt\.md|[\w.\-/\\]*project_prompt\.md|[\w.\-/\\]*prompt\.md|[\w.\-/\\]*brief\.md|[\w.\-/\\]*requirements\.md)'
+)
 
 
 def normalize_rel(path: str) -> str:
@@ -86,7 +87,10 @@ def build_append_markdown(*, objective: str, target: str, source_files: list[str
     marker = marker_for(objective, target)
     source_line = ', '.join(f'`{item}`' for item in source_files) if source_files else 'user task'
     surface = f'{objective}\n{source_summary}'.lower()
-    if any(signal in surface for signal in ['research', 'paper', 'literature', 'evidence', 'validation', '论文', '文献', '证据', '验证']):
+    if any(
+        signal in surface
+        for signal in ['research', 'paper', 'literature', 'evidence', 'validation', '论文', '文献', '证据', '验证']
+    ):
         body = (
             '## 文献、证据和验证流程\n\n'
             f'来源：{source_line}\n\n'
@@ -138,7 +142,9 @@ def apply_docs_patch(project: Path, *, objective: str, target_files: list[str]) 
             before = ''
         else:
             before = path.read_text(encoding='utf-8', errors='replace')
-        append_text = build_append_markdown(objective=objective, target=target, source_files=sources, source_summary=summary)
+        append_text = build_append_markdown(
+            objective=objective, target=target, source_files=sources, source_summary=summary
+        )
         marker = marker_for(objective, target)
         if marker in before:
             skipped.append({'path': target, 'reason': 'bounded_docs_patch_already_present'})
@@ -158,7 +164,9 @@ def apply_docs_patch(project: Path, *, objective: str, target_files: list[str]) 
         'blocked': blocked,
         'source_files': sources,
         'safe_for_user_output': True,
-        'summary': 'Applied safe docs update.' if changed else ('Blocked unsafe docs target.' if blocked else 'No changes needed.'),
+        'summary': 'Applied safe docs update.'
+        if changed
+        else ('Blocked unsafe docs target.' if blocked else 'No changes needed.'),
     }
     write_json(project / '.zoo-agent' / 'workers' / 'bounded_docs_writer_result.json', payload)
     return payload

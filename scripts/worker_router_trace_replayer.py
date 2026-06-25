@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -37,38 +37,38 @@ def build_replay(trace: dict[str, Any]) -> str:
         rejected = decision.get('rejected_workers') if isinstance(decision.get('rejected_workers'), list) else []
         lines.extend(
             [
-                f"## {_value(run.get('scenario')).replace('_', ' ').title()}",
+                f'## {_value(run.get("scenario")).replace("_", " ").title()}',
                 '',
-                f"- outcome: {_value(run.get('outcome'))}",
-                f"- selected action: {_value(run.get('selected_action'))}",
-                f"- source: {_value(run.get('selected_action_source'))}",
-                f"- task type: {_value(profile.get('task_type'))}",
-                f"- risk: {_value(profile.get('risk_level'))}",
-                f"- trust zone: {_value(profile.get('trust_zone'))}",
-                f"- selected worker role: {_value(decision.get('worker_role') or decision.get('selected_worker_type'))}",
-                f"- routing mode: {_value(decision.get('execution_mode'))}",
-                f"- reason: {_value(decision.get('routing_reason'))}",
+                f'- outcome: {_value(run.get("outcome"))}',
+                f'- selected action: {_value(run.get("selected_action"))}',
+                f'- source: {_value(run.get("selected_action_source"))}',
+                f'- task type: {_value(profile.get("task_type"))}',
+                f'- risk: {_value(profile.get("risk_level"))}',
+                f'- trust zone: {_value(profile.get("trust_zone"))}',
+                f'- selected worker role: {_value(decision.get("worker_role") or decision.get("selected_worker_type"))}',
+                f'- routing mode: {_value(decision.get("execution_mode"))}',
+                f'- reason: {_value(decision.get("routing_reason"))}',
             ]
         )
         if rejected:
             lines.append('- other workers not selected:')
             for item in rejected[:5]:
                 if isinstance(item, dict):
-                    lines.append(f"  - {_value(item.get('worker'))}: {_value(item.get('reason'))}")
+                    lines.append(f'  - {_value(item.get("worker"))}: {_value(item.get("reason"))}')
         if run.get('fallback_used'):
             lines.extend(
                 [
-                    f"- fallback: used",
-                    f"- fallback safe: {'yes' if run.get('fallback_safe') else 'no'}",
+                    '- fallback: used',
+                    f'- fallback safe: {"yes" if run.get("fallback_safe") else "no"}',
                 ]
             )
         else:
             lines.append('- fallback: not needed')
         lines.extend(
             [
-                f"- checkpoint: {'created' if run.get('checkpoint_created') else 'not needed'}",
-                f"- session updated: {'yes' if run.get('session_updated') else 'no'}",
-                f"- cockpit synced: {'yes' if run.get('cockpit_synced') else 'no'}",
+                f'- checkpoint: {"created" if run.get("checkpoint_created") else "not needed"}',
+                f'- session updated: {"yes" if run.get("session_updated") else "no"}',
+                f'- cockpit synced: {"yes" if run.get("cockpit_synced") else "no"}',
                 '- next command: `agent status`, `agent continue`, or `agent cockpit`.',
                 '',
             ]
@@ -91,7 +91,13 @@ def main() -> int:
     args = parser.parse_args()
     project = project_root(args.workspace)
     path = run_replay(project, trace_path=Path(args.trace).resolve() if args.trace else None)
-    print(json.dumps({'status': 'ok', 'replay': '.zoo-agent/worker_dogfood/worker_router_replay.md'}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'replay': '.zoo-agent/worker_dogfood/worker_router_replay.md'},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0 if path.exists() else 1
 
 

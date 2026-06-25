@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "zoo-agent-runtime"
+dynamic = ["version"]
+description = "Local-first AI Project Operator — give it a project, it keeps moving it forward"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["cli", "ai-agent", "coding-agent", "agent-runtime", "local-first"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Version Control",
+]
+
+[project.urls]
+Homepage = "https://github.com/CS-Samuel-hamo/fractal-agent-governance"
+Repository = "https://github.com/CS-Samuel-hamo/fractal-agent-governance"
+
+[project.scripts]
+agent = "agent:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.5.0",
+    "coverage>=7.0",
+]
+typecheck = [
+    "pyright>=1.1.300",
+]
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
+[tool.setuptools.packages.find]
+include = ["scripts.*"]
+
+# ── Ruff (linter + formatter) ──────────────────────────────────────────────
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["scripts"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E402",  # module level import not at top — sys.path+import is the project pattern
+    "E501",  # line too long — handled by formatter
+    "N806",  # non-lowercase-variable-in-function — common in scripts
+    "N999",  # invalid-module-name — scripts/ has underscores
+    "RUF001", # ambiguous unicode — Chinese punctuation in strings is intentional
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "auto"
+
+# ── pytest ──────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["scripts"]
+python_files = ["test_*.py"]
+python_classes = []
+python_functions = []
+filterwarnings = ["ignore::DeprecationWarning"]
+
+# ── coverage.py ─────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+source = ["scripts"]
+omit = ["scripts/test_*"]
+relative_files = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise SystemExit",
+    "raise NotImplementedError",
+    "pass",
+    "def __repr__",
+]
+fail_under = 20

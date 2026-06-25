@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 CONTRACT_FIELDS = [
     'worker_name',
@@ -56,7 +55,9 @@ def worker_contract(
         'reads_secrets': bool(reads_secrets),
         'modifies_files': bool(modifies_files),
         'can_run_commands': bool(can_run_commands),
-        'safe_default_mode': safe_default_mode if safe_default_mode in {'preview', 'dry_run', 'unavailable'} else 'preview',
+        'safe_default_mode': safe_default_mode
+        if safe_default_mode in {'preview', 'dry_run', 'unavailable'}
+        else 'preview',
     }
 
 
@@ -69,7 +70,11 @@ def validate_contract(contract: dict[str, Any], profile: dict[str, Any] | None =
         errors.append('reads_secrets_must_be_false')
     if contract.get('requires_network') and contract.get('safe_default_mode') != 'unavailable':
         errors.append('network_worker_must_default_unavailable')
-    if contract.get('supports_actual_execution') and not contract.get('modifies_files') and contract.get('safe_default_mode') == 'unavailable':
+    if (
+        contract.get('supports_actual_execution')
+        and not contract.get('modifies_files')
+        and contract.get('safe_default_mode') == 'unavailable'
+    ):
         errors.append('actual_worker_marked_unavailable')
     if profile:
         if profile.get('supports_actual_execution') and not contract.get('supports_actual_execution'):
@@ -146,7 +151,9 @@ def default_contracts() -> dict[str, dict[str, Any]]:
 
 
 def contract_for(worker_name: str) -> dict[str, Any]:
-    return default_contracts().get(worker_name, worker_contract(worker_name, supports_preview=False, safe_default_mode='unavailable'))
+    return default_contracts().get(
+        worker_name, worker_contract(worker_name, supports_preview=False, safe_default_mode='unavailable')
+    )
 
 
 def write_contracts(project: Path, profiles: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -158,7 +165,9 @@ def write_contracts(project: Path, profiles: dict[str, dict[str, Any]] | None = 
             contract = {
                 **contract,
                 'supports_actual_execution': True,
-                'modifies_files': bool(contract.get('modifies_files') or name in {'codex_worker_existing_adapter', 'mock_worker'}),
+                'modifies_files': bool(
+                    contract.get('modifies_files') or name in {'codex_worker_existing_adapter', 'mock_worker'}
+                ),
                 'safe_default_mode': 'preview',
             }
         rows.append({**contract, 'validation_errors': validate_contract(contract, profile)})

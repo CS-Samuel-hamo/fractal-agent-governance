@@ -35,7 +35,7 @@ def _changed_files(execution: dict[str, Any], plan: dict[str, Any]) -> list[str]
                     files.add(value)
     if files:
         return sorted(files)
-    for leaf in ((plan.get('decomposition') or {}).get('leaf_tasks') or []):
+    for leaf in (plan.get('decomposition') or {}).get('leaf_tasks') or []:
         for item in leaf.get('allowed_files') or []:
             value = _norm(item)
             if value and not any(ch in value for ch in '*?[]'):
@@ -47,9 +47,16 @@ def analyze_impact(plan: dict[str, Any], execution: dict[str, Any], final_result
     affected_files = _changed_files(execution, plan)
     modules = sorted({_module_from_path(path) for path in affected_files})
     cross_module = len(modules) > 1
-    has_runtime_code = any(path.startswith(('src/', 'app/', 'lib/')) or path.endswith(('.py', '.ts', '.tsx', '.js', '.jsx')) for path in affected_files)
-    has_schema_or_api = any(term in path.lower() for path in affected_files for term in ['api', 'schema', 'migration', 'db', 'database'])
-    docs_only = bool(affected_files) and all(path.endswith('.md') or path.startswith('docs/') for path in affected_files)
+    has_runtime_code = any(
+        path.startswith(('src/', 'app/', 'lib/')) or path.endswith(('.py', '.ts', '.tsx', '.js', '.jsx'))
+        for path in affected_files
+    )
+    has_schema_or_api = any(
+        term in path.lower() for path in affected_files for term in ['api', 'schema', 'migration', 'db', 'database']
+    )
+    docs_only = bool(affected_files) and all(
+        path.endswith('.md') or path.startswith('docs/') for path in affected_files
+    )
     if has_schema_or_api:
         compatibility = 'needs_review'
         rollback_cost = 'medium'

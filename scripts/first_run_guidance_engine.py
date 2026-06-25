@@ -9,7 +9,6 @@ from typing import Any
 
 from runtime_common import project_root, utc_now, write_json
 
-
 COMMAND_UX_DIR = Path('.zoo-agent') / 'command_ux'
 
 
@@ -20,8 +19,7 @@ def _is_git_repo(project: Path) -> bool:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return proc.returncode == 0
 
@@ -29,7 +27,15 @@ def _is_git_repo(project: Path) -> bool:
 def inspect_first_run(project: Path) -> dict[str, Any]:
     zoo = project / '.zoo-agent'
     seed_prompt = ''
-    for candidate in ['project_beginning_prompt.md', 'project_prompt.md', 'goal.md', 'brief.md', 'spec.md', 'requirements.md', 'prompt.md']:
+    for candidate in [
+        'project_beginning_prompt.md',
+        'project_prompt.md',
+        'goal.md',
+        'brief.md',
+        'spec.md',
+        'requirements.md',
+        'prompt.md',
+    ]:
         if (project / candidate).exists():
             seed_prompt = candidate
             break
@@ -44,7 +50,9 @@ def inspect_first_run(project: Path) -> dict[str, Any]:
         'has_release_pack': (zoo / 'release' / 'release_workflow_report.md').exists(),
         'has_seed_prompt': bool(seed_prompt),
         'seed_prompt': seed_prompt,
-        'recommended_first_command': f'agent "read {seed_prompt}"' if seed_prompt else 'agent "prepare this project for public release"',
+        'recommended_first_command': f'agent "read {seed_prompt}"'
+        if seed_prompt
+        else 'agent "prepare this project for public release"',
         'optional_commands': ['agent do "explain this project"', 'agent cockpit', 'agent undo'],
         'safety_note': 'Runs locally by default. It does not push, merge, deploy, or create remote PRs.',
     }
@@ -78,7 +86,13 @@ def render_guidance(project: Path) -> str:
     if state.get('has_seed_prompt'):
         lines.extend(['', 'Detected project prompt:', f'- {state.get("seed_prompt")}'])
     if not state['is_git_repo']:
-        lines.extend(['', 'Note:', 'This directory is not a Git repo yet. The operator can still inspect local files, but Git/release context will be limited.'])
+        lines.extend(
+            [
+                '',
+                'Note:',
+                'This directory is not a Git repo yet. The operator can still inspect local files, but Git/release context will be limited.',
+            ]
+        )
     return '\n'.join(lines)
 
 

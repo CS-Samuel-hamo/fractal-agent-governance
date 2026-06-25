@@ -7,12 +7,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if proc.returncode:
@@ -55,9 +56,26 @@ def test_data_projection_and_sanitization() -> None:
             'project_type': 'docs',
             'main_goal': 'prepare project for release',
             'last_updated': '2026-06-20T00:00:00Z',
-            'modules': [{'name': 'Docs', 'status': 'mapped', 'confidence': 0.7, 'key_files': ['README.md'], 'evidence': evidence}],
-            'capabilities': [{'name': 'Onboarding', 'status': 'partial', 'related_modules': ['Docs'], 'evidence': evidence}],
-            'risks': [{'description': 'Release notes need review', 'severity': 'low', 'affected_files': ['README.md'], 'evidence': evidence}],
+            'modules': [
+                {
+                    'name': 'Docs',
+                    'status': 'mapped',
+                    'confidence': 0.7,
+                    'key_files': ['README.md'],
+                    'evidence': evidence,
+                }
+            ],
+            'capabilities': [
+                {'name': 'Onboarding', 'status': 'partial', 'related_modules': ['Docs'], 'evidence': evidence}
+            ],
+            'risks': [
+                {
+                    'description': 'Release notes need review',
+                    'severity': 'low',
+                    'affected_files': ['README.md'],
+                    'evidence': evidence,
+                }
+            ],
             'next_actions': [
                 {
                     'action_id': 'readme-note',
@@ -82,16 +100,44 @@ def test_data_projection_and_sanitization() -> None:
             ],
         },
     )
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'session.json', {'goal': 'prepare project for release', 'status': 'doing'})
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'progress.json', {'title': 'Add README release note', 'status': 'done'})
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'session.json', {'goal': 'prepare project for release', 'status': 'doing'}
+    )
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'progress.json', {'title': 'Add README release note', 'status': 'done'}
+    )
     write_json(
         repo / '.zoo-agent' / 'autopilot' / 'action_history.json',
-        {'actions': [{'title': 'Add README release note', 'status': 'done', 'result': 'COMPLETED', 'changed_files': ['README.md']}]},
+        {
+            'actions': [
+                {
+                    'title': 'Add README release note',
+                    'status': 'done',
+                    'result': 'COMPLETED',
+                    'changed_files': ['README.md'],
+                }
+            ]
+        },
     )
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'attention_required.json', {'reason': 'Blocked area requires review', 'suggested_next_step': 'Review manually.'})
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'checkpoints.json', {'checkpoints': [{'checkpoint_id': 'checkpoint-0001', 'created_at': '2026-06-20T00:01:00Z', 'undo_available': True}]})
-    write_json(repo / '.zoo-agent' / 'dogfood' / 'readiness_for_094.json', {'final_recommendation': 'READY_FOR_094_COCKPIT'})
-    write_json(repo / '.zoo-agent' / 'dogfood' / 'map_quality_report.json', {'map_quality_score': 0.91, 'evidence_coverage': 0.88})
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'attention_required.json',
+        {'reason': 'Blocked area requires review', 'suggested_next_step': 'Review manually.'},
+    )
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'checkpoints.json',
+        {
+            'checkpoints': [
+                {'checkpoint_id': 'checkpoint-0001', 'created_at': '2026-06-20T00:01:00Z', 'undo_available': True}
+            ]
+        },
+    )
+    write_json(
+        repo / '.zoo-agent' / 'dogfood' / 'readiness_for_094.json', {'final_recommendation': 'READY_FOR_094_COCKPIT'}
+    )
+    write_json(
+        repo / '.zoo-agent' / 'dogfood' / 'map_quality_report.json',
+        {'map_quality_score': 0.91, 'evidence_coverage': 0.88},
+    )
 
     run([sys.executable, str(ROOT / 'scripts' / 'cockpit_data_builder.py'), '--workspace', str(repo)], repo)
     data_path = repo / '.zoo-agent' / 'cockpit' / 'cockpit_data.json'

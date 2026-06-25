@@ -16,7 +16,7 @@ class ExecutionTask:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_leaf(cls, leaf: dict[str, Any]) -> 'ExecutionTask':
+    def from_leaf(cls, leaf: dict[str, Any]) -> ExecutionTask:
         return cls(
             task_id=str(leaf.get('leaf_id') or leaf.get('task_id') or 'leaf'),
             objective=str(leaf.get('objective') or ''),
@@ -90,8 +90,6 @@ class ExecutionResult:
 class ExecutionBackend(Protocol):
     name: str
 
-    def health(self) -> dict[str, Any]:
-        ...
+    def health(self) -> dict[str, Any]: ...
 
-    def execute(self, task: ExecutionTask, context: ExecutionContext) -> ExecutionResult:
-        ...
+    def execute(self, task: ExecutionTask, context: ExecutionContext) -> ExecutionResult: ...

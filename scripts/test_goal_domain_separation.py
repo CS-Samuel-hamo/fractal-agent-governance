@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -13,7 +13,9 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -39,7 +41,9 @@ def temp_repo(name: str) -> Path:
     return repo
 
 
-def set_goal(repo: Path, goal_id: str, text: str, priority: int, *, resource: str = 'README.md', no_activate: bool = False) -> None:
+def set_goal(
+    repo: Path, goal_id: str, text: str, priority: int, *, resource: str = 'README.md', no_activate: bool = False
+) -> None:
     cmd = [
         sys.executable,
         str(AGENT),
@@ -71,7 +75,9 @@ def test_goal_domain_classification_and_filtering() -> None:
     set_goal(repo, 'diagnostic-smoke', 'Controlled diagnostic dry-run validation test', 90, no_activate=True)
 
     run([sys.executable, str(ROOT / 'scripts' / 'filter_system_goals.py'), '--workspace', str(repo)], repo)
-    filtered = json.loads(run([sys.executable, str(ROOT / 'scripts' / 'filter_system_goals.py'), '--workspace', str(repo)], repo).stdout)
+    filtered = json.loads(
+        run([sys.executable, str(ROOT / 'scripts' / 'filter_system_goals.py'), '--workspace', str(repo)], repo).stdout
+    )
     eligible = {item['goal_id']: item for item in filtered['eligible_goals']}
     excluded = {item['goal_id']: item for item in filtered['excluded_goals']}
     assert 'production-readme' in eligible

@@ -8,7 +8,6 @@ from typing import Any
 
 from runtime_common import load_json, project_root, utc_now, write_json
 
-
 FORBIDDEN_WORDS = ['planner', 'executor', 'verifier', 'backend', 'governance', 'eval']
 
 
@@ -50,10 +49,14 @@ def build_execution_explanation(
         objective = str(leaves[0].get('objective') or '')
     affected = impact.get('affected_files') or []
     verdict = str(final_result.get('final_verdict') or 'UNKNOWN')
-    changed_sentence = 'No business files were changed.' if not affected else 'Changed or targeted: ' + ', '.join(str(item) for item in affected[:8])
+    changed_sentence = (
+        'No business files were changed.'
+        if not affected
+        else 'Changed or targeted: ' + ', '.join(str(item) for item in affected[:8])
+    )
     risk = str(trust.get('risk_level') or ('medium' if impact.get('cross_module_risk') == 'medium' else 'low'))
     recommendation = _recommendation(risk, trust)
-    risk_text = f"Risk is {risk} with rollback cost {impact.get('rollback_cost', 'unknown')}."
+    risk_text = f'Risk is {risk} with rollback cost {impact.get("rollback_cost", "unknown")}.'
     if trust.get('confidence_level') == 'low':
         risk_text += ' Review carefully before relying on this result.'
     payload = {
@@ -67,15 +70,21 @@ def build_execution_explanation(
         'risk_level': risk,
         'safe_to_apply': 'suggested_only',
         'reasoning': _clean('This explanation is guidance only. The user must decide whether to apply any change.'),
-        'why_this_change': _clean(f"The task asked for: {objective or 'a local workspace change'}. The run stayed within the requested scope."),
+        'why_this_change': _clean(
+            f'The task asked for: {objective or "a local workspace change"}. The run stayed within the requested scope.'
+        ),
         'what_changed': [str(item) for item in affected],
-        'why_this_approach': _clean('The system chose the smallest available change path and kept risky or unrelated work out of scope.'),
+        'why_this_approach': _clean(
+            'The system chose the smallest available change path and kept risky or unrelated work out of scope.'
+        ),
         'alternatives_considered': [
             'Do nothing if no safe change is available.',
             'Ask for clarification when the requested change is too broad.',
             'Limit the work to explicitly scoped files when a file is provided.',
         ],
-        'risk_analysis': _clean(f"{risk_text} Final result: {verdict}. Trust confidence: {trust.get('confidence_level', 'unknown')}."),
+        'risk_analysis': _clean(
+            f'{risk_text} Final result: {verdict}. Trust confidence: {trust.get("confidence_level", "unknown")}.'
+        ),
         'rollback_strategy': 'Use version control to review and revert changed files. Preview mode produces no business-file change.',
         'summary': changed_sentence,
     }
@@ -104,7 +113,11 @@ def main() -> int:
         impact=load_json(Path(args.impact).resolve()),
         trust=load_json(Path(args.trust).resolve()),
     )
-    output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'explain' / 'execution_explanation.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else project / '.zoo-agent' / 'explain' / 'execution_explanation.json'
+    )
     write_json(output, payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0

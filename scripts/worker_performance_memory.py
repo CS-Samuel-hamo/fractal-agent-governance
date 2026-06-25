@@ -4,25 +4,42 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import store_dir, write_store  # noqa: E402
-from runtime_common import load_json, project_root  # noqa: E402
-
+from cross_project_store import write_store
+from runtime_common import load_json, project_root
 
 TASK_TYPES = ['repo_scan', 'docs_update', 'code_edit', 'test_update', 'analysis', 'release_readiness']
 
 
-def add_counter(rows: dict[tuple[str, str], dict[str, Any]], worker: str, task_type: str, *, success: bool = False, failure: bool = False, no_delivery: bool = False, fallback: bool = False, evidence: dict[str, Any] | None = None) -> None:
+def add_counter(
+    rows: dict[tuple[str, str], dict[str, Any]],
+    worker: str,
+    task_type: str,
+    *,
+    success: bool = False,
+    failure: bool = False,
+    no_delivery: bool = False,
+    fallback: bool = False,
+    evidence: dict[str, Any] | None = None,
+) -> None:
     key = (worker or 'unknown', task_type or 'unknown')
     row = rows.setdefault(
         key,
-        {'worker_role': key[0], 'task_type': key[1], 'success_count': 0, 'failure_count': 0, 'no_delivery_count': 0, 'fallback_count': 0, 'confidence_values': [], 'evidence': []},
+        {
+            'worker_role': key[0],
+            'task_type': key[1],
+            'success_count': 0,
+            'failure_count': 0,
+            'no_delivery_count': 0,
+            'fallback_count': 0,
+            'confidence_values': [],
+            'evidence': [],
+        },
     )
     row['success_count'] += 1 if success else 0
     row['failure_count'] += 1 if failure else 0
@@ -48,7 +65,11 @@ def recommended_use(worker: str, row: dict[str, Any], unavailable: set[str]) -> 
 def build_worker_memory(project: Path) -> dict[str, Any]:
     rows: dict[tuple[str, str], dict[str, Any]] = {}
     registry = load_json(project / '.zoo-agent' / 'workers' / 'worker_registry.json')
-    unavailable = {str(item.get('provider') or item.get('name') or '') for item in registry.get('workers') or [] if isinstance(item, dict) and not item.get('available')}
+    unavailable = {
+        str(item.get('provider') or item.get('name') or '')
+        for item in registry.get('workers') or []
+        if isinstance(item, dict) and not item.get('available')
+    }
     for worker in ['local_scanner', 'dry_run', 'mock', 'codex', 'claude', 'local']:
         for task in TASK_TYPES:
             add_counter(rows, worker, task)
@@ -63,12 +84,22 @@ def build_worker_memory(project: Path) -> dict[str, Any]:
                 continue
             decision = run.get('routing_decision') if isinstance(run.get('routing_decision'), dict) else {}
             profile = run.get('task_profile') if isinstance(run.get('task_profile'), dict) else {}
-            provider = str(decision.get('provider') or decision.get('selected_provider') or run.get('selected_worker') or '').replace('_worker', '')
+            provider = str(
+                decision.get('provider') or decision.get('selected_provider') or run.get('selected_worker') or ''
+            ).replace('_worker', '')
             if run.get('selected_worker') == 'local_scanner_worker':
                 provider = 'local_scanner'
             task_type = str(profile.get('task_type') or run.get('scenario') or 'analysis')
             outcome = str(run.get('outcome') or '')
-            add_counter(rows, provider or 'unknown', task_type, success=outcome == 'pass', failure=outcome == 'fail', fallback=bool(run.get('fallback_used')), evidence={'source': relative, 'scenario': run.get('scenario')})
+            add_counter(
+                rows,
+                provider or 'unknown',
+                task_type,
+                success=outcome == 'pass',
+                failure=outcome == 'fail',
+                fallback=bool(run.get('fallback_used')),
+                evidence={'source': relative, 'scenario': run.get('scenario')},
+            )
 
     memory = []
     for (worker, task), row in sorted(rows.items()):

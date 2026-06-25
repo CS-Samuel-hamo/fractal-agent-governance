@@ -10,9 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from classify_goal_domain import classify_goal  # noqa: E402
-from goal_state_manager import load_goal_state, sync_goals  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from classify_goal_domain import classify_goal
+from goal_state_manager import load_goal_state, sync_goals
+from runtime_common import project_root, utc_now, write_json
 
 
 def filter_goals(state: dict[str, Any]) -> dict[str, Any]:
@@ -32,7 +32,7 @@ def filter_goals(state: dict[str, Any]) -> dict[str, Any]:
         if classified['scheduling_allowed']:
             eligible.append(record)
         else:
-            reason = f"excluded_{classified['goal_type']}"
+            reason = f'excluded_{classified["goal_type"]}'
             excluded.append(record)
             exclusion_reason[goal_id] = reason
     return {

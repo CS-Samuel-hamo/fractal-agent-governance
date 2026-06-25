@@ -6,7 +6,6 @@ import datetime
 import json
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -32,8 +31,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -59,13 +57,13 @@ class FileLock:
         self.timeout_seconds = timeout_seconds
         self.fd: int | None = None
 
-    def __enter__(self) -> 'FileLock':
+    def __enter__(self) -> FileLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + self.timeout_seconds
         while True:
             try:
                 self.fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
-                os.write(self.fd, f'{os.getpid()} {utc_now()}'.encode('utf-8'))
+                os.write(self.fd, f'{os.getpid()} {utc_now()}'.encode())
                 return self
             except FileExistsError:
                 if time.monotonic() >= deadline:
@@ -130,11 +128,7 @@ def acquire(payload: dict, owner: str, run_id: str, keys: list[str], ttl_seconds
         return {'status': 'blocked', 'blockers': blockers, 'expired_locks_purged': expired}
 
     expires_at = (now_dt + datetime.timedelta(seconds=max(1, ttl_seconds))).isoformat() + 'Z'
-    remaining = [
-        lock
-        for lock in existing
-        if not (lock.get('owner') == owner and lock.get('conflict_key') in keys)
-    ]
+    remaining = [lock for lock in existing if not (lock.get('owner') == owner and lock.get('conflict_key') in keys)]
     for key in keys:
         remaining.append(
             {

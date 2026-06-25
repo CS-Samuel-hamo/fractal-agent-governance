@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from leaf_convergence_controller import run_leaf_convergence  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
+from leaf_convergence_controller import run_leaf_convergence
+from runtime_common import load_json, project_root, write_json
 
 
 def main() -> int:
@@ -42,4 +42,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-

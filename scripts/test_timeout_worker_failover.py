@@ -10,9 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-import pipeline_executor  # noqa: E402
-from bounded_docs_writer import apply_docs_patch, is_safe_docs_target  # noqa: E402
-from remote_ai_worker_adapter import health as remote_health  # noqa: E402
+import pipeline_executor
+from bounded_docs_writer import apply_docs_patch, is_safe_docs_target
+from remote_ai_worker_adapter import health as remote_health
 
 
 def assert_true(value: bool, message: str) -> None:
@@ -86,7 +86,9 @@ def test_codex_timeout_docs_failover_writes_target() -> None:
         pipeline_executor.execute_leaf_once = original
     final_delivery = result['final_delivery']
     assert_true(final_delivery['delivery_outcome'] == 'delivered', 'docs failover did not deliver')
-    assert_true(final_delivery['business_changed_files'] == ['docs/research_workflow.md'], 'changed file evidence missing')
+    assert_true(
+        final_delivery['business_changed_files'] == ['docs/research_workflow.md'], 'changed file evidence missing'
+    )
     assert_true(result['fallback_used'] == 'bounded_docs_writer', 'bounded docs fallback was not used')
     text = (project / 'docs' / 'research_workflow.md').read_text(encoding='utf-8')
     assert_true('文献、证据和验证流程' in text, 'research workflow section missing')

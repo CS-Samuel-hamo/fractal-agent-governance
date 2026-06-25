@@ -12,22 +12,27 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from attention_router import mark_attention  # noqa: E402
-from checkpoint_manager import create_checkpoint  # noqa: E402
-from map_task_selector import select_next_action  # noqa: E402
-from progress_summary_generator import build_progress_summary  # noqa: E402
-from project_map_builder import build_project_map, render_markdown  # noqa: E402
-from project_map_schema import map_dir  # noqa: E402
-from project_map_updater import update_project_map  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-from session_budget_manager import budget_decision, normalize_budget  # noqa: E402
-from session_cockpit_sync import sync_cockpit  # noqa: E402
-from session_digest_generator import generate_digest  # noqa: E402
-from session_failure_policy import classify_step_result  # noqa: E402
-from session_state_store import append_session_event, append_session_history, load_session_history, save_session_state  # noqa: E402
-from task_profile_classifier import classify_task_profile  # noqa: E402
-from worker_execution_adapter import execute_routed_worker  # noqa: E402
-from worker_router import route_worker  # noqa: E402
+from attention_router import mark_attention
+from checkpoint_manager import create_checkpoint
+from map_task_selector import select_next_action
+from progress_summary_generator import build_progress_summary
+from project_map_builder import build_project_map, render_markdown
+from project_map_schema import map_dir
+from project_map_updater import update_project_map
+from runtime_common import load_json, project_root, utc_now, write_json
+from session_budget_manager import budget_decision, normalize_budget
+from session_cockpit_sync import sync_cockpit
+from session_digest_generator import generate_digest
+from session_failure_policy import classify_step_result
+from session_state_store import (
+    append_session_event,
+    append_session_history,
+    load_session_history,
+    save_session_state,
+)
+from task_profile_classifier import classify_task_profile
+from worker_execution_adapter import execute_routed_worker
+from worker_router import route_worker
 
 
 def ensure_project_map(project: Path, goal: str) -> None:
@@ -43,7 +48,7 @@ def ensure_project_map(project: Path, goal: str) -> None:
 
 
 def run_command(command: list[str]) -> dict[str, Any]:
-    proc = subprocess.run(command, cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(command, cwd=ROOT, text=True, encoding='utf-8', errors='replace', capture_output=True)
     return {
         'command': [str(item) for item in command],
         'returncode': proc.returncode,
@@ -102,26 +107,64 @@ def append_autopilot_history(project: Path, row: dict[str, Any]) -> None:
     write_json(path, {'schema_version': '1.0', 'generated_by': 'session_step_runner.py', 'actions': rows})
 
 
-def mark_state_attention(project: Path, state: dict[str, Any], *, reason: str, action: dict[str, Any]) -> dict[str, Any]:
-    attention = mark_attention(project, reason=reason, suggested_next_step='Review this item, then run agent continue.', action=action)
-    state.update({'status': 'needs_attention', 'attention_required': True, 'pause_reason': reason, 'resume_available': True})
+def mark_state_attention(
+    project: Path, state: dict[str, Any], *, reason: str, action: dict[str, Any]
+) -> dict[str, Any]:
+    attention = mark_attention(
+        project, reason=reason, suggested_next_step='Review this item, then run agent continue.', action=action
+    )
+    state.update(
+        {'status': 'needs_attention', 'attention_required': True, 'pause_reason': reason, 'resume_available': True}
+    )
     save_session_state(project, state)
-    append_session_event(project, 'needs_attention', {'reason': reason, 'action_id': action.get('selected_action_id') or action.get('action_id') or ''})
+    append_session_event(
+        project,
+        'needs_attention',
+        {'reason': reason, 'action_id': action.get('selected_action_id') or action.get('action_id') or ''},
+    )
     sync_cockpit(project)
     generate_digest(project)
     return {'state': state, 'attention': attention, 'summary': None, 'outcome': 'blocked'}
 
 
-def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'standard', backend: str = 'mock', budget: dict[str, int] | None = None) -> dict[str, Any]:
+def run_session_step(
+    project: Path,
+    *,
+    state: dict[str, Any],
+    mode: str = 'standard',
+    backend: str = 'mock',
+    budget: dict[str, int] | None = None,
+) -> dict[str, Any]:
     ensure_project_map(project, str(state.get('goal') or ''))
     selected = select_next_action(project, mode=mode)
     action_id = str(selected.get('selected_action_id') or selected.get('action_id') or '')
-    state.update({'current_action_id': action_id, 'next_action_id': action_id, 'status': 'active', 'attention_required': False, 'pause_reason': ''})
+    state.update(
+        {
+            'current_action_id': action_id,
+            'next_action_id': action_id,
+            'status': 'active',
+            'attention_required': False,
+            'pause_reason': '',
+        }
+    )
     save_session_state(project, state)
     append_session_event(project, 'step_selected', {'action_id': action_id, 'source': selected.get('source', '')})
     task_profile = classify_task_profile(selected, session_state=state)
-    routing = route_worker(project, task_profile=task_profile, requested_worker=backend or 'auto', execution_mode=str(selected.get('execution_mode') or ''))
-    append_session_event(project, 'worker_routed', {'action_id': action_id, 'worker': routing.get('selected_worker', ''), 'mode': routing.get('execution_mode', '')})
+    routing = route_worker(
+        project,
+        task_profile=task_profile,
+        requested_worker=backend or 'auto',
+        execution_mode=str(selected.get('execution_mode') or ''),
+    )
+    append_session_event(
+        project,
+        'worker_routed',
+        {
+            'action_id': action_id,
+            'worker': routing.get('selected_worker', ''),
+            'mode': routing.get('execution_mode', ''),
+        },
+    )
     if selected.get('execution_mode') == 'needs_attention' or not routing.get('execution_allowed'):
         reason = str(routing.get('blocked_reason') or selected.get('reason') or 'selected action needs attention')
         return mark_state_attention(project, state, reason=reason, action={**selected, 'routing_decision': routing})
@@ -129,14 +172,20 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
     checkpoint = create_checkpoint(project, action_id=action_id, title=str(selected.get('title') or action_id))
     state.update({'last_checkpoint_id': checkpoint.get('checkpoint_id', '')})
     save_session_state(project, state)
-    append_session_event(project, 'checkpoint_created', {'checkpoint_id': checkpoint.get('checkpoint_id', ''), 'action_id': action_id})
+    append_session_event(
+        project, 'checkpoint_created', {'checkpoint_id': checkpoint.get('checkpoint_id', ''), 'action_id': action_id}
+    )
 
     step_number = int(state.get('current_step') or 0) + 1
     result = execute_routed_worker(project, action=selected, routing_decision=routing, step_number=step_number)
     final_result = result['final_result']
     execution = result['execution']
-    update = update_project_map(project, run_id=result['run_id'], action=selected, execution_result=execution, final_result=final_result)
-    summary = build_progress_summary(project, action=selected, execution=execution, final_result=final_result, mode=mode)
+    update = update_project_map(
+        project, run_id=result['run_id'], action=selected, execution_result=execution, final_result=final_result
+    )
+    summary = build_progress_summary(
+        project, action=selected, execution=execution, final_result=final_result, mode=mode
+    )
     classification = classify_step_result(final_result, execution, selected)
     changed_files = summary.get('changed_files') or update.get('changed_files') or []
     history_row = {
@@ -178,34 +227,89 @@ def run_session_step(project: Path, *, state: dict[str, Any], mode: str = 'stand
     state['current_step'] = step_number
     state['last_action_id'] = action_id
     state['current_action_id'] = ''
-    state['completed_steps'] = int(state.get('completed_steps') or 0) + (1 if classification.get('outcome') in {'delivered', 'dry_run_only'} else 0)
-    state['failed_steps'] = int(state.get('failed_steps') or 0) + (1 if classification.get('status') == 'needs_attention' and classification.get('outcome') not in {'dry_run_only'} else 0)
-    starter_docs_completed = bool(selected.get('action_type') == 'create_or_preview_docs' and classification.get('outcome') == 'delivered' and changed_files)
+    state['completed_steps'] = int(state.get('completed_steps') or 0) + (
+        1 if classification.get('outcome') in {'delivered', 'dry_run_only'} else 0
+    )
+    state['failed_steps'] = int(state.get('failed_steps') or 0) + (
+        1
+        if classification.get('status') == 'needs_attention' and classification.get('outcome') not in {'dry_run_only'}
+        else 0
+    )
+    starter_docs_completed = bool(
+        selected.get('action_type') == 'create_or_preview_docs'
+        and classification.get('outcome') == 'delivered'
+        and changed_files
+    )
     if starter_docs_completed:
-        state.update({'status': 'completed', 'attention_required': False, 'pause_reason': 'starter documents created', 'resume_available': False, 'next_action_id': ''})
+        state.update(
+            {
+                'status': 'completed',
+                'attention_required': False,
+                'pause_reason': 'starter documents created',
+                'resume_available': False,
+                'next_action_id': '',
+            }
+        )
         attention = None
     elif classification.get('pause'):
-        attention = mark_attention(project, reason=str(classification.get('reason') or 'review required'), suggested_next_step='Review the result, then run agent continue when ready.', action=selected)
-        state.update({'status': 'needs_attention', 'attention_required': True, 'pause_reason': classification.get('reason', ''), 'resume_available': True})
+        attention = mark_attention(
+            project,
+            reason=str(classification.get('reason') or 'review required'),
+            suggested_next_step='Review the result, then run agent continue when ready.',
+            action=selected,
+        )
+        state.update(
+            {
+                'status': 'needs_attention',
+                'attention_required': True,
+                'pause_reason': classification.get('reason', ''),
+                'resume_available': True,
+            }
+        )
     else:
         state.update({'status': 'active', 'attention_required': False, 'pause_reason': '', 'resume_available': True})
         next_selected = select_next_action(project, mode=mode)
         state['next_action_id'] = str(next_selected.get('selected_action_id') or '')
         attention = None
 
-    budget_result = budget_decision(state, load_session_history(project), normalize_budget({**(budget or {}), 'max_steps': int(state.get('max_steps') or 5)}))
+    budget_result = budget_decision(
+        state,
+        load_session_history(project),
+        normalize_budget({**(budget or {}), 'max_steps': int(state.get('max_steps') or 5)}),
+    )
     if budget_result['status'] == 'paused' and state.get('status') == 'active':
-        state.update({'status': 'paused', 'pause_reason': ', '.join(budget_result.get('reasons') or ['budget reached']), 'resume_available': True})
+        state.update(
+            {
+                'status': 'paused',
+                'pause_reason': ', '.join(budget_result.get('reasons') or ['budget reached']),
+                'resume_available': True,
+            }
+        )
     elif budget_result['status'] == 'needs_attention':
         reason = ', '.join(budget_result.get('reasons') or ['budget needs attention'])
-        attention = mark_attention(project, reason=reason, suggested_next_step='Review session budget, then continue or stop.', action=selected)
-        state.update({'status': 'needs_attention', 'attention_required': True, 'pause_reason': reason, 'resume_available': True})
+        attention = mark_attention(
+            project, reason=reason, suggested_next_step='Review session budget, then continue or stop.', action=selected
+        )
+        state.update(
+            {'status': 'needs_attention', 'attention_required': True, 'pause_reason': reason, 'resume_available': True}
+        )
 
     save_session_state(project, state)
-    append_session_event(project, 'step_finished', {'action_id': action_id, 'outcome': classification.get('outcome'), 'status': state.get('status')})
+    append_session_event(
+        project,
+        'step_finished',
+        {'action_id': action_id, 'outcome': classification.get('outcome'), 'status': state.get('status')},
+    )
     sync_cockpit(project)
     generate_digest(project)
-    return {'state': state, 'selected_action': selected, 'summary': summary, 'attention': attention, 'classification': classification, 'result': result}
+    return {
+        'state': state,
+        'selected_action': selected,
+        'summary': summary,
+        'attention': attention,
+        'classification': classification,
+        'result': result,
+    }
 
 
 def main() -> int:

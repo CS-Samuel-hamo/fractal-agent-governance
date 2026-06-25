@@ -10,12 +10,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from community_copy_linter import lint as lint_community  # noqa: E402
-from feedback_template_validator import validate as validate_feedback  # noqa: E402
-from first_user_flow_validator import validate as validate_first_user  # noqa: E402
-from post_publish_smoke_test import smoke as run_smoke  # noqa: E402
-from public_launch_packager import public_launch_dir, write_package  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from community_copy_linter import lint as lint_community
+from feedback_template_validator import validate as validate_feedback
+from first_user_flow_validator import validate as validate_first_user
+from post_publish_smoke_test import smoke as run_smoke
+from public_launch_packager import public_launch_dir, write_package
+from runtime_common import project_root, utc_now, write_json
 
 
 def audit(project: Path) -> dict[str, Any]:

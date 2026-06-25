@@ -10,18 +10,45 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import write_store  # noqa: E402
-from runtime_common import load_json, project_root  # noqa: E402
-
+from cross_project_store import write_store
+from runtime_common import load_json, project_root
 
 DEFAULT_FAILURES = {
-    'no_delivery': ('Worker completed without useful delivery.', 'Pause, inspect delivery outcome, and fallback to dry-run or needs attention.', 'medium'),
-    'bad_next_action_without_evidence': ('Next action did not have enough map evidence.', 'Require evidence-backed next_action before autopilot.', 'medium'),
-    'worker_unavailable': ('Selected worker was not available locally.', 'Fallback to local scanner, dry-run, or needs attention.', 'low'),
-    'fallback_to_needs_attention': ('No safe fallback could execute automatically.', 'Pause session and ask user to review.', 'medium'),
-    'blocked_zone_attempt': ('Task touched blocked or sensitive zone.', 'Do not execute; route to needs attention.', 'high'),
-    'missing_checkpoint': ('Execution proceeded without checkpoint evidence.', 'Block actual execution until checkpoint is present.', 'high'),
-    'map_hallucination_risk': ('Map element lacked supporting evidence.', 'Mark unknown or rebuild map from evidence.', 'medium'),
+    'no_delivery': (
+        'Worker completed without useful delivery.',
+        'Pause, inspect delivery outcome, and fallback to dry-run or needs attention.',
+        'medium',
+    ),
+    'bad_next_action_without_evidence': (
+        'Next action did not have enough map evidence.',
+        'Require evidence-backed next_action before autopilot.',
+        'medium',
+    ),
+    'worker_unavailable': (
+        'Selected worker was not available locally.',
+        'Fallback to local scanner, dry-run, or needs attention.',
+        'low',
+    ),
+    'fallback_to_needs_attention': (
+        'No safe fallback could execute automatically.',
+        'Pause session and ask user to review.',
+        'medium',
+    ),
+    'blocked_zone_attempt': (
+        'Task touched blocked or sensitive zone.',
+        'Do not execute; route to needs attention.',
+        'high',
+    ),
+    'missing_checkpoint': (
+        'Execution proceeded without checkpoint evidence.',
+        'Block actual execution until checkpoint is present.',
+        'high',
+    ),
+    'map_hallucination_risk': (
+        'Map element lacked supporting evidence.',
+        'Mark unknown or rebuild map from evidence.',
+        'medium',
+    ),
     'timeout': ('Worker timed out.', 'Retry within bounded policy, then fallback.', 'medium'),
     'scope_violation': ('Worker attempted outside allowed scope.', 'Stop execution and preserve scope guard.', 'high'),
     'test_failure': ('Tests failed after change.', 'Pause and summarize failing area.', 'medium'),
@@ -51,12 +78,15 @@ def build_failure_taxonomy(project: Path) -> dict[str, Any]:
                 'description': description,
                 'common_causes': [description],
                 'recommended_response': response,
-                'evidence': evidence[failure_type] or [{'source': 'default_taxonomy', 'basis': 'required failure class'}],
+                'evidence': evidence[failure_type]
+                or [{'source': 'default_taxonomy', 'basis': 'required failure class'}],
                 'frequency': counts[failure_type],
                 'severity': severity,
             }
         )
-    return write_store(project, 'failure_taxonomy', {'generated_by': 'failure_taxonomy_builder.py', 'failure_patterns': patterns})
+    return write_store(
+        project, 'failure_taxonomy', {'generated_by': 'failure_taxonomy_builder.py', 'failure_patterns': patterns}
+    )
 
 
 def main() -> int:

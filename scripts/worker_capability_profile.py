@@ -10,11 +10,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from claude_code_worker_detector import claude_health  # noqa: E402
-from codex_worker_adapter_hardened import codex_health  # noqa: E402
-from remote_ai_worker_adapter import health as remote_openai_health  # noqa: E402
-from runtime_common import project_root, write_json  # noqa: E402
-
+from claude_code_worker_detector import claude_health
+from codex_worker_adapter_hardened import codex_health
+from remote_ai_worker_adapter import health as remote_openai_health
+from runtime_common import project_root, write_json
 
 CAPABILITIES = [
     'repo_scan',
@@ -50,7 +49,15 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'worker_name': 'mock_worker',
             'provider': 'mock',
             'worker_type': 'mock',
-            'capabilities': ['docs_edit', 'code_edit', 'tests_edit', 'safe_preview', 'actual_execution', 'low_cost', 'high_reliability'],
+            'capabilities': [
+                'docs_edit',
+                'code_edit',
+                'tests_edit',
+                'safe_preview',
+                'actual_execution',
+                'low_cost',
+                'high_reliability',
+            ],
             'best_for': ['controlled tests', 'dogfood', 'safe fixture execution'],
             'avoid_for': ['production-quality implementation judgment'],
             'risk_limit': 'low',
@@ -66,7 +73,14 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'worker_name': 'dry_run_worker',
             'provider': 'dry_run',
             'worker_type': 'dry_run',
-            'capabilities': ['repo_scan', 'analysis', 'safe_preview', 'project_map_update', 'low_cost', 'high_reliability'],
+            'capabilities': [
+                'repo_scan',
+                'analysis',
+                'safe_preview',
+                'project_map_update',
+                'low_cost',
+                'high_reliability',
+            ],
             'best_for': ['preview', 'analysis', 'safe fallback'],
             'avoid_for': ['actual file edits'],
             'risk_limit': 'high',
@@ -82,7 +96,19 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'worker_name': 'local_scanner_worker',
             'provider': 'local_scanner',
             'worker_type': 'analysis',
-            'capabilities': ['repo_scan', 'project_structure_scan', 'manifest_scan', 'test_file_scan', 'docs_file_scan', 'project_map_support', 'analysis', 'safe_preview', 'local_only', 'low_cost', 'high_reliability'],
+            'capabilities': [
+                'repo_scan',
+                'project_structure_scan',
+                'manifest_scan',
+                'test_file_scan',
+                'docs_file_scan',
+                'project_map_support',
+                'analysis',
+                'safe_preview',
+                'local_only',
+                'low_cost',
+                'high_reliability',
+            ],
             'best_for': ['safe repo scan', 'project map evidence', 'local metadata scan'],
             'avoid_for': ['actual file edits', 'LLM reasoning'],
             'risk_limit': 'high',
@@ -98,7 +124,17 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'worker_name': 'codex_worker_existing_adapter',
             'provider': 'codex',
             'worker_type': 'code',
-            'capabilities': ['docs_edit', 'code_edit', 'tests_edit', 'refactor', 'analysis', 'command_execution', 'safe_preview', 'actual_execution', 'long_context'],
+            'capabilities': [
+                'docs_edit',
+                'code_edit',
+                'tests_edit',
+                'refactor',
+                'analysis',
+                'command_execution',
+                'safe_preview',
+                'actual_execution',
+                'long_context',
+            ],
             'best_for': ['bounded code edits', 'tests', 'local patch generation'],
             'avoid_for': ['blocked zones', 'unbounded project execution'],
             'risk_limit': 'medium',
@@ -127,14 +163,23 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'reliability_score': 0.78 if remote_openai.get('available') else 0.0,
             'available': bool(remote_openai.get('available')),
             'health': remote_openai.get('health') or 'unavailable',
-            'unavailable_reason': '' if remote_openai.get('available') else str(remote_openai.get('reason') or 'remote AI worker disabled'),
+            'unavailable_reason': ''
+            if remote_openai.get('available')
+            else str(remote_openai.get('reason') or 'remote AI worker disabled'),
             'reason': str(remote_openai.get('reason') or ''),
         },
         'bounded_docs_writer': {
             'worker_name': 'bounded_docs_writer',
             'provider': 'local_docs',
             'worker_type': 'docs',
-            'capabilities': ['docs_edit', 'safe_preview', 'actual_execution', 'local_only', 'low_cost', 'high_reliability'],
+            'capabilities': [
+                'docs_edit',
+                'safe_preview',
+                'actual_execution',
+                'local_only',
+                'low_cost',
+                'high_reliability',
+            ],
             'best_for': ['low-risk single-file docs updates', 'safe docs fallback'],
             'avoid_for': ['source code edits', 'config changes', 'fictional citations or results'],
             'risk_limit': 'low',
@@ -161,7 +206,9 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'reliability_score': 0.15 if claude_detected else 0.0,
             'available': bool(claude_detected),
             'health': 'degraded' if claude_detected else 'unavailable',
-            'unavailable_reason': '' if claude_detected else str(claude.get('reason') or 'Claude Code CLI not detected'),
+            'unavailable_reason': ''
+            if claude_detected
+            else str(claude.get('reason') or 'Claude Code CLI not detected'),
             'reason': str(claude.get('reason') or ''),
         },
         'local_worker_stub': {
@@ -193,8 +240,16 @@ def main() -> int:
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    payload = {'schema_version': '1.0', 'capabilities': CAPABILITIES, 'profiles': list(worker_profiles(project).values())}
-    output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'workers' / 'worker_capability_profiles.json'
+    payload = {
+        'schema_version': '1.0',
+        'capabilities': CAPABILITIES,
+        'profiles': list(worker_profiles(project).values()),
+    }
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else project / '.zoo-agent' / 'workers' / 'worker_capability_profiles.json'
+    )
     write_json(output, payload)
     print(json.dumps({'status': 'ok', 'profiles': str(output)}, ensure_ascii=False, indent=2))
     return 0

@@ -8,7 +8,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 ABSOLUTE_PATH_RE = re.compile(r'[A-Za-z]:[\\/]')
@@ -16,7 +15,9 @@ FORBIDDEN = ['eval', 'governance', 'planner', 'verifier', 'scheduler', 'backend 
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:

@@ -7,13 +7,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -71,14 +72,41 @@ def test_quality_gate_negative_cases() -> None:
     write_json(data_path, data)
 
     missing_html = root / '.zoo-agent' / 'cockpit' / 'missing.html'
-    run([sys.executable, str(ROOT / 'scripts' / 'cockpit_quality_gate.py'), '--workspace', str(root), '--html', str(missing_html), '--data', str(data_path)], root)
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'cockpit_quality_gate.py'),
+            '--workspace',
+            str(root),
+            '--html',
+            str(missing_html),
+            '--data',
+            str(data_path),
+        ],
+        root,
+    )
     missing = load(root / '.zoo-agent' / 'cockpit_dogfood' / 'cockpit_quality_report.json')
     assert 'cockpit_html' in missing['missing_sections']
     assert missing['recommendation'] == 'fix_before_095'
 
     bad_html = root / '.zoo-agent' / 'cockpit' / 'bad.html'
-    write(bad_html, '<html><head><script src="https://cdn.example/app.js"></script></head><body>planner backend internals</body></html>')
-    run([sys.executable, str(ROOT / 'scripts' / 'cockpit_quality_gate.py'), '--workspace', str(root), '--html', str(bad_html), '--data', str(data_path)], root)
+    write(
+        bad_html,
+        '<html><head><script src="https://cdn.example/app.js"></script></head><body>planner backend internals</body></html>',
+    )
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'cockpit_quality_gate.py'),
+            '--workspace',
+            str(root),
+            '--html',
+            str(bad_html),
+            '--data',
+            str(data_path),
+        ],
+        root,
+    )
     bad = load(root / '.zoo-agent' / 'cockpit_dogfood' / 'cockpit_quality_report.json')
     assert bad['internal_leakage_detected'] is True
     assert bad['external_dependency_detected'] is True

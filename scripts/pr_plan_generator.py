@@ -11,7 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, safe_name, utc_now, write_json
 
 
 def release_dir(project: Path) -> Path:
@@ -21,7 +21,9 @@ def release_dir(project: Path) -> Path:
 def classify_pr_type(changed_files: list[str], readiness_goal: str) -> str:
     if readiness_goal in {'github_alpha', 'public_release', 'cli_tool_release'}:
         return 'release'
-    if changed_files and all(path.lower().endswith(('.md', '.rst', '.txt')) or path.startswith('docs/') for path in changed_files):
+    if changed_files and all(
+        path.lower().endswith(('.md', '.rst', '.txt')) or path.startswith('docs/') for path in changed_files
+    ):
         return 'docs'
     if any(path.startswith('tests/') or 'test_' in path for path in changed_files):
         return 'tests'
@@ -57,7 +59,10 @@ def build_pr_plan(project: Path) -> dict[str, Any]:
         {'source': 'git_context', 'changed_files_count': git_context.get('changed_files_count', 0)},
         {'source': 'release_readiness', 'stage': release_readiness.get('stage', 'unknown')},
         {'source': 'project_map', 'next_actions': len(project_map.get('next_actions') or [])},
-        {'source': 'session_history', 'steps': len(session_history.get('history') or session_history.get('steps') or [])},
+        {
+            'source': 'session_history',
+            'steps': len(session_history.get('history') or session_history.get('steps') or []),
+        },
         {'source': 'learning_insights', 'insights': len(learning_insights.get('insights') or [])},
     ]
     test_plan = ['Not run in this workflow']
@@ -71,7 +76,8 @@ def build_pr_plan(project: Path) -> dict[str, Any]:
         'summary': 'Local PR plan generated from Project Map, Git context, release readiness, and session history.',
         'changed_areas': changed_files,
         'evidence': evidence,
-        'review_focus': release_readiness.get('must_fix') or ['Confirm generated PR text matches the actual diff before publishing.'],
+        'review_focus': release_readiness.get('must_fix')
+        or ['Confirm generated PR text matches the actual diff before publishing.'],
         'risk_level': risk,
         'test_plan': test_plan,
         'rollback_plan': ['Use the latest local checkpoint or Git working tree controls before publishing.'],

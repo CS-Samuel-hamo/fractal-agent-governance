@@ -7,7 +7,15 @@ from pathlib import Path
 from typing import Any
 
 from project_map_evidence_collector import collect_evidence
-from project_map_schema import action_row, capability_row, default_project_map, default_project_state, map_dir, module_row, risk_row
+from project_map_schema import (
+    action_row,
+    capability_row,
+    default_project_map,
+    default_project_state,
+    map_dir,
+    module_row,
+    risk_row,
+)
 from runtime_common import latest_goal, project_root, utc_now, write_json
 
 
@@ -48,9 +56,23 @@ def build_modules(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
             )
         )
     if docs_evidence:
-        rows.append(module_row('module-docs', 'Documentation', 'User-facing project documentation.', [str(item.get('path')) for item in docs_evidence], docs_evidence, confidence=0.8))
+        rows.append(
+            module_row(
+                'module-docs',
+                'Documentation',
+                'User-facing project documentation.',
+                [str(item.get('path')) for item in docs_evidence],
+                docs_evidence,
+                confidence=0.8,
+            )
+        )
     for module_id, name, purpose, roots in [
-        ('module-source', 'Source', 'Main application or library code.', ['src', 'app', 'lib', 'frontend', 'backend', 'packages']),
+        (
+            'module-source',
+            'Source',
+            'Main application or library code.',
+            ['src', 'app', 'lib', 'frontend', 'backend', 'packages'],
+        ),
         ('module-tests', 'Tests', 'Automated checks and test fixtures.', ['tests', 'test']),
         ('module-scripts', 'Local scripts', 'Local automation and developer scripts.', ['scripts']),
         ('module-examples', 'Examples', 'Runnable or readable examples.', ['examples']),
@@ -67,10 +89,34 @@ def build_capabilities(evidence: list[dict[str, Any]], modules: list[dict[str, A
     paths = {str(item.get('path') or '') for item in evidence}
     seed_evidence = [item for item in evidence if item.get('kind') == 'seed_prompt']
     return [
-        capability_row('capability-seed-intent', 'Seed prompt intent', 'implemented' if seed_evidence else 'missing', seed_evidence, ['module-seed-prompt'] if 'module-seed-prompt' in module_ids else []),
-        capability_row('capability-onboarding-docs', 'Onboarding documentation', 'implemented' if 'README.md' in paths else 'missing', _evidence_by_path(evidence, 'README.md'), ['module-docs'] if 'module-docs' in module_ids else []),
-        capability_row('capability-test-surface', 'Test surface', 'partial' if {'tests', 'test'} & paths else 'missing', [item for item in evidence if item.get('path') in {'tests', 'test'}], ['module-tests'] if 'module-tests' in module_ids else []),
-        capability_row('capability-local-automation', 'Local automation', 'partial' if 'scripts' in paths else 'missing', _evidence_by_path(evidence, 'scripts'), ['module-scripts'] if 'module-scripts' in module_ids else []),
+        capability_row(
+            'capability-seed-intent',
+            'Seed prompt intent',
+            'implemented' if seed_evidence else 'missing',
+            seed_evidence,
+            ['module-seed-prompt'] if 'module-seed-prompt' in module_ids else [],
+        ),
+        capability_row(
+            'capability-onboarding-docs',
+            'Onboarding documentation',
+            'implemented' if 'README.md' in paths else 'missing',
+            _evidence_by_path(evidence, 'README.md'),
+            ['module-docs'] if 'module-docs' in module_ids else [],
+        ),
+        capability_row(
+            'capability-test-surface',
+            'Test surface',
+            'partial' if {'tests', 'test'} & paths else 'missing',
+            [item for item in evidence if item.get('path') in {'tests', 'test'}],
+            ['module-tests'] if 'module-tests' in module_ids else [],
+        ),
+        capability_row(
+            'capability-local-automation',
+            'Local automation',
+            'partial' if 'scripts' in paths else 'missing',
+            _evidence_by_path(evidence, 'scripts'),
+            ['module-scripts'] if 'module-scripts' in module_ids else [],
+        ),
     ]
 
 
@@ -84,7 +130,14 @@ def build_risks(evidence_payload: dict[str, Any]) -> list[dict[str, Any]]:
                 'Sensitive-looking files or directories exist and were intentionally not read.',
                 'medium',
                 ['<sensitive paths hidden>'],
-                [{'kind': 'skip_record', 'path': '<hidden>', 'summary': 'Sensitive content was not read.', 'confidence': 1.0}],
+                [
+                    {
+                        'kind': 'skip_record',
+                        'path': '<hidden>',
+                        'summary': 'Sensitive content was not read.',
+                        'confidence': 1.0,
+                    }
+                ],
             )
         )
     return risks
@@ -103,7 +156,7 @@ def build_next_actions(evidence: list[dict[str, Any]], capabilities: list[dict[s
         action = action_row(
             'action-seed-docs-bootstrap',
             'Create starter project documents from seed prompt',
-            f"{seed.get('path')} is a safe seed prompt and the project needs a visible starting point.",
+            f'{seed.get("path")} is a safe seed prompt and the project needs a visible starting point.',
             'Turns the seed prompt into trusted documentation without running scripts or generating final paper content.',
             'low',
             targets,
@@ -118,12 +171,23 @@ def build_next_actions(evidence: list[dict[str, Any]], capabilities: list[dict[s
                 'source_file': seed.get('path', ''),
                 'action_type': 'create_or_preview_docs',
                 'constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_overwrite'],
-                'safety_constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_external_network', 'no_fake_citations', 'no_final_paper_generation'],
+                'safety_constraints': [
+                    'trusted_docs_only',
+                    'no_script_execution',
+                    'no_secret_access',
+                    'no_external_network',
+                    'no_fake_citations',
+                    'no_final_paper_generation',
+                ],
                 'preview_only': all_targets_exist,
                 'preview_reason': 'all starter docs already exist; no overwrite' if all_targets_exist else '',
                 'existing_targets': existing_targets,
                 'missing_targets': missing_targets,
-                'fallback_behavior': {'if_target_exists': 'skip_existing_create_missing', 'if_all_targets_exist': 'preview_only', 'if_ambiguous_intent': 'present_options'},
+                'fallback_behavior': {
+                    'if_target_exists': 'skip_existing_create_missing',
+                    'if_all_targets_exist': 'preview_only',
+                    'if_ambiguous_intent': 'present_options',
+                },
             }
         )
         actions.append(action)
@@ -154,7 +218,10 @@ def build_next_actions(evidence: list[dict[str, Any]], capabilities: list[dict[s
                 autopilot_eligible=bool(target),
             )
         )
-    if any(item.get('capability_id') == 'capability-test-surface' and item.get('status') == 'missing' for item in capabilities):
+    if any(
+        item.get('capability_id') == 'capability-test-surface' and item.get('status') == 'missing'
+        for item in capabilities
+    ):
         actions.append(
             action_row(
                 'action-test-readiness-note',
@@ -174,17 +241,17 @@ def render_markdown(project_map: dict[str, Any]) -> str:
     lines = [
         '# Project Map',
         '',
-        f"- project: {project_map.get('project_name')}",
-        f"- type: {project_map.get('project_type')}",
-        f"- goal: {project_map.get('main_goal') or 'unknown'}",
+        f'- project: {project_map.get("project_name")}',
+        f'- type: {project_map.get("project_type")}',
+        f'- goal: {project_map.get("main_goal") or "unknown"}',
         '',
         '## Modules',
     ]
     for module in project_map.get('modules') or []:
-        lines.append(f"- {module.get('name')}: {module.get('status')} ({module.get('confidence')})")
+        lines.append(f'- {module.get("name")}: {module.get("status")} ({module.get("confidence")})')
     lines += ['', '## Next Actions']
     for action in project_map.get('next_actions') or []:
-        lines.append(f"- {action.get('title')} [{action.get('risk_level')}]")
+        lines.append(f'- {action.get("title")} [{action.get("risk_level")}]')
     lines.append('')
     return '\n'.join(lines)
 
@@ -220,7 +287,17 @@ def main() -> int:
     md = out_dir / 'project_map.md'
     md.parent.mkdir(parents=True, exist_ok=True)
     md.write_text(render_markdown(payload), encoding='utf-8')
-    print(json.dumps({'status': 'ok', 'project_map': str(out_dir / 'project_map.json'), 'next_action_count': len(payload.get('next_actions') or [])}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                'status': 'ok',
+                'project_map': str(out_dir / 'project_map.json'),
+                'next_action_count': len(payload.get('next_actions') or []),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

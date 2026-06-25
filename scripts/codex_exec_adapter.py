@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 TRANSIENT_MARKERS = [
     'stream disconnected',
     'response stream',
@@ -39,8 +38,7 @@ def kill_process_tree(pid: int) -> None:
     if os.name == 'nt':
         subprocess.run(
             ['taskkill', '/PID', str(pid), '/T', '/F'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             encoding='utf-8',
             errors='replace',
@@ -143,8 +141,7 @@ def is_git_worktree(path: Path) -> bool:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=5,
         )
         return proc.returncode == 0 and proc.stdout.strip().lower() == 'true'
@@ -158,7 +155,7 @@ def should_skip_git_repo_check(args: argparse.Namespace) -> bool:
 
 def execute(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     workspace = Path(args.workspace).resolve()
-    task_dir = Path(args.task_dir).resolve()
+    Path(args.task_dir).resolve()
     prompt_file = Path(args.prompt_file).resolve()
     output_last_message = Path(args.output_last_message).resolve()
     stdout_log = Path(args.stdout_log).resolve()
@@ -201,7 +198,13 @@ def execute(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     prompt = prompt_file.read_text(encoding='utf-8', errors='replace')
 
     started_clock = time.monotonic()
-    state: dict[str, Any] = {'stdout': [], 'stderr': [], 'stdout_bytes': 0, 'stderr_bytes': 0, 'last_output_at': started_clock}
+    state: dict[str, Any] = {
+        'stdout': [],
+        'stderr': [],
+        'stdout_bytes': 0,
+        'stderr_bytes': 0,
+        'last_output_at': started_clock,
+    }
     lock = threading.Lock()
     status['started_at'] = utc_now()
     proc = None
@@ -220,8 +223,12 @@ def execute(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         assert proc.stdin is not None
         assert proc.stdout is not None
         assert proc.stderr is not None
-        stdout_thread = threading.Thread(target=stream_reader, args=(proc.stdout, stdout_log, state, 'stdout', lock), daemon=True)
-        stderr_thread = threading.Thread(target=stream_reader, args=(proc.stderr, stderr_log, state, 'stderr', lock), daemon=True)
+        stdout_thread = threading.Thread(
+            target=stream_reader, args=(proc.stdout, stdout_log, state, 'stdout', lock), daemon=True
+        )
+        stderr_thread = threading.Thread(
+            target=stream_reader, args=(proc.stderr, stderr_log, state, 'stderr', lock), daemon=True
+        )
         stdout_thread.start()
         stderr_thread.start()
         proc.stdin.write(prompt)
@@ -284,7 +291,9 @@ def execute(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 status['error_summary'] = status['status']
             elif status['status'] == 'failed':
                 status['error_summary'] = (stderr_text or stdout_text)[-1000:]
-        status['transient_failure_suspected'] = transient_suspected(stdout_text, stderr_text, status.get('error_summary', ''))
+        status['transient_failure_suspected'] = transient_suspected(
+            stdout_text, stderr_text, status.get('error_summary', '')
+        )
         write_json(status_json, status)
     print(json.dumps(status, ensure_ascii=True, indent=2))
     return int(status.get('returncode') or 0), status
@@ -297,7 +306,9 @@ def main() -> int:
     parser.add_argument('--prompt-file', required=True)
     parser.add_argument('--output-last-message', required=True)
     parser.add_argument('--codex-home', default='')
-    parser.add_argument('--sandbox', choices=['workspace-write', 'read-only', 'danger-full-access'], default='workspace-write')
+    parser.add_argument(
+        '--sandbox', choices=['workspace-write', 'read-only', 'danger-full-access'], default='workspace-write'
+    )
     parser.add_argument('--timeout-seconds', type=int, default=1800)
     parser.add_argument('--no-output-timeout-seconds', type=int, default=600)
     parser.add_argument('--stdout-log', required=True)

@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, utc_now, write_json
 
 BACKEND_TEXT_RULES = [
     ('codex_not_installed', ['not recognized', 'not found', 'no such file', 'cannot find', 'is not installed']),
@@ -23,7 +22,10 @@ BACKEND_TEXT_RULES = [
     ('windows_sandbox_failed', ['windows sandbox', 'win32', 'job object']),
     ('permission_denied', ['permission denied', 'access is denied']),
     ('config_invalid', ['config', 'toml', 'invalid configuration']),
-    ('response_stream_disconnected', ['stream disconnected', 'response stream', 'reconnecting', 'connection reset', 'broken pipe']),
+    (
+        'response_stream_disconnected',
+        ['stream disconnected', 'response stream', 'reconnecting', 'connection reset', 'broken pipe'],
+    ),
     ('model_capacity', ['capacity', 'overloaded', 'try again later']),
     ('model_error', ['model error', 'internal server error']),
     ('network_unavailable', ['network', 'dns', 'tls', 'connection refused']),
@@ -121,20 +123,25 @@ def classify(
 
     severity = 'info'
     if failure_type != 'none':
-        severity = 'blocking' if failure_type in {
-            'codex_not_installed',
-            'codex_not_logged_in',
-            'codex_home_unavailable',
-            'disk_full',
-            'trusted_directory_rejected',
-            'sandbox_spawn_failed',
-            'windows_sandbox_failed',
-            'permission_denied',
-            'config_invalid',
-            'scope_violation',
-            'denied_files_touched',
-            'unsafe_delivery',
-        } else 'warning'
+        severity = (
+            'blocking'
+            if failure_type
+            in {
+                'codex_not_installed',
+                'codex_not_logged_in',
+                'codex_home_unavailable',
+                'disk_full',
+                'trusted_directory_rejected',
+                'sandbox_spawn_failed',
+                'windows_sandbox_failed',
+                'permission_denied',
+                'config_invalid',
+                'scope_violation',
+                'denied_files_touched',
+                'unsafe_delivery',
+            }
+            else 'warning'
+        )
 
     return {
         'schema_version': '1.0',

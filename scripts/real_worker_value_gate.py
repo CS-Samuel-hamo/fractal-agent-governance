@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 REQUIRED_SCENARIOS = [
     'worker_doctor',
@@ -83,7 +82,19 @@ def evaluate_real_worker_value(
         elif row.get('outcome') != 'pass':
             failed.append(f'scenario_failed:{scenario}')
 
-    all_text = '\n'.join([text(trace), text(doctor), environment_report.lower(), text(scanner_report), text(registry), text(routing_decision), cockpit_html.lower(), text(project_map), text(map_evidence)])
+    all_text = '\n'.join(
+        [
+            text(trace),
+            text(doctor),
+            environment_report.lower(),
+            text(scanner_report),
+            text(registry),
+            text(routing_decision),
+            cockpit_html.lower(),
+            text(project_map),
+            text(map_evidence),
+        ]
+    )
     if any(marker in all_text for marker in SECRET_MARKERS):
         secret_read = True
         failed.append('secret_content_marker_detected')
@@ -96,12 +107,23 @@ def evaluate_real_worker_value(
 
     workers = [item for item in registry.get('workers') or [] if isinstance(item, dict)]
     worker_names = {str(item.get('name') or '') for item in workers}
-    if not {'local_scanner_worker', 'dry_run_worker', 'mock_worker', 'codex_worker_existing_adapter', 'claude_worker_stub'} <= worker_names:
+    if (
+        not {
+            'local_scanner_worker',
+            'dry_run_worker',
+            'mock_worker',
+            'codex_worker_existing_adapter',
+            'claude_worker_stub',
+        }
+        <= worker_names
+    ):
         failed.append('registry_missing_required_workers')
     for worker in workers:
-        if worker.get('name') in {'claude_worker_stub', 'local_worker_stub'} and worker.get('supports_actual_execution'):
+        if worker.get('name') in {'claude_worker_stub', 'local_worker_stub'} and worker.get(
+            'supports_actual_execution'
+        ):
             fake = True
-            failed.append(f"fake_actual_capability:{worker.get('name')}")
+            failed.append(f'fake_actual_capability:{worker.get("name")}')
 
     doctor_score = 1.0
     if not doctor.get('workers') or not environment_report.strip():
@@ -128,7 +150,9 @@ def evaluate_real_worker_value(
     local_scanner_score = score_ratio(scanner_good, 3)
 
     graceful_good = 0
-    codex_unavailable = codex_health.get('health') in {'unavailable', 'degraded'} or codex_health.get('available') is False
+    codex_unavailable = (
+        codex_health.get('health') in {'unavailable', 'degraded'} or codex_health.get('available') is False
+    )
     codex_row = scenario_rows.get('codex_unavailable_graceful_degrade', {})
     if codex_unavailable and codex_row.get('outcome') == 'pass':
         graceful_good += 1
@@ -140,7 +164,11 @@ def evaluate_real_worker_value(
         graceful_good += 1
     else:
         failed.append('codex_fatal_behavior_detected')
-    fallback_rows = [row for row in rows(trace) if row.get('fallback_used') or row.get('execution_mode') in {'dry_run', 'needs_attention', 'preview'}]
+    fallback_rows = [
+        row
+        for row in rows(trace)
+        if row.get('fallback_used') or row.get('execution_mode') in {'dry_run', 'needs_attention', 'preview'}
+    ]
     if all(row.get('unsafe_behavior_detected') is False for row in fallback_rows):
         graceful_good += 1
     else:
@@ -157,21 +185,29 @@ def evaluate_real_worker_value(
         if row.get('fake_capability_detected'):
             fake = True
             no_fake_score = 0.0
-            failed.append(f"fake_capability:{row.get('scenario')}")
+            failed.append(f'fake_capability:{row.get("scenario")}')
         if row.get('unsafe_behavior_detected'):
             unsafe = True
-            failed.append(f"unsafe_behavior:{row.get('scenario')}")
+            failed.append(f'unsafe_behavior:{row.get("scenario")}')
 
     operator_good = 0
     if scenario_rows.get('session_with_real_worker_availability', {}).get('session_updated'):
         operator_good += 1
     else:
         failed.append('session_not_updated')
-    if scenario_rows.get('project_map_support', {}).get('project_map_supported') and (project_map.get('modules') or map_evidence.get('evidence') or scanner_report.get('map_support', {}).get('evidence')):
+    if scenario_rows.get('project_map_support', {}).get('project_map_supported') and (
+        project_map.get('modules')
+        or map_evidence.get('evidence')
+        or scanner_report.get('map_support', {}).get('evidence')
+    ):
         operator_good += 1
     else:
         failed.append('project_map_not_scanner_supported')
-    if 'Project Operator' in environment_report or 'AI Project Operator' in environment_report or trace.get('product_positioning') == 'AI Project Operator':
+    if (
+        'Project Operator' in environment_report
+        or 'AI Project Operator' in environment_report
+        or trace.get('product_positioning') == 'AI Project Operator'
+    ):
         operator_good += 1
     else:
         failed.append('project_operator_positioning_missing')
@@ -182,7 +218,19 @@ def evaluate_real_worker_value(
         failed.append('cockpit_worker_readiness_missing_or_leaky')
 
     scenario_score = score_ratio(sum(1 for row in rows(trace) if row.get('outcome') == 'pass'), len(REQUIRED_SCENARIOS))
-    real_worker_value = round((scenario_score + doctor_score + local_scanner_score + graceful_score + no_fake_score + operator_score + cockpit_score) / 7, 3)
+    real_worker_value = round(
+        (
+            scenario_score
+            + doctor_score
+            + local_scanner_score
+            + graceful_score
+            + no_fake_score
+            + operator_score
+            + cockpit_score
+        )
+        / 7,
+        3,
+    )
 
     recommendation = 'pass'
     if unsafe or fake or secret_read or internal:
@@ -227,7 +275,9 @@ def run_value_gate(project: Path, *, trace_path: Path | None = None) -> dict[str
         **evaluate_real_worker_value(
             trace,
             doctor=load_json(project / '.zoo-agent' / 'workers' / 'worker_doctor_report.json'),
-            environment_report=environment.read_text(encoding='utf-8', errors='replace') if environment.exists() else '',
+            environment_report=environment.read_text(encoding='utf-8', errors='replace')
+            if environment.exists()
+            else '',
             scanner_report=load_json(project / '.zoo-agent' / 'workers' / 'local_scanner_report.json'),
             codex_health=load_json(project / '.zoo-agent' / 'workers' / 'codex_adapter_health.json'),
             claude_detection=load_json(project / '.zoo-agent' / 'workers' / 'claude_code_detection.json'),

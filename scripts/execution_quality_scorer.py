@@ -66,14 +66,20 @@ def score_execution_quality(
     }.get(failure_type, 0.4)
     false_success = detect_false_success(execution, final_result)
     false_success_penalty = 0.6 if false_success else 0.0
-    execution_quality_score = _clamp(0.55 * delivery_score + 0.45 * confidence_score - failure_penalty - false_success_penalty)
+    execution_quality_score = _clamp(
+        0.55 * delivery_score + 0.45 * confidence_score - failure_penalty - false_success_penalty
+    )
 
     backend_statuses = []
     for leaf in leaves:
         status = str(leaf.get('backend_status') or '').lower()
         if status:
             backend_statuses.append(status)
-    backend_failures = sum(1 for status in backend_statuses if status in {'timeout', 'failed', 'exception', 'spawn_failed', 'no_output_timeout'})
+    backend_failures = sum(
+        1
+        for status in backend_statuses
+        if status in {'timeout', 'failed', 'exception', 'spawn_failed', 'no_output_timeout'}
+    )
     backend_behavior_score = _clamp(1.0 - backend_failures / max(len(backend_statuses), 1))
 
     return {
@@ -81,7 +87,8 @@ def score_execution_quality(
         'success_confidence': _clamp(confidence_score if not false_success else min(confidence_score, 0.25)),
         'backend_behavior_score': backend_behavior_score,
         'false_success_detected': false_success,
-        'partial_completion_detected': failure_type == 'partial' or any(str((model or {}).get('execution_status') or '') == 'partial' for model in models),
+        'partial_completion_detected': failure_type == 'partial'
+        or any(str((model or {}).get('execution_status') or '') == 'partial' for model in models),
         'delivery_counts': {
             'delivered': delivered,
             'dry_run_only': dry_run,

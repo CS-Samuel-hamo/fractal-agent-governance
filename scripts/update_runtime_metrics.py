@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 METRIC_KEYS = [
     'fast_path_rate',
@@ -118,9 +117,13 @@ def update_metrics(
     code_delivery_count = int(counters.get('code_delivery_count') or 0) + (1 if code_delivered else 0)
     doc_overproduction_count = int(counters.get('doc_overproduction_count') or 0) + (1 if doc_overproduction else 0)
     doc_only_task_count = int(counters.get('doc_only_task_count') or 0) + (1 if doc_only_task else 0)
-    code_delivery_gate_fail_count = int(counters.get('code_delivery_gate_fail_count') or 0) + (1 if code_delivery_gate_failed else 0)
+    code_delivery_gate_fail_count = int(counters.get('code_delivery_gate_fail_count') or 0) + (
+        1 if code_delivery_gate_failed else 0
+    )
     parallel_denial_count = int(counters.get('parallel_denial_count') or 0) + (1 if parallel_denied else 0)
-    backend_health_check_count = int(counters.get('backend_health_check_count') or 0) + (1 if backend_health_checked else 0)
+    backend_health_check_count = int(counters.get('backend_health_check_count') or 0) + (
+        1 if backend_health_checked else 0
+    )
     backend_failure_count = int(counters.get('backend_failure_count') or 0) + (1 if backend_failure else 0)
     no_delivery_count = int(counters.get('no_delivery_count') or 0) + (1 if no_delivery else 0)
     no_op_with_evidence_count = int(counters.get('no_op_with_evidence_count') or 0) + (1 if no_op_with_evidence else 0)
@@ -131,28 +134,65 @@ def update_metrics(
     )
     manual_intervention_count = int(counters.get('manual_intervention_count') or 0) + (1 if manual_intervention else 0)
     leaf_total_count = int(counters.get('leaf_total_count') or 0) + (
-        1 if any([leaf_resolved, leaf_collapsed, leaf_deferred, leaf_merged, leaf_convergence_failure, backend_execution_from_leaf]) else 0
+        1
+        if any(
+            [
+                leaf_resolved,
+                leaf_collapsed,
+                leaf_deferred,
+                leaf_merged,
+                leaf_convergence_failure,
+                backend_execution_from_leaf,
+            ]
+        )
+        else 0
     )
     leaf_refinement_total = int(counters.get('leaf_refinement_count') or 0) + max(int(leaf_refinement_count or 0), 0)
     leaf_resolved_count = int(counters.get('leaf_resolved_count') or 0) + (1 if leaf_resolved else 0)
     leaf_collapse_count = int(counters.get('leaf_collapse_count') or 0) + (1 if leaf_collapsed else 0)
     leaf_defer_count = int(counters.get('leaf_defer_count') or 0) + (1 if leaf_deferred else 0)
     leaf_merge_count = int(counters.get('leaf_merge_count') or 0) + (1 if leaf_merged else 0)
-    leaf_convergence_failure_count = int(counters.get('leaf_convergence_failure_count') or 0) + (1 if leaf_convergence_failure else 0)
-    backend_execution_from_leaf_count = int(counters.get('backend_execution_from_leaf_count') or 0) + (1 if backend_execution_from_leaf else 0)
+    leaf_convergence_failure_count = int(counters.get('leaf_convergence_failure_count') or 0) + (
+        1 if leaf_convergence_failure else 0
+    )
+    backend_execution_from_leaf_count = int(counters.get('backend_execution_from_leaf_count') or 0) + (
+        1 if backend_execution_from_leaf else 0
+    )
     goal_loop_total_count = int(counters.get('goal_loop_total_count') or 0) + (
-        1 if any([goal_completed, loop_converged_event, stuck_loop, over_decomposition, goal_drift, leaf_goal_total_count, no_delivery_goal_impact]) else 0
+        1
+        if any(
+            [
+                goal_completed,
+                loop_converged_event,
+                stuck_loop,
+                over_decomposition,
+                goal_drift,
+                leaf_goal_total_count,
+                no_delivery_goal_impact,
+            ]
+        )
+        else 0
     )
     goal_completed_count = int(counters.get('goal_completed_count') or 0) + (1 if goal_completed else 0)
-    loop_convergence_event_count = int(counters.get('loop_convergence_event_count') or 0) + (1 if loop_converged_event else 0)
+    loop_convergence_event_count = int(counters.get('loop_convergence_event_count') or 0) + (
+        1 if loop_converged_event else 0
+    )
     stuck_loop_count = int(counters.get('stuck_loop_count') or 0) + (1 if stuck_loop else 0)
     over_decomposition_count = int(counters.get('over_decomposition_count') or 0) + (1 if over_decomposition else 0)
-    no_delivery_goal_impact_count = int(counters.get('no_delivery_goal_impact_count') or 0) + max(int(no_delivery_goal_impact or 0), 0)
-    backend_execution_success_count = int(counters.get('backend_execution_success_count') or 0) + (1 if backend_execution_success else 0)
+    no_delivery_goal_impact_count = int(counters.get('no_delivery_goal_impact_count') or 0) + max(
+        int(no_delivery_goal_impact or 0), 0
+    )
+    backend_execution_success_count = int(counters.get('backend_execution_success_count') or 0) + (
+        1 if backend_execution_success else 0
+    )
     goal_drift_count = int(counters.get('goal_drift_count') or 0) + (1 if goal_drift else 0)
-    leaf_goal_contribution_total = int(counters.get('leaf_goal_contribution_count') or 0) + max(int(leaf_goal_contribution_count or 0), 0)
+    leaf_goal_contribution_total = int(counters.get('leaf_goal_contribution_count') or 0) + max(
+        int(leaf_goal_contribution_count or 0), 0
+    )
     leaf_goal_total = int(counters.get('leaf_goal_total_count') or 0) + max(int(leaf_goal_total_count or 0), 0)
-    failure_types = counters.get('backend_failure_types') if isinstance(counters.get('backend_failure_types'), dict) else {}
+    failure_types = (
+        counters.get('backend_failure_types') if isinstance(counters.get('backend_failure_types'), dict) else {}
+    )
     if backend_failure and backend_failure_type:
         failure_types[backend_failure_type] = int(failure_types.get(backend_failure_type) or 0) + 1
 
@@ -206,7 +246,9 @@ def update_metrics(
         'governed_path_rate': round(path_counts.get('governed', 0) / total, 4),
         'backend_latency': round(latency_total / latency_count, 3) if latency_count else 0.0,
         'fast_path_pre_backend_overhead_ms': round(overhead_total / overhead_count, 3) if overhead_count else 0.0,
-        'backend_execution_latency': round(backend_execution_total / backend_execution_count, 3) if backend_execution_count else 0.0,
+        'backend_execution_latency': round(backend_execution_total / backend_execution_count, 3)
+        if backend_execution_count
+        else 0.0,
         'doc_overproduction_rate': round(doc_overproduction_count / total, 4),
         'doc_only_task_rate': round(doc_only_task_count / total, 4),
         'code_delivery_rate': round(code_delivery_count / total, 4),
@@ -226,15 +268,29 @@ def update_metrics(
         'leaf_collapse_rate': round(leaf_collapse_count / leaf_total_count, 4) if leaf_total_count else 0.0,
         'leaf_defer_rate': round(leaf_defer_count / leaf_total_count, 4) if leaf_total_count else 0.0,
         'leaf_merge_rate': round(leaf_merge_count / leaf_total_count, 4) if leaf_total_count else 0.0,
-        'convergence_failure_rate': round(leaf_convergence_failure_count / leaf_total_count, 4) if leaf_total_count else 0.0,
-        'backend_execution_from_leaf_rate': round(backend_execution_from_leaf_count / leaf_total_count, 4) if leaf_total_count else 0.0,
-        'goal_completion_rate': round(goal_completed_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
-        'loop_convergence_rate': round(loop_convergence_event_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
-        'leaf_to_goal_contribution_ratio': round(leaf_goal_contribution_total / leaf_goal_total, 4) if leaf_goal_total else 0.0,
+        'convergence_failure_rate': round(leaf_convergence_failure_count / leaf_total_count, 4)
+        if leaf_total_count
+        else 0.0,
+        'backend_execution_from_leaf_rate': round(backend_execution_from_leaf_count / leaf_total_count, 4)
+        if leaf_total_count
+        else 0.0,
+        'goal_completion_rate': round(goal_completed_count / goal_loop_total_count, 4)
+        if goal_loop_total_count
+        else 0.0,
+        'loop_convergence_rate': round(loop_convergence_event_count / goal_loop_total_count, 4)
+        if goal_loop_total_count
+        else 0.0,
+        'leaf_to_goal_contribution_ratio': round(leaf_goal_contribution_total / leaf_goal_total, 4)
+        if leaf_goal_total
+        else 0.0,
         'stuck_loop_rate': round(stuck_loop_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
-        'over_decomposition_rate': round(over_decomposition_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
+        'over_decomposition_rate': round(over_decomposition_count / goal_loop_total_count, 4)
+        if goal_loop_total_count
+        else 0.0,
         'no_delivery_goal_impact': no_delivery_goal_impact_count,
-        'backend_execution_success_rate': round(backend_execution_success_count / max(backend_execution_count, 1), 4) if backend_execution_count else 0.0,
+        'backend_execution_success_rate': round(backend_execution_success_count / max(backend_execution_count, 1), 4)
+        if backend_execution_count
+        else 0.0,
         'goal_drift_frequency': round(goal_drift_count / goal_loop_total_count, 4) if goal_loop_total_count else 0.0,
     }
     payload = {

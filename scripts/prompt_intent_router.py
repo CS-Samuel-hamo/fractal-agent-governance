@@ -11,13 +11,18 @@ from bounded_docs_writer import is_safe_docs_target, normalize_rel
 from runtime_common import project_root
 from seed_prompt_discovery import discover_seed_prompt
 
-
 DOC_FILE_RE = re.compile(r'(?i)(README\.md|docs[/\\][^\s"\'<>:|?*]+?\.(?:md|txt))')
 GENERIC_FILE_RE = re.compile(r'(?i)([A-Za-z0-9_.\-/\\]+\.(?:py|js|ts|tsx|jsx|json|toml|yaml|yml|md|txt))')
 SEED_VERB_RE = re.compile(r'(?i)\b(read|execute|run|use|follow|load)\b|读取|执行|运行|根据|按照|使用')
-EDIT_VERB_RE = re.compile(r'(?i)\b(fix|update|edit|extend|expand|write|add|revise|improve|change)\b|修复|修改|扩展|完善|加入|添加|补充|更新|改写')
-PROJECT_GOAL_RE = re.compile(r'(?i)\b(project|release|prepare|build|bootstrap|roadmap|plan|operator)\b|项目|发布|准备|规划|启动|执行这个项目')
-PREVIEW_ARTIFACT_RE = re.compile(r'(?i)\b(temp|temporary|preview|demo|show me|example|sample)\b|临时|预览|演示|示例|给我看|看一下|不保留|删掉')
+EDIT_VERB_RE = re.compile(
+    r'(?i)\b(fix|update|edit|extend|expand|write|add|revise|improve|change)\b|修复|修改|扩展|完善|加入|添加|补充|更新|改写'
+)
+PROJECT_GOAL_RE = re.compile(
+    r'(?i)\b(project|release|prepare|build|bootstrap|roadmap|plan|operator)\b|项目|发布|准备|规划|启动|执行这个项目'
+)
+PREVIEW_ARTIFACT_RE = re.compile(
+    r'(?i)\b(temp|temporary|preview|demo|show me|example|sample)\b|临时|预览|演示|示例|给我看|看一下|不保留|删掉'
+)
 PREVIEW_ARTIFACT_RE = re.compile(
     r'(?i)\b(temp|temporary|preview|demo|show me|example|sample|do not keep|one-off)\b'
     r'|\u4e34\u65f6|\u9884\u89c8|\u6f14\u793a|\u793a\u4f8b|\u7ed9\u6211\u770b|\u770b\u4e00\u4e0b|\u4e0d\u4fdd\u7559|\u5220\u6389'
@@ -25,11 +30,22 @@ PREVIEW_ARTIFACT_RE = re.compile(
 )
 UNSAFE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r'(?i)(^|\s|[/\\])\.env(\s|$|[/\\])'), 'secret file access'),
-    (re.compile(r'(?i)\b(secret|api[_-]?key|token|password|credential|private key|ssh key|cert)\b|密钥|令牌|密码|凭证'), 'credential or secret handling'),
-    (re.compile(r'(?i)\b(delete|remove|wipe|destroy|rm\s+-rf|del\s+/s|erase)\b|删除|清空|销毁'), 'destructive file operation'),
+    (
+        re.compile(
+            r'(?i)\b(secret|api[_-]?key|token|password|credential|private key|ssh key|cert)\b|密钥|令牌|密码|凭证'
+        ),
+        'credential or secret handling',
+    ),
+    (
+        re.compile(r'(?i)\b(delete|remove|wipe|destroy|rm\s+-rf|del\s+/s|erase)\b|删除|清空|销毁'),
+        'destructive file operation',
+    ),
     (re.compile(r'(?i)\b(git\s+push|push\b|git\s+merge|merge\b|remote branch)\b|推送|合并'), 'remote git operation'),
     (re.compile(r'(?i)\b(deploy|production|prod|release to production)\b|生产部署|上线'), 'production deployment'),
-    (re.compile(r'(?i)\b(database migration|db migration|migrate database|schema migration)\b|数据库迁移'), 'database migration'),
+    (
+        re.compile(r'(?i)\b(database migration|db migration|migrate database|schema migration)\b|数据库迁移'),
+        'database migration',
+    ),
     (re.compile(r'(?i)\b(auth|payment|billing|checkout)\b|支付|认证|授权'), 'auth or payment area'),
 ]
 
@@ -67,7 +83,18 @@ def _seed_mentioned(prompt: str, seed_path: str = '') -> bool:
     surface = prompt.lower()
     if seed_path and seed_path.lower() in surface:
         return True
-    return any(name in surface for name in ['project_beginning_prompt.md', 'project_prompt.md', 'goal.md', 'brief.md', 'spec.md', 'requirements.md', 'prompt.md'])
+    return any(
+        name in surface
+        for name in [
+            'project_beginning_prompt.md',
+            'project_prompt.md',
+            'goal.md',
+            'brief.md',
+            'spec.md',
+            'requirements.md',
+            'prompt.md',
+        ]
+    )
 
 
 def classify_prompt(project: Path, prompt: str, *, allowed_files: list[str] | None = None) -> dict[str, Any]:

@@ -8,7 +8,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -79,7 +78,16 @@ def main() -> int:
 
     explicit_preview = assert_public_result(
         run(
-            [sys.executable, str(AGENT), 'fix README typo', '--workspace', str(repo), '--allowed-file', 'README.md', '--preview'],
+            [
+                sys.executable,
+                str(AGENT),
+                'fix README typo',
+                '--workspace',
+                str(repo),
+                '--allowed-file',
+                'README.md',
+                '--preview',
+            ],
             repo,
             env=env,
         )
@@ -88,7 +96,16 @@ def main() -> int:
 
     applied = assert_public_result(
         run(
-            [sys.executable, str(AGENT), 'add controlled README text', '--workspace', str(repo), '--allowed-file', 'README.md', '--apply'],
+            [
+                sys.executable,
+                str(AGENT),
+                'add controlled README text',
+                '--workspace',
+                str(repo),
+                '--allowed-file',
+                'README.md',
+                '--apply',
+            ],
             repo,
             env=env,
         )

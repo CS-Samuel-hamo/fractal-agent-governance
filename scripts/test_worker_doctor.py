@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -15,7 +14,15 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(command: list[str], cwd: Path, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(command, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     if proc.returncode != 0:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc

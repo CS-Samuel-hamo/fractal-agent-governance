@@ -13,15 +13,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from checkpoint_manager import create_checkpoint  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-from task_profile_classifier import classify_task_profile  # noqa: E402
-from worker_registry import write_worker_registry  # noqa: E402
-from worker_router import route_worker  # noqa: E402
-from worker_router_product_report_generator import generate_report  # noqa: E402
-from worker_router_trace_replayer import run_replay  # noqa: E402
-from worker_router_value_gate import run_value_gate  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
+from task_profile_classifier import classify_task_profile
+from worker_registry import write_worker_registry
+from worker_router import route_worker
+from worker_router_product_report_generator import generate_report
+from worker_router_trace_replayer import run_replay
+from worker_router_value_gate import run_value_gate
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -33,7 +31,15 @@ def dogfood_dir(project: Path) -> Path:
 def run_proc(command: list[str], cwd: Path) -> dict[str, Any]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='worker-dogfood-codex-home-')).resolve()))
-    proc = subprocess.run(command, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
 
 
@@ -56,7 +62,15 @@ def init_repo(name: str) -> Path:
     return repo
 
 
-def action(action_id: str, title: str, target_files: list[str], *, risk: str = 'low', trust: str = 'trusted', mode: str = 'auto') -> dict[str, Any]:
+def action(
+    action_id: str,
+    title: str,
+    target_files: list[str],
+    *,
+    risk: str = 'low',
+    trust: str = 'trusted',
+    mode: str = 'auto',
+) -> dict[str, Any]:
     return {
         'selected_action_id': action_id,
         'action_id': action_id,
@@ -92,14 +106,30 @@ def make_trace_row(
     create_checkpoint: bool = True,
 ) -> dict[str, Any]:
     profile = classify_task_profile(action_payload)
-    decision = route_worker(repo, task_profile=profile, requested_worker=requested_worker, execution_mode=str(action_payload.get('execution_mode') or ''))
+    decision = route_worker(
+        repo,
+        task_profile=profile,
+        requested_worker=requested_worker,
+        execution_mode=str(action_payload.get('execution_mode') or ''),
+    )
     checkpoint_created = False
     if create_checkpoint and decision.get('execution_allowed') and decision.get('execution_mode') == 'auto':
         create_checkpoint_fn = globals()['create_checkpoint']
-        create_checkpoint_fn(repo, action_id=str(action_payload.get('action_id') or scenario), title=str(action_payload.get('title') or scenario))
+        create_checkpoint_fn(
+            repo,
+            action_id=str(action_payload.get('action_id') or scenario),
+            title=str(action_payload.get('title') or scenario),
+        )
         checkpoint_created = True
-    fallback_used = bool(requested_worker not in {'', 'auto'} and decision.get('selected_provider') != requested_worker and decision.get('selected_worker') != requested_worker)
-    if 'fallback' in str(decision.get('routing_reason') or '') or scenario in {'degraded_worker', 'all_actual_workers_unavailable'}:
+    fallback_used = bool(
+        requested_worker not in {'', 'auto'}
+        and decision.get('selected_provider') != requested_worker
+        and decision.get('selected_worker') != requested_worker
+    )
+    if 'fallback' in str(decision.get('routing_reason') or '') or scenario in {
+        'degraded_worker',
+        'all_actual_workers_unavailable',
+    }:
         fallback_used = True
     row = {
         'scenario': scenario,
@@ -118,7 +148,9 @@ def make_trace_row(
             'rejected_workers': decision.get('rejected_workers') or [],
         },
         'routing_basis': routing_basis(),
-        'selected_worker_available': worker_available(repo, str(decision.get('selected_worker') or '')) if decision.get('selected_worker') else False,
+        'selected_worker_available': worker_available(repo, str(decision.get('selected_worker') or ''))
+        if decision.get('selected_worker')
+        else False,
         'fallback_used': fallback_used,
         'fallback_safe': True,
         'checkpoint_created': checkpoint_created,
@@ -127,11 +159,25 @@ def make_trace_row(
         'outcome': 'pass',
     }
     if scenario == 'blocked_zone':
-        row['outcome'] = 'pass' if not decision.get('execution_allowed') and decision.get('execution_mode') == 'needs_attention' else 'fail'
+        row['outcome'] = (
+            'pass'
+            if not decision.get('execution_allowed') and decision.get('execution_mode') == 'needs_attention'
+            else 'fail'
+        )
     elif scenario == 'all_actual_workers_unavailable':
-        row['outcome'] = 'pass' if decision.get('execution_mode') == 'preview' and decision.get('selected_worker') in {'dry_run_worker', 'local_scanner_worker'} else 'fail'
+        row['outcome'] = (
+            'pass'
+            if decision.get('execution_mode') == 'preview'
+            and decision.get('selected_worker') in {'dry_run_worker', 'local_scanner_worker'}
+            else 'fail'
+        )
     elif scenario == 'degraded_worker':
-        row['outcome'] = 'pass' if row['fallback_used'] and decision.get('selected_worker') not in {'claude_worker_stub', 'local_worker_stub'} else 'fail'
+        row['outcome'] = (
+            'pass'
+            if row['fallback_used']
+            and decision.get('selected_worker') not in {'claude_worker_stub', 'local_worker_stub'}
+            else 'fail'
+        )
     elif decision.get('execution_mode') == 'auto' and not checkpoint_created:
         row['outcome'] = 'fail'
     elif decision.get('selected_worker') in {'claude_worker_stub', 'local_worker_stub'}:
@@ -142,7 +188,9 @@ def make_trace_row(
 def scenario_session_integration() -> dict[str, Any]:
     repo = init_repo('session-integration')
     run_proc([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo)
-    start = run_proc([sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(repo)], repo)
+    start = run_proc(
+        [sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(repo)], repo
+    )
     routing = load_json(repo / '.zoo-agent' / 'workers' / 'routing_decision.json')
     selected = load_json(repo / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
     history = load_json(repo / '.zoo-agent' / 'session' / 'session_history.json')
@@ -178,7 +226,9 @@ def scenario_session_integration() -> dict[str, Any]:
             'rejected_workers': routing.get('rejected_workers') or [],
         },
         'routing_basis': routing_basis(),
-        'selected_worker_available': worker_available(repo, str(routing.get('selected_worker') or '')) if routing.get('selected_worker') else False,
+        'selected_worker_available': worker_available(repo, str(routing.get('selected_worker') or ''))
+        if routing.get('selected_worker')
+        else False,
         'fallback_used': False,
         'fallback_safe': True,
         'checkpoint_created': checkpoint_created,
@@ -194,13 +244,51 @@ def run_dogfood(project: Path) -> dict[str, Any]:
     repo = init_repo('router-scenarios')
     write_worker_registry(project)
     rows = [
-        make_trace_row(repo, scenario='docs_update', action_payload=action('action-docs', 'Clarify documentation guide wording', ['docs/guide.md'])),
-        make_trace_row(repo, scenario='repo_scan', action_payload=action('action-scan', 'Refresh project map release readiness', [], mode='preview'), create_checkpoint=False),
-        make_trace_row(repo, scenario='test_update', action_payload=action('action-tests', 'Improve tests for sample behavior', ['tests/test_sample.py'])),
-        make_trace_row(repo, scenario='small_code_edit', action_payload=action('action-code', 'Adjust small source constant', ['src/app.py'])),
-        make_trace_row(repo, scenario='blocked_zone', action_payload=action('action-protected-auth', 'Review protected auth boundary', ['auth/access.py'], risk='high', trust='blocked'), create_checkpoint=False),
-        make_trace_row(repo, scenario='degraded_worker', action_payload=action('action-degraded', 'Clarify documentation guide wording', ['docs/guide.md']), requested_worker='claude'),
-        make_trace_row(repo, scenario='all_actual_workers_unavailable', action_payload=action('action-no-actual-scan', 'Refresh project map release readiness', [], mode='auto'), create_checkpoint=False),
+        make_trace_row(
+            repo,
+            scenario='docs_update',
+            action_payload=action('action-docs', 'Clarify documentation guide wording', ['docs/guide.md']),
+        ),
+        make_trace_row(
+            repo,
+            scenario='repo_scan',
+            action_payload=action('action-scan', 'Refresh project map release readiness', [], mode='preview'),
+            create_checkpoint=False,
+        ),
+        make_trace_row(
+            repo,
+            scenario='test_update',
+            action_payload=action('action-tests', 'Improve tests for sample behavior', ['tests/test_sample.py']),
+        ),
+        make_trace_row(
+            repo,
+            scenario='small_code_edit',
+            action_payload=action('action-code', 'Adjust small source constant', ['src/app.py']),
+        ),
+        make_trace_row(
+            repo,
+            scenario='blocked_zone',
+            action_payload=action(
+                'action-protected-auth',
+                'Review protected auth boundary',
+                ['auth/access.py'],
+                risk='high',
+                trust='blocked',
+            ),
+            create_checkpoint=False,
+        ),
+        make_trace_row(
+            repo,
+            scenario='degraded_worker',
+            action_payload=action('action-degraded', 'Clarify documentation guide wording', ['docs/guide.md']),
+            requested_worker='claude',
+        ),
+        make_trace_row(
+            repo,
+            scenario='all_actual_workers_unavailable',
+            action_payload=action('action-no-actual-scan', 'Refresh project map release readiness', [], mode='auto'),
+            create_checkpoint=False,
+        ),
         scenario_session_integration(),
     ]
     write_worker_registry(project)
@@ -214,7 +302,14 @@ def run_dogfood(project: Path) -> dict[str, Any]:
     }
     write_json(base / 'worker_router_dogfood_trace.json', trace)
     # Keep top-level worker artifacts useful for final handoff.
-    route_worker(project, task_profile=classify_task_profile(action('action-demo', 'Clarify documentation guide wording', ['README.md'], mode='preview')), requested_worker='auto', execution_mode='preview')
+    route_worker(
+        project,
+        task_profile=classify_task_profile(
+            action('action-demo', 'Clarify documentation guide wording', ['README.md'], mode='preview')
+        ),
+        requested_worker='auto',
+        execution_mode='preview',
+    )
     run_proc([sys.executable, str(AGENT), 'cockpit', '--workspace', str(project)], project)
     value_report = run_value_gate(project)
     run_replay(project)

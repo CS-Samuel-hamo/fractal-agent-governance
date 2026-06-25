@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -18,14 +18,16 @@ def dogfood_dir(project: Path) -> Path:
 
 
 def bullet(values: list[Any], *, empty: str = 'not available') -> str:
-    rows = [f"- {item}" for item in values if str(item or '').strip()]
-    return '\n'.join(rows) if rows else f"- {empty}"
+    rows = [f'- {item}' for item in values if str(item or '').strip()]
+    return '\n'.join(rows) if rows else f'- {empty}'
 
 
 def generate_replay(project: Path) -> dict[str, str]:
     trace = load_json(dogfood_dir(project) / 'learning_dogfood_trace.json')
     comparison = load_json(dogfood_dir(project) / 'baseline_comparison.json')
-    comparisons = {item.get('fixture_project'): item for item in comparison.get('comparisons') or [] if isinstance(item, dict)}
+    comparisons = {
+        item.get('fixture_project'): item for item in comparison.get('comparisons') or [] if isinstance(item, dict)
+    }
     lines = [
         '# Cross-project Learning Replay',
         '',
@@ -42,9 +44,9 @@ def generate_replay(project: Path) -> dict[str, str]:
         lines.extend(
             [
                 '',
-                f"### {name}",
-                f"- project_type: {run.get('project_type')}",
-                f"- readiness_stage: {run.get('readiness_stage')}",
+                f'### {name}',
+                f'- project_type: {run.get("project_type")}',
+                f'- readiness_stage: {run.get("readiness_stage")}',
                 '',
                 'Baseline next action:',
                 bullet(baseline.get('selected_next_actions') or []),
@@ -61,22 +63,27 @@ def generate_replay(project: Path) -> dict[str, str]:
                 bullet(learning.get('learning_insights_used') or []),
                 '',
                 'Evidence check:',
-                bullet([item.get('source') or item.get('pattern_id') or item for item in learning.get('evidence_backed_reasons') or []]),
+                bullet(
+                    [
+                        item.get('source') or item.get('pattern_id') or item
+                        for item in learning.get('evidence_backed_reasons') or []
+                    ]
+                ),
                 '',
                 'Safety boundary:',
-                f"- blocked zone respected: {bool(safety.get('blocked_zone_respected'))}",
-                f"- checkpoint required: {bool(safety.get('checkpoint_required'))}",
-                f"- no secrets saved: {bool(safety.get('no_secret_saved'))}",
-                f"- no raw source saved: {bool(safety.get('no_raw_source_saved'))}",
+                f'- blocked zone respected: {bool(safety.get("blocked_zone_respected"))}',
+                f'- checkpoint required: {bool(safety.get("checkpoint_required"))}',
+                f'- no secrets saved: {bool(safety.get("no_secret_saved"))}',
+                f'- no raw source saved: {bool(safety.get("no_raw_source_saved"))}',
                 '',
                 'Skipped insights:',
                 '- Unsafe effects are skipped; learning remains advisory only.',
                 '',
                 'Lift result:',
-                f"- next action improved: {bool(comp.get('next_action_improved'))}",
-                f"- release sequence improved: {bool(comp.get('release_sequence_improved'))}",
-                f"- worker preference improved: {bool(comp.get('worker_preference_improved'))}",
-                f"- failure warning added: {bool(comp.get('failure_warning_added'))}",
+                f'- next action improved: {bool(comp.get("next_action_improved"))}',
+                f'- release sequence improved: {bool(comp.get("release_sequence_improved"))}',
+                f'- worker preference improved: {bool(comp.get("worker_preference_improved"))}',
+                f'- failure warning added: {bool(comp.get("failure_warning_added"))}',
                 '',
                 'Suggested user command:',
                 '- agent cockpit',

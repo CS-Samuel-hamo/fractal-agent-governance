@@ -11,15 +11,15 @@ def split_leaf_execution(leaf: dict[str, Any], *, reason: str = '') -> list[dict
     allowed = [str(item) for item in leaf.get('allowed_files') or []]
     if len(allowed) <= 1:
         clone = dict(leaf)
-        clone['leaf_id'] = f"{leaf.get('leaf_id', 'leaf')}-reduced"
-        clone['objective'] = f"Reduced-scope execution for: {leaf.get('objective', '')}"
+        clone['leaf_id'] = f'{leaf.get("leaf_id", "leaf")}-reduced'
+        clone['objective'] = f'Reduced-scope execution for: {leaf.get("objective", "")}'
         clone['execution_split_reason'] = reason or 'reduce_scope_execution'
         return [clone]
     chunks: list[dict[str, Any]] = []
     for index, path in enumerate(allowed, start=1):
         clone = dict(leaf)
-        clone['leaf_id'] = f"{leaf.get('leaf_id', 'leaf')}-chunk-{index:02d}"
-        clone['objective'] = f"{leaf.get('objective', '')} (only {path})"
+        clone['leaf_id'] = f'{leaf.get("leaf_id", "leaf")}-chunk-{index:02d}'
+        clone['objective'] = f'{leaf.get("objective", "")} (only {path})'
         clone['allowed_files'] = [path]
         clone['execution_split_reason'] = reason or 'split_execution_by_allowed_file'
         chunks.append(clone)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -11,13 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from claude_code_worker_detector import claude_health  # noqa: E402
-from codex_worker_adapter_hardened import codex_health  # noqa: E402
-from task_profile_classifier import classify_task_profile  # noqa: E402
-from worker_adapter_test_harness import run_contract_checks  # noqa: E402
-from worker_installation_diagnostics import write_installation_diagnostics  # noqa: E402
-from worker_registry import write_worker_registry  # noqa: E402
-from worker_router import route_worker  # noqa: E402
+from claude_code_worker_detector import claude_health
+from codex_worker_adapter_hardened import codex_health
+from task_profile_classifier import classify_task_profile
+from worker_adapter_test_harness import run_contract_checks
+from worker_installation_diagnostics import write_installation_diagnostics
+from worker_registry import write_worker_registry
+from worker_router import route_worker
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -25,7 +24,15 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 def run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='adapter-hardening-codex-home-')).resolve()))
-    proc = subprocess.run(command, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     if proc.returncode != 0:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
@@ -50,7 +57,14 @@ def main() -> int:
     root = workspace()
     registry = write_worker_registry(root)
     names = {item['name'] for item in registry['workers']}
-    assert {'mock_worker', 'dry_run_worker', 'local_scanner_worker', 'codex_worker_existing_adapter', 'claude_worker_stub', 'local_worker_stub'} <= names
+    assert {
+        'mock_worker',
+        'dry_run_worker',
+        'local_scanner_worker',
+        'codex_worker_existing_adapter',
+        'claude_worker_stub',
+        'local_worker_stub',
+    } <= names
     for worker in registry['workers']:
         assert worker.get('contract'), worker.get('name')
         assert worker['contract']['reads_secrets'] is False
@@ -70,17 +84,41 @@ def main() -> int:
     assert 'diagnostic only; no installation performed' in diagnostics['actions_taken']
     assert 'no network download performed' in diagnostics['actions_taken']
 
-    scan_profile = classify_task_profile({'title': 'Refresh project map scan repo', 'risk_level': 'low', 'trust_zone': 'trusted', 'execution_mode': 'auto', 'target_files': []})
+    scan_profile = classify_task_profile(
+        {
+            'title': 'Refresh project map scan repo',
+            'risk_level': 'low',
+            'trust_zone': 'trusted',
+            'execution_mode': 'auto',
+            'target_files': [],
+        }
+    )
     scan_decision = route_worker(root, task_profile=scan_profile, requested_worker='auto', execution_mode='auto')
     assert scan_decision['selected_worker'] == 'local_scanner_worker'
     assert scan_decision['execution_mode'] == 'preview'
 
-    code_profile = classify_task_profile({'title': 'Adjust small source constant', 'risk_level': 'low', 'trust_zone': 'trusted', 'execution_mode': 'auto', 'target_files': ['src/app.py']})
+    code_profile = classify_task_profile(
+        {
+            'title': 'Adjust small source constant',
+            'risk_level': 'low',
+            'trust_zone': 'trusted',
+            'execution_mode': 'auto',
+            'target_files': ['src/app.py'],
+        }
+    )
     claude_decision = route_worker(root, task_profile=code_profile, requested_worker='claude', execution_mode='auto')
     assert claude_decision['selected_worker'] != 'claude_worker_stub'
     assert claude_decision['execution_allowed'] is True
 
-    blocked_profile = classify_task_profile({'title': 'Change auth secrets', 'risk_level': 'high', 'trust_zone': 'blocked', 'execution_mode': 'auto', 'target_files': ['auth/secrets.py']})
+    blocked_profile = classify_task_profile(
+        {
+            'title': 'Change auth secrets',
+            'risk_level': 'high',
+            'trust_zone': 'blocked',
+            'execution_mode': 'auto',
+            'target_files': ['auth/secrets.py'],
+        }
+    )
     blocked = route_worker(root, task_profile=blocked_profile, requested_worker='auto', execution_mode='auto')
     assert blocked['execution_allowed'] is False
 

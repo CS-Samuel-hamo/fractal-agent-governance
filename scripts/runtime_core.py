@@ -11,8 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from backend_registry import read_backend_selection, write_backend_selection  # noqa: E402
-from runtime_common import load_json, project_root, utc_now  # noqa: E402
+from backend_registry import read_backend_selection, write_backend_selection
+from runtime_common import load_json, project_root, utc_now
 
 
 class RuntimeCore:
@@ -27,8 +27,7 @@ class RuntimeCore:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         return {
             'command': [str(item) for item in command],
@@ -179,11 +178,29 @@ def main() -> int:
     args = parser.parse_args()
     core = RuntimeCore(getattr(args, 'workspace', '.'), getattr(args, 'backend', ''))
     if args.command == 'run-goal':
-        payload = core.run_goal(args.input, run_id=args.run_id, dry_run=args.dry_run, allow_actual=args.allow_actual, allowed_files=args.allowed_file)
+        payload = core.run_goal(
+            args.input,
+            run_id=args.run_id,
+            dry_run=args.dry_run,
+            allow_actual=args.allow_actual,
+            allowed_files=args.allowed_file,
+        )
     elif args.command == 'run-task':
-        payload = core.run_task(args.input, run_id=args.run_id, dry_run=args.dry_run, allow_actual=args.allow_actual, allowed_files=args.allowed_file)
+        payload = core.run_task(
+            args.input,
+            run_id=args.run_id,
+            dry_run=args.dry_run,
+            allow_actual=args.allow_actual,
+            allowed_files=args.allowed_file,
+        )
     elif args.command == 'run-pipeline':
-        payload = core.run_pipeline(args.input, run_id=args.run_id, dry_run=args.dry_run, allow_actual=args.allow_actual, allowed_files=args.allowed_file)
+        payload = core.run_pipeline(
+            args.input,
+            run_id=args.run_id,
+            dry_run=args.dry_run,
+            allow_actual=args.allow_actual,
+            allowed_files=args.allowed_file,
+        )
     elif args.command == 'switch-backend':
         payload = core.switch_backend(args.backend)
     elif args.command == 'pause':

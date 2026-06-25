@@ -22,11 +22,10 @@ def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.Complete
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if check and proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -49,10 +48,38 @@ def make_repo(root: Path) -> None:
         'project_name': 'release-fixture',
         'project_type': 'agent_runtime',
         'main_goal': 'prepare this project for public release',
-        'modules': [{'module_id': 'docs', 'name': 'Docs', 'status': 'mapped', 'confidence': 0.7, 'key_files': ['README.md'], 'evidence': [{'source': 'README.md'}]}],
-        'capabilities': [{'capability_id': 'cli', 'name': 'CLI', 'status': 'verified', 'evidence': [{'source': 'README.md'}], 'related_modules': ['docs']}],
+        'modules': [
+            {
+                'module_id': 'docs',
+                'name': 'Docs',
+                'status': 'mapped',
+                'confidence': 0.7,
+                'key_files': ['README.md'],
+                'evidence': [{'source': 'README.md'}],
+            }
+        ],
+        'capabilities': [
+            {
+                'capability_id': 'cli',
+                'name': 'CLI',
+                'status': 'verified',
+                'evidence': [{'source': 'README.md'}],
+                'related_modules': ['docs'],
+            }
+        ],
         'risks': [],
-        'next_actions': [{'action_id': 'release-docs', 'title': 'Refresh release docs', 'why_now': 'Release docs are part of public readiness.', 'expected_impact': 'Clearer handoff.', 'risk_level': 'low', 'target_files': ['README.md'], 'autopilot_eligible': True, 'evidence': [{'source': 'README.md'}]}],
+        'next_actions': [
+            {
+                'action_id': 'release-docs',
+                'title': 'Refresh release docs',
+                'why_now': 'Release docs are part of public readiness.',
+                'expected_impact': 'Clearer handoff.',
+                'risk_level': 'low',
+                'target_files': ['README.md'],
+                'autopilot_eligible': True,
+                'evidence': [{'source': 'README.md'}],
+            }
+        ],
         'last_updated': '2026-01-01T00:00:00Z',
     }
     (root / '.zoo-agent' / 'map' / 'project_map.json').write_text(json.dumps(project_map, indent=2), encoding='utf-8')
@@ -61,13 +88,28 @@ def make_repo(root: Path) -> None:
     run(['git', 'config', 'user.name', 'Release Test'], root)
     fake_token = 'ghp_' + ('1' * 36)
     run(['git', 'remote', 'add', 'origin', f'https://user:{fake_token}@github.com/example/release-fixture.git'], root)
-    run(['git', 'add', 'README.md', 'INSTALL.md', 'QUICKSTART.md', 'LICENSE', 'CHANGELOG.md', 'docs/guide.md', 'tests/test_basic.py'], root)
+    run(
+        [
+            'git',
+            'add',
+            'README.md',
+            'INSTALL.md',
+            'QUICKSTART.md',
+            'LICENSE',
+            'CHANGELOG.md',
+            'docs/guide.md',
+            'tests/test_basic.py',
+        ],
+        root,
+    )
     run(['git', 'commit', '-m', 'init'], root)
 
 
 def assert_no_sensitive_release_artifacts(root: Path) -> None:
     release_dir = root / '.zoo-agent' / 'release'
-    text = '\n'.join(path.read_text(encoding='utf-8', errors='replace') for path in release_dir.glob('*') if path.is_file())
+    text = '\n'.join(
+        path.read_text(encoding='utf-8', errors='replace') for path in release_dir.glob('*') if path.is_file()
+    )
     assert 'ghp_' + ('1' * 36) not in text
     assert 'user:ghp_' not in text
     assert 'RAW_BACKEND_LOG' not in text

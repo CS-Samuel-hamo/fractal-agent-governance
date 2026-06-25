@@ -54,7 +54,9 @@ def generate_digest(project: Path) -> dict[str, Any]:
         '## What Changed',
         '',
     ]
-    lines.extend(f'- {path}' for path in changed_files) if changed_files else lines.append('- No file changes recorded yet.')
+    lines.extend(f'- {path}' for path in changed_files) if changed_files else lines.append(
+        '- No file changes recorded yet.'
+    )
     lines.extend(['', '## Completed Actions', ''])
     completed = [item for item in steps if item.get('outcome') in {'delivered', 'dry_run_only'}]
     if completed:
@@ -68,7 +70,9 @@ def generate_digest(project: Path) -> dict[str, Any]:
     lines.extend(['', '## Attention Required', ''])
     if state.get('attention_required') or attention:
         lines.append(f'- Reason: {state.get("pause_reason") or attention.get("reason") or "review required"}')
-        lines.append(f'- Suggested next step: {attention.get("suggested_next_step") or "Review and continue when ready."}')
+        lines.append(
+            f'- Suggested next step: {attention.get("suggested_next_step") or "Review and continue when ready."}'
+        )
     else:
         lines.append('- No attention needed right now.')
     lines.extend(['', '## Checkpoints / Undo', ''])
@@ -80,7 +84,9 @@ def generate_digest(project: Path) -> dict[str, Any]:
     lines.extend(['', '## Project Progress', ''])
     lines.append(f'- Completed steps: {state.get("completed_steps", 0)}')
     lines.append(f'- Failed steps: {state.get("failed_steps", 0)}')
-    lines.extend(['', '## Suggested Commands', '', '- agent continue', '- agent stop', '- agent undo', '- agent cockpit', ''])
+    lines.extend(
+        ['', '## Suggested Commands', '', '- agent continue', '- agent stop', '- agent undo', '- agent cockpit', '']
+    )
     path = session_digest_path(project)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('\n'.join(str(item) for item in lines), encoding='utf-8')

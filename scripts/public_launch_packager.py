@@ -10,9 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_release_packager import VERSION  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_release_packager import VERSION
+from runtime_common import project_root, utc_now, write_json
 
 RELEASE_TAG = f'v{VERSION}'
 LAUNCH_DOCS = [
@@ -62,7 +61,11 @@ def build_package(project: Path) -> dict[str, Any]:
         'agent release',
         'agent pr',
     ]
-    safe_to_launch = len(launch_docs) == len(LAUNCH_DOCS) and len(feedback_templates) == len(FEEDBACK_TEMPLATES) and bool(demo_assets)
+    safe_to_launch = (
+        len(launch_docs) == len(LAUNCH_DOCS)
+        and len(feedback_templates) == len(FEEDBACK_TEMPLATES)
+        and bool(demo_assets)
+    )
     payload = {
         'generated_at': utc_now(),
         'version': VERSION,

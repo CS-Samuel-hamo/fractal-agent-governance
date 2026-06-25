@@ -14,12 +14,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from pr_draft_quality_gate import evaluate_pr_draft  # noqa: E402
-from release_artifact_quality_gate import evaluate_release_artifacts  # noqa: E402
-from release_product_report_generator import generate_report  # noqa: E402
-from release_workflow_trace_replayer import generate_replay  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from pr_draft_quality_gate import evaluate_pr_draft
+from release_artifact_quality_gate import evaluate_release_artifacts
+from release_product_report_generator import generate_report
+from release_workflow_trace_replayer import generate_replay
+from runtime_common import load_json, project_root, write_json
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -38,11 +37,10 @@ def run(command: list[str], cwd: Path, *, allow_fail: bool = False) -> subproces
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode != 0 and not allow_fail:
-        raise RuntimeError(f"command failed: {' '.join(command)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise RuntimeError(f'command failed: {" ".join(command)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -52,7 +50,10 @@ def init_git(root: Path, *, tokenized_remote: bool = False) -> None:
     run(['git', 'config', 'user.name', 'Release Dogfood'], root)
     if tokenized_remote:
         fake_token = 'ghp_' + ('2' * 36)
-        run(['git', 'remote', 'add', 'origin', f'https://user:{fake_token}@github.com/example/release-dogfood.git'], root)
+        run(
+            ['git', 'remote', 'add', 'origin', f'https://user:{fake_token}@github.com/example/release-dogfood.git'],
+            root,
+        )
 
 
 def write_project_map(root: Path, *, high_risk: bool = False) -> None:
@@ -60,22 +61,68 @@ def write_project_map(root: Path, *, high_risk: bool = False) -> None:
     map_dir.mkdir(parents=True, exist_ok=True)
     risks = []
     if high_risk:
-        risks.append({'risk_id': 'deploy', 'description': 'Production deploy risk', 'severity': 'high', 'affected_files': ['deploy/config.yml'], 'evidence': [{'source': 'fixture'}]})
+        risks.append(
+            {
+                'risk_id': 'deploy',
+                'description': 'Production deploy risk',
+                'severity': 'high',
+                'affected_files': ['deploy/config.yml'],
+                'evidence': [{'source': 'fixture'}],
+            }
+        )
     project_map = {
         'project_name': root.name,
         'project_type': 'agent_runtime',
         'main_goal': 'prepare this project for public release',
-        'modules': [{'module_id': 'docs', 'name': 'Docs', 'purpose': 'User docs', 'key_files': ['README.md'], 'status': 'mapped', 'confidence': 0.75, 'evidence': [{'source': 'README.md'}]}],
-        'capabilities': [{'capability_id': 'cli', 'name': 'CLI usage', 'status': 'verified', 'evidence': [{'source': 'README.md'}], 'related_modules': ['docs']}],
+        'modules': [
+            {
+                'module_id': 'docs',
+                'name': 'Docs',
+                'purpose': 'User docs',
+                'key_files': ['README.md'],
+                'status': 'mapped',
+                'confidence': 0.75,
+                'evidence': [{'source': 'README.md'}],
+            }
+        ],
+        'capabilities': [
+            {
+                'capability_id': 'cli',
+                'name': 'CLI usage',
+                'status': 'verified',
+                'evidence': [{'source': 'README.md'}],
+                'related_modules': ['docs'],
+            }
+        ],
         'risks': risks,
         'next_actions': [
-            {'action_id': 'docs', 'title': 'Refresh public release docs', 'why_now': 'Docs clarify release readiness.', 'expected_impact': 'Users can install and run locally.', 'risk_level': 'low', 'target_files': ['README.md'], 'autopilot_eligible': True, 'evidence': [{'source': 'README.md'}]},
-            {'action_id': 'blocked', 'title': 'Review deployment configuration', 'why_now': 'Deployment is high risk.', 'expected_impact': 'Avoid unsafe release work.', 'risk_level': 'high', 'target_files': ['deploy/config.yml'], 'autopilot_eligible': False, 'evidence': [{'source': 'fixture'}]},
+            {
+                'action_id': 'docs',
+                'title': 'Refresh public release docs',
+                'why_now': 'Docs clarify release readiness.',
+                'expected_impact': 'Users can install and run locally.',
+                'risk_level': 'low',
+                'target_files': ['README.md'],
+                'autopilot_eligible': True,
+                'evidence': [{'source': 'README.md'}],
+            },
+            {
+                'action_id': 'blocked',
+                'title': 'Review deployment configuration',
+                'why_now': 'Deployment is high risk.',
+                'expected_impact': 'Avoid unsafe release work.',
+                'risk_level': 'high',
+                'target_files': ['deploy/config.yml'],
+                'autopilot_eligible': False,
+                'evidence': [{'source': 'fixture'}],
+            },
         ],
         'last_updated': '2026-01-01T00:00:00Z',
     }
     write_json(map_dir / 'project_map.json', project_map)
-    write_json(map_dir / 'map_evidence.json', {'evidence': [{'source': 'fixture', 'summary': 'synthetic release dogfood'}]})
+    write_json(
+        map_dir / 'map_evidence.json', {'evidence': [{'source': 'fixture', 'summary': 'synthetic release dogfood'}]}
+    )
 
 
 def write_session_history(root: Path) -> None:
@@ -92,15 +139,45 @@ def write_learning(root: Path) -> None:
     store.mkdir(parents=True, exist_ok=True)
     write_json(
         store / 'pattern_library.json',
-        {'patterns': [{'pattern_id': 'docs_cleanup_before_release', 'success_count': 2, 'failure_count': 0, 'confidence': 0.7, 'evidence': [{'source': 'fixture'}]}]},
+        {
+            'patterns': [
+                {
+                    'pattern_id': 'docs_cleanup_before_release',
+                    'success_count': 2,
+                    'failure_count': 0,
+                    'confidence': 0.7,
+                    'evidence': [{'source': 'fixture'}],
+                }
+            ]
+        },
     )
     write_json(
         store / 'learning_insights.json',
-        {'insights': [{'insight_id': 'release-docs', 'type': 'readiness_template', 'message': 'Docs and quickstart often unblock release readiness.', 'confidence': 0.7, 'recommended_effect': 'boost', 'evidence': [{'source': 'fixture'}]}]},
+        {
+            'insights': [
+                {
+                    'insight_id': 'release-docs',
+                    'type': 'readiness_template',
+                    'message': 'Docs and quickstart often unblock release readiness.',
+                    'confidence': 0.7,
+                    'recommended_effect': 'boost',
+                    'evidence': [{'source': 'fixture'}],
+                }
+            ]
+        },
     )
 
 
-def base_fixture(root: Path, *, docs: bool = True, tests: bool = True, changelog: bool = True, license_file: bool = True, git: bool = True, tokenized_remote: bool = False) -> None:
+def base_fixture(
+    root: Path,
+    *,
+    docs: bool = True,
+    tests: bool = True,
+    changelog: bool = True,
+    license_file: bool = True,
+    git: bool = True,
+    tokenized_remote: bool = False,
+) -> None:
     if docs:
         (root / 'README.md').write_text('# Release Dogfood\n\nLocal release workflow fixture.\n', encoding='utf-8')
         (root / 'QUICKSTART.md').write_text('# Quickstart\n\nRun `agent release`.\n', encoding='utf-8')
@@ -186,44 +263,124 @@ def run_scenarios(output_project: Path) -> tuple[list[dict[str, Any]], Path]:
         clean = base / 'clean_release_candidate'
         clean.mkdir()
         base_fixture(clean)
-        runs.append(scenario_result('clean_release_candidate', clean, output_project, lambda root, flags: flags['release_ready'] is True and flags['safety_gate_passed']))
+        runs.append(
+            scenario_result(
+                'clean_release_candidate',
+                clean,
+                output_project,
+                lambda root, flags: flags['release_ready'] is True and flags['safety_gate_passed'],
+            )
+        )
         quality_fixture = clean
 
         missing_docs = base / 'missing_docs'
         missing_docs.mkdir()
         base_fixture(missing_docs, docs=False)
-        runs.append(scenario_result('missing_docs', missing_docs, output_project, lambda root, flags: any('README' in item or 'quickstart' in item for item in flags['blockers'])))
+        runs.append(
+            scenario_result(
+                'missing_docs',
+                missing_docs,
+                output_project,
+                lambda root, flags: any('README' in item or 'quickstart' in item for item in flags['blockers']),
+            )
+        )
 
         missing_tests = base / 'missing_tests'
         missing_tests.mkdir()
         base_fixture(missing_tests, tests=False)
-        runs.append(scenario_result('missing_tests', missing_tests, output_project, lambda root, flags: any('tests' in item.lower() for item in flags['blockers']) and 'Not run in this workflow' in (root / '.zoo-agent' / 'release' / 'pr_draft.md').read_text(encoding='utf-8')))
+        runs.append(
+            scenario_result(
+                'missing_tests',
+                missing_tests,
+                output_project,
+                lambda root, flags: (
+                    any('tests' in item.lower() for item in flags['blockers'])
+                    and 'Not run in this workflow'
+                    in (root / '.zoo-agent' / 'release' / 'pr_draft.md').read_text(encoding='utf-8')
+                ),
+            )
+        )
 
         dirty = base / 'dirty_worktree'
         dirty.mkdir()
         base_fixture(dirty)
         (dirty / 'README.md').write_text('# Release Dogfood\n\nDirty change.\n', encoding='utf-8')
-        runs.append(scenario_result('dirty_worktree', dirty, output_project, lambda root, flags: flags['git_status'] == 'dirty' and any('dirty' in item.lower() or 'working tree' in item.lower() for item in flags['warnings'])))
+        runs.append(
+            scenario_result(
+                'dirty_worktree',
+                dirty,
+                output_project,
+                lambda root, flags: (
+                    flags['git_status'] == 'dirty'
+                    and any('dirty' in item.lower() or 'working tree' in item.lower() for item in flags['warnings'])
+                ),
+            )
+        )
 
         no_git = base / 'no_git_repo'
         no_git.mkdir()
         base_fixture(no_git, git=False)
-        runs.append(scenario_result('no_git_repo', no_git, output_project, lambda root, flags: flags['github_ready'] is False and (root / '.zoo-agent' / 'release' / 'release_workflow_report.md').exists()))
+        runs.append(
+            scenario_result(
+                'no_git_repo',
+                no_git,
+                output_project,
+                lambda root, flags: (
+                    flags['github_ready'] is False
+                    and (root / '.zoo-agent' / 'release' / 'release_workflow_report.md').exists()
+                ),
+            )
+        )
 
         token = base / 'tokenized_remote_safety'
         token.mkdir()
         base_fixture(token, tokenized_remote=True)
-        runs.append(scenario_result('tokenized_remote_safety', token, output_project, lambda root, flags: not flags['secret_leak_detected'] and '<redacted>' in json.dumps(load_json(root / '.zoo-agent' / 'release' / 'git_context.json'))))
+        runs.append(
+            scenario_result(
+                'tokenized_remote_safety',
+                token,
+                output_project,
+                lambda root, flags: (
+                    not flags['secret_leak_detected']
+                    and '<redacted>' in json.dumps(load_json(root / '.zoo-agent' / 'release' / 'git_context.json'))
+                ),
+            )
+        )
 
         no_diff = base / 'no_actual_diff_pr'
         no_diff.mkdir()
         base_fixture(no_diff)
-        runs.append(scenario_result('no_actual_diff_pr', no_diff, output_project, lambda root, flags: 'Draft only; no code changes included yet.' in (root / '.zoo-agent' / 'release' / 'pr_draft.md').read_text(encoding='utf-8')))
+        runs.append(
+            scenario_result(
+                'no_actual_diff_pr',
+                no_diff,
+                output_project,
+                lambda root, flags: (
+                    'Draft only; no code changes included yet.'
+                    in (root / '.zoo-agent' / 'release' / 'pr_draft.md').read_text(encoding='utf-8')
+                ),
+            )
+        )
 
         cockpit = base / 'cockpit_release_view'
         cockpit.mkdir()
         base_fixture(cockpit)
-        runs.append(scenario_result('cockpit_release_view', cockpit, output_project, lambda root, flags: all(text in (root / '.zoo-agent' / 'cockpit' / 'index.html').read_text(encoding='utf-8') for text in ['Release / PR', 'PR draft', 'Release score', '.zoo-agent/release/release_notes_draft.md'])))
+        runs.append(
+            scenario_result(
+                'cockpit_release_view',
+                cockpit,
+                output_project,
+                lambda root, flags: all(
+                    text in (root / '.zoo-agent' / 'cockpit' / 'index.html').read_text(encoding='utf-8')
+                    for text in [
+                        'Release / PR',
+                        'PR draft',
+                        'Release score',
+                        '.zoo-agent/release/release_notes_draft.md',
+                    ]
+                ),
+            )
+        )
 
         assert quality_fixture is not None
         # Copy the best fixture release artifacts into a stable dogfood fixture folder for debugging.
@@ -237,8 +394,12 @@ def run_scenarios(output_project: Path) -> tuple[list[dict[str, Any]], Path]:
 
 def run_dogfood(project: Path) -> dict[str, Any]:
     dogfood_dir(project).mkdir(parents=True, exist_ok=True)
-    runs, fixture_path = run_scenarios(project)
-    trace = {'generated_by': 'release_workflow_dogfood_runner.py', 'runs': runs, 'quality_fixture': '.zoo-agent/release_dogfood/quality_fixture_release'}
+    runs, _fixture_path = run_scenarios(project)
+    trace = {
+        'generated_by': 'release_workflow_dogfood_runner.py',
+        'runs': runs,
+        'quality_fixture': '.zoo-agent/release_dogfood/quality_fixture_release',
+    }
     write_json(dogfood_dir(project) / 'release_workflow_dogfood_trace.json', trace)
     generate_replay(project)
     report = generate_report(project)

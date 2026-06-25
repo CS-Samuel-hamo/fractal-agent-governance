@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from check_codex_worker_concurrency import build_contract, git_root, load_json, safe_name, write_json  # noqa: E402
+from check_codex_worker_concurrency import build_contract, git_root, load_json, safe_name, write_json
 
 
 def utc_now() -> str:
@@ -36,7 +36,15 @@ def dispatcher_command(args, repo_root: Path, parent_task_id: str, leaf: dict, w
         '--governance-level',
         str(int(leaf.get('recommended_governance_level') or 1)),
         '--worktree-root',
-        str(repo_root / '.zoo-agent' / 'worktrees' / safe_name(args.run_id) / 'parallel' / safe_name(parent_task_id) / safe_name(task_id)),
+        str(
+            repo_root
+            / '.zoo-agent'
+            / 'worktrees'
+            / safe_name(args.run_id)
+            / 'parallel'
+            / safe_name(parent_task_id)
+            / safe_name(task_id)
+        ),
         '--sandbox',
         args.sandbox,
         '--timeout-seconds',
@@ -56,7 +64,12 @@ def dispatcher_command(args, repo_root: Path, parent_task_id: str, leaf: dict, w
         cmd += ['--profile', args.profile]
     codex_home = args.codex_home
     if args.worker_codex_home_root:
-        worker_home = Path(args.worker_codex_home_root).resolve() / safe_name(args.run_id) / safe_name(parent_task_id) / safe_name(task_id)
+        worker_home = (
+            Path(args.worker_codex_home_root).resolve()
+            / safe_name(args.run_id)
+            / safe_name(parent_task_id)
+            / safe_name(task_id)
+        )
         worker_home.mkdir(parents=True, exist_ok=True)
         codex_home = str(worker_home)
     if codex_home:
@@ -122,8 +135,7 @@ def run_lock_command(args, repo_root: Path, item: dict, action: str) -> dict:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr, 'command': cmd}
 
@@ -208,13 +220,19 @@ def update_parent_aggregation(repo_root: Path, run_id: str, parent_task_id: str,
 
 def refresh_summary(repo_root: Path, run_id: str) -> dict:
     proc = subprocess.run(
-        [sys.executable, str(ROOT / 'scripts' / 'summarize_ai_native_run.py'), '--run-id', run_id, '--workspace', str(repo_root)],
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'summarize_ai_native_run.py'),
+            '--run-id',
+            run_id,
+            '--workspace',
+            str(repo_root),
+        ],
         cwd=ROOT,
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
 
@@ -259,16 +277,18 @@ def run_workers(args, repo_root: Path, contract: dict, output_dir: Path) -> list
                 stdout=stdout_file,
                 stderr=stderr_file,
             )
-            running.append({
-                'item': item,
-                'proc': proc,
-                'started': started,
-                'worker_log_dir': worker_log_dir,
-                'stdout_path': stdout_path,
-                'stderr_path': stderr_path,
-                'stdout_file': stdout_file,
-                'stderr_file': stderr_file,
-            })
+            running.append(
+                {
+                    'item': item,
+                    'proc': proc,
+                    'started': started,
+                    'worker_log_dir': worker_log_dir,
+                    'stdout_path': stdout_path,
+                    'stderr_path': stderr_path,
+                    'stdout_file': stdout_file,
+                    'stderr_file': stderr_file,
+                }
+            )
 
         still_running = []
         for entry in running:
@@ -309,7 +329,9 @@ def main() -> int:
     ap.add_argument('--max-workers', type=int, default=2)
     ap.add_argument('--goal-id', default='')
     ap.add_argument('--start-point', default='HEAD')
-    ap.add_argument('--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access'])
+    ap.add_argument(
+        '--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access']
+    )
     ap.add_argument('--profile', default='')
     ap.add_argument('--codex-home', default='')
     ap.add_argument('--worker-codex-home-root', default='')
@@ -322,19 +344,46 @@ def main() -> int:
     ap.add_argument('--ephemeral', action='store_true')
     ap.add_argument('--json-events', action='store_true')
     ap.add_argument('--allow-planned', action='store_true')
-    ap.add_argument('--skip-global-locks', action='store_true', help='Do not acquire .zoo-agent/locks active resource locks before launching leaves.')
+    ap.add_argument(
+        '--skip-global-locks',
+        action='store_true',
+        help='Do not acquire .zoo-agent/locks active resource locks before launching leaves.',
+    )
     ap.add_argument('--lock-ttl-seconds', type=int, default=7200)
     ap.add_argument('--worker-dry-run', action='store_true', help='Launch each leaf dispatcher with --dry-run.')
-    ap.add_argument('--dry-run', action='store_true', help='Only write schedule and resource locks; do not launch workers.')
+    ap.add_argument(
+        '--dry-run', action='store_true', help='Only write schedule and resource locks; do not launch workers.'
+    )
     args = ap.parse_args()
 
     repo_root = git_root(Path(args.workspace).resolve())
     leaf_index = Path(args.leaf_index).resolve()
-    contract = build_contract(repo_root, args.run_id, leaf_index, max_workers=args.max_workers, allow_planned=args.allow_planned)
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else repo_root / '.zoo-agent' / 'runs' / args.run_id / 'parallel-workers' / safe_name(contract['parent_task_id'])
+    contract = build_contract(
+        repo_root, args.run_id, leaf_index, max_workers=args.max_workers, allow_planned=args.allow_planned
+    )
+    output_dir = (
+        Path(args.output_dir).resolve()
+        if args.output_dir
+        else repo_root
+        / '.zoo-agent'
+        / 'runs'
+        / args.run_id
+        / 'parallel-workers'
+        / safe_name(contract['parent_task_id'])
+    )
     write_json(output_dir / 'concurrency-check.json', contract)
-    write_json(output_dir / 'resource-locks.json', {'resource_locks': contract['resource_locks'], 'status': contract['status'], 'blockers': contract['blockers']})
-    write_json(output_dir / 'branch-schedule.json', {'branch_schedule': contract['branch_schedule'], 'status': contract['status'], 'max_workers': contract['max_workers']})
+    write_json(
+        output_dir / 'resource-locks.json',
+        {'resource_locks': contract['resource_locks'], 'status': contract['status'], 'blockers': contract['blockers']},
+    )
+    write_json(
+        output_dir / 'branch-schedule.json',
+        {
+            'branch_schedule': contract['branch_schedule'],
+            'status': contract['status'],
+            'max_workers': contract['max_workers'],
+        },
+    )
 
     report = {
         'schema_version': '1.0',

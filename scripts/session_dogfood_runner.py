@@ -12,12 +12,18 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from project_map_schema import action_row, capability_row, default_project_map, default_project_state, evidence_item, module_row  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-from session_product_report_generator import generate_report  # noqa: E402
-from session_reliability_gate import run_gate  # noqa: E402
-from session_trace_replayer import run_replay  # noqa: E402
-
+from project_map_schema import (
+    action_row,
+    capability_row,
+    default_project_map,
+    default_project_state,
+    evidence_item,
+    module_row,
+)
+from runtime_common import load_json, project_root, utc_now, write_json
+from session_product_report_generator import generate_report
+from session_reliability_gate import run_gate
+from session_trace_replayer import run_replay
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -33,8 +39,7 @@ def run_proc(command: list[str], cwd: Path) -> dict[str, Any]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
 
@@ -59,15 +64,29 @@ def init_fixture_repo(project: Path, name: str, *, docs: bool = True) -> Path:
 
 
 def write_blocked_project_map(repo: Path, goal: str) -> None:
-    evidence = [evidence_item('configuration_surface', 'config/access.yml', 'Synthetic guarded access boundary.', confidence=0.7)]
+    evidence = [
+        evidence_item(
+            'configuration_surface', 'config/access.yml', 'Synthetic guarded access boundary.', confidence=0.7
+        )
+    ]
     project_map = default_project_map(repo, main_goal=goal)
     project_map.update(
         {
             'modules': [
-                module_row('module-access-boundary', 'Access Boundary', 'Synthetic blocked surface.', ['config/access.yml'], evidence, status='risky', confidence=0.7)
+                module_row(
+                    'module-access-boundary',
+                    'Access Boundary',
+                    'Synthetic blocked surface.',
+                    ['config/access.yml'],
+                    evidence,
+                    status='risky',
+                    confidence=0.7,
+                )
             ],
             'capabilities': [
-                capability_row('capability-release-safety', 'Release safety', 'partial', evidence, ['module-access-boundary'])
+                capability_row(
+                    'capability-release-safety', 'Release safety', 'partial', evidence, ['module-access-boundary']
+                )
             ],
             'risks': [
                 {
@@ -95,7 +114,9 @@ def write_blocked_project_map(repo: Path, goal: str) -> None:
     base = repo / '.zoo-agent' / 'map'
     write_json(base / 'project_map.json', project_map)
     write_json(base / 'project_state.json', default_project_state(repo, main_goal=goal))
-    write_json(base / 'map_evidence.json', {'schema_version': '1.0', 'evidence': evidence, 'skipped_sensitive_paths': []})
+    write_json(
+        base / 'map_evidence.json', {'schema_version': '1.0', 'evidence': evidence, 'skipped_sensitive_paths': []}
+    )
 
 
 def write_stale_lock(repo: Path) -> None:
@@ -150,7 +171,9 @@ def normalize_outcome(value: str, scenario: str, status_after: str) -> str:
     return 'failed' if status_after == 'failed' else value or 'delivered'
 
 
-def trace_step(repo: Path, *, scenario: str, step: int, command: str, before: str, checkpoints_before: int) -> dict[str, Any]:
+def trace_step(
+    repo: Path, *, scenario: str, step: int, command: str, before: str, checkpoints_before: int
+) -> dict[str, Any]:
     current = state(repo)
     selected_action = selected(repo)
     rows = history(repo)
@@ -182,15 +205,30 @@ def scenario_normal(project: Path) -> dict[str, Any]:
     before = state(repo).get('status') or 'not_started'
     cp = checkpoint_count(repo)
     start = agent(repo, ['start', 'prepare this project for public release', '--backend', 'mock'])
-    steps.append(trace_step(repo, scenario='normal_session', step=1, command='agent start "prepare this project for public release"', before=before, checkpoints_before=cp))
+    steps.append(
+        trace_step(
+            repo,
+            scenario='normal_session',
+            step=1,
+            command='agent start "prepare this project for public release"',
+            before=before,
+            checkpoints_before=cp,
+        )
+    )
     before = state(repo).get('status') or 'unknown'
     cp = checkpoint_count(repo)
     cont = agent(repo, ['continue', '--backend', 'mock'])
-    steps.append(trace_step(repo, scenario='normal_session', step=2, command='agent continue', before=before, checkpoints_before=cp))
+    steps.append(
+        trace_step(
+            repo, scenario='normal_session', step=2, command='agent continue', before=before, checkpoints_before=cp
+        )
+    )
     before = state(repo).get('status') or 'unknown'
     cp = checkpoint_count(repo)
     stop = agent(repo, ['stop'])
-    steps.append(trace_step(repo, scenario='normal_session', step=3, command='agent stop', before=before, checkpoints_before=cp))
+    steps.append(
+        trace_step(repo, scenario='normal_session', step=3, command='agent stop', before=before, checkpoints_before=cp)
+    )
     ok = all(item['returncode'] == 0 for item in [start, cont, stop]) and steps[-1]['session_status_after'] == 'stopped'
     return {'scenario': 'normal_session', 'steps': steps, 'scenario_result': 'pass' if ok else 'fail'}
 
@@ -201,12 +239,27 @@ def scenario_undo(project: Path) -> dict[str, Any]:
     before = state(repo).get('status') or 'not_started'
     cp = checkpoint_count(repo)
     start = agent(repo, ['start', 'prepare this project for public release', '--backend', 'mock'])
-    steps.append(trace_step(repo, scenario='undo', step=1, command='agent start "prepare this project for public release"', before=before, checkpoints_before=cp))
+    steps.append(
+        trace_step(
+            repo,
+            scenario='undo',
+            step=1,
+            command='agent start "prepare this project for public release"',
+            before=before,
+            checkpoints_before=cp,
+        )
+    )
     before = state(repo).get('status') or 'unknown'
     cp = checkpoint_count(repo)
     undo = agent(repo, ['undo'])
     steps.append(trace_step(repo, scenario='undo', step=2, command='agent undo', before=before, checkpoints_before=cp))
-    ok = start['returncode'] == 0 and undo['returncode'] == 0 and checkpoint_count(repo) > 0 and steps[-1]['digest_updated'] and steps[-1]['cockpit_synced']
+    ok = (
+        start['returncode'] == 0
+        and undo['returncode'] == 0
+        and checkpoint_count(repo) > 0
+        and steps[-1]['digest_updated']
+        and steps[-1]['cockpit_synced']
+    )
     return {'scenario': 'undo', 'steps': steps, 'scenario_result': 'pass' if ok else 'fail'}
 
 
@@ -216,14 +269,30 @@ def scenario_resume(project: Path) -> dict[str, Any]:
     before = state(repo).get('status') or 'not_started'
     cp = checkpoint_count(repo)
     start = agent(repo, ['start', 'prepare this project for public release', '--backend', 'mock'])
-    steps.append(trace_step(repo, scenario='resume', step=1, command='agent start "prepare this project for public release"', before=before, checkpoints_before=cp))
+    steps.append(
+        trace_step(
+            repo,
+            scenario='resume',
+            step=1,
+            command='agent start "prepare this project for public release"',
+            before=before,
+            checkpoints_before=cp,
+        )
+    )
     write_stale_lock(repo)
     status = agent(repo, ['status'])
     before = state(repo).get('status') or 'unknown'
     cp = checkpoint_count(repo)
     cont = agent(repo, ['continue', '--backend', 'mock'])
-    steps.append(trace_step(repo, scenario='resume', step=2, command='agent continue', before=before, checkpoints_before=cp))
-    ok = start['returncode'] == 0 and status['returncode'] == 0 and cont['returncode'] == 0 and steps[-1]['resume_available']
+    steps.append(
+        trace_step(repo, scenario='resume', step=2, command='agent continue', before=before, checkpoints_before=cp)
+    )
+    ok = (
+        start['returncode'] == 0
+        and status['returncode'] == 0
+        and cont['returncode'] == 0
+        and steps[-1]['resume_available']
+    )
     return {'scenario': 'resume', 'steps': steps, 'scenario_result': 'pass' if ok else 'fail'}
 
 
@@ -234,8 +303,20 @@ def scenario_needs_attention(project: Path) -> dict[str, Any]:
     before = state(repo).get('status') or 'not_started'
     cp = checkpoint_count(repo)
     start = agent(repo, ['start', goal, '--backend', 'mock'])
-    step = trace_step(repo, scenario='needs_attention', step=1, command='agent start "prepare this project for public release"', before=before, checkpoints_before=cp)
-    ok = start['returncode'] == 0 and step['session_status_after'] == 'needs_attention' and step['attention_required'] and not step['checkpoint_created']
+    step = trace_step(
+        repo,
+        scenario='needs_attention',
+        step=1,
+        command='agent start "prepare this project for public release"',
+        before=before,
+        checkpoints_before=cp,
+    )
+    ok = (
+        start['returncode'] == 0
+        and step['session_status_after'] == 'needs_attention'
+        and step['attention_required']
+        and not step['checkpoint_created']
+    )
     return {'scenario': 'needs_attention', 'steps': [step], 'scenario_result': 'pass' if ok else 'fail'}
 
 
@@ -244,8 +325,19 @@ def scenario_no_delivery(project: Path) -> dict[str, Any]:
     before = state(repo).get('status') or 'not_started'
     cp = checkpoint_count(repo)
     start = agent(repo, ['start', 'prepare this project for public release', '--backend', 'dry_run'])
-    step = trace_step(repo, scenario='no_delivery', step=1, command='agent start "prepare this project for public release"', before=before, checkpoints_before=cp)
-    ok = start['returncode'] == 0 and step['session_status_after'] == 'needs_attention' and step['execution_outcome'] == 'no_delivery'
+    step = trace_step(
+        repo,
+        scenario='no_delivery',
+        step=1,
+        command='agent start "prepare this project for public release"',
+        before=before,
+        checkpoints_before=cp,
+    )
+    ok = (
+        start['returncode'] == 0
+        and step['session_status_after'] == 'needs_attention'
+        and step['execution_outcome'] == 'no_delivery'
+    )
     return {'scenario': 'no_delivery', 'steps': [step], 'scenario_result': 'pass' if ok else 'fail'}
 
 
@@ -254,7 +346,14 @@ def scenario_budget(project: Path) -> dict[str, Any]:
     before = state(repo).get('status') or 'not_started'
     cp = checkpoint_count(repo)
     start = agent(repo, ['start', 'prepare this project for public release', '--backend', 'mock', '--max-steps', '1'])
-    step = trace_step(repo, scenario='budget', step=1, command='agent start "prepare this project for public release"', before=before, checkpoints_before=cp)
+    step = trace_step(
+        repo,
+        scenario='budget',
+        step=1,
+        command='agent start "prepare this project for public release"',
+        before=before,
+        checkpoints_before=cp,
+    )
     ok = start['returncode'] == 0 and step['session_status_after'] == 'paused' and step['execution_outcome'] == 'paused'
     return {'scenario': 'budget', 'steps': [step], 'scenario_result': 'pass' if ok else 'fail'}
 

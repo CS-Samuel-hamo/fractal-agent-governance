@@ -9,17 +9,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from community_copy_linter import lint as lint_community  # noqa: E402
-from first_user_flow_validator import validate as validate_first_user  # noqa: E402
-from launch_report_generator import generate as generate_launch_report  # noqa: E402
-from public_launch_audit import audit  # noqa: E402
-from public_launch_packager import RELEASE_TAG, VERSION, write_package  # noqa: E402
+from community_copy_linter import lint as lint_community
+from first_user_flow_validator import validate as validate_first_user
+from launch_report_generator import generate as generate_launch_report
+from public_launch_audit import audit
+from public_launch_packager import RELEASE_TAG, VERSION, write_package
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(cmd, cwd=ROOT, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -57,14 +57,23 @@ def test_public_launch_audit_and_report_ready() -> None:
     assert report['safe_to_launch'] is True, report
     payload = generate_launch_report(ROOT)
     assert payload['status'] == 'READY_FOR_MANUAL_GITHUB_PUBLISH', payload
-    readiness = json.loads((ROOT / '.zoo-agent' / 'public_launch' / 'readiness_for_public_launch.json').read_text(encoding='utf-8-sig'))
+    readiness = json.loads(
+        (ROOT / '.zoo-agent' / 'public_launch' / 'readiness_for_public_launch.json').read_text(encoding='utf-8-sig')
+    )
     assert readiness['readiness'] == 'READY_FOR_MANUAL_GITHUB_PUBLISH', readiness
 
 
 def test_agent_launch_audit_runs_and_help_hides_it() -> None:
     help_proc = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'])
     lowered = help_proc.stdout.lower()
-    for hidden in ['agent launch', 'launch --audit', 'worker dogfood', 'learning dogfood', 'alpha audit', 'session dogfood']:
+    for hidden in [
+        'agent launch',
+        'launch --audit',
+        'worker dogfood',
+        'learning dogfood',
+        'alpha audit',
+        'session dogfood',
+    ]:
         assert hidden not in lowered
     proc = run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'launch', '--audit', '--workspace', str(ROOT)])
     assert '.zoo-agent/public_launch/public_launch_audit.json' in proc.stdout
@@ -72,7 +81,14 @@ def test_agent_launch_audit_runs_and_help_hides_it() -> None:
 
 
 def test_no_runtime_artifacts_tracked() -> None:
-    proc = subprocess.run(['git', 'ls-files', '.zoo-agent'], cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        ['git', 'ls-files', '.zoo-agent'],
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     assert proc.stdout.strip() == ''
 
 

@@ -13,9 +13,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
-from classify_codex_failure import classify as classify_codex_failure  # noqa: E402
-
+from classify_codex_failure import classify as classify_codex_failure
+from runtime_common import load_json, project_root, safe_name, utc_now, write_json
 
 RUNTIME_PATTERNS = [
     '.zoo-agent/**',
@@ -134,8 +133,7 @@ def run_git(args: list[str], cwd: Path) -> str:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return proc.stdout if proc.returncode == 0 else ''
 
@@ -167,7 +165,9 @@ def git_changed_files(project: Path) -> list[str]:
 
 def matches_any(path: str, patterns: list[str]) -> bool:
     normalized = path.replace('\\', '/')
-    return any(fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns)
+    return any(
+        fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns
+    )
 
 
 def split_changed_files(files: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
@@ -246,7 +246,9 @@ def existing_path(value: Any) -> Path | None:
     return path if path.exists() else None
 
 
-def discover_baseline_path(args: argparse.Namespace, project: Path, run_dir: Path, attempt: dict[str, Any]) -> Path | None:
+def discover_baseline_path(
+    args: argparse.Namespace, project: Path, run_dir: Path, attempt: dict[str, Any]
+) -> Path | None:
     explicit = existing_path(args.baseline)
     if explicit:
         return explicit
@@ -317,8 +319,7 @@ def compare_from_baseline(baseline_path: Path, denied_files: list[str]) -> tuple
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     payload = parse_json_text(proc.stdout)
     delta_path = existing_path(payload.get('path'))
@@ -338,7 +339,9 @@ def codex_returncode(attempt: dict[str, Any], cli_report: dict[str, Any]) -> int
         worker_status.get('returncode'),
         stdout_payload.get('returncode'),
         codex.get('returncode'),
-        (cli_report.get('execution') or {}).get('returncode') if isinstance(cli_report.get('execution'), dict) else None,
+        (cli_report.get('execution') or {}).get('returncode')
+        if isinstance(cli_report.get('execution'), dict)
+        else None,
     ]:
         if isinstance(value, int):
             return value
@@ -390,9 +393,13 @@ def infer_task_type(text: str, allowed_files: list[str], business_files: list[st
     if explicit:
         return explicit
     surface = ' '.join([text, *allowed_files, *business_files]).lower()
-    if any(term in surface for term in DOC_TERMS) or (business_files and all(matches_any(path, DOC_PATTERNS) for path in business_files)):
+    if any(term in surface for term in DOC_TERMS) or (
+        business_files and all(matches_any(path, DOC_PATTERNS) for path in business_files)
+    ):
         return 'docs'
-    if any(term in surface for term in CODING_TERMS) or any(matches_any(path, CODE_PATTERNS + TEST_PATTERNS) for path in [*allowed_files, *business_files]):
+    if any(term in surface for term in CODING_TERMS) or any(
+        matches_any(path, CODE_PATTERNS + TEST_PATTERNS) for path in [*allowed_files, *business_files]
+    ):
         return 'coding'
     return 'edit'
 
@@ -460,34 +467,34 @@ def docs_diff(files: list[str]) -> bool:
 
 def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     lines = [
-        f"# Delivery Outcome: {payload['run_id']} / {payload['task_id']}",
+        f'# Delivery Outcome: {payload["run_id"]} / {payload["task_id"]}',
         '',
-        f"- route: {payload['route']}",
-        f"- task_type: {payload['task_type']}",
-        f"- delivery_outcome: {payload['delivery_outcome']}",
-        f"- reason: {payload['reason']}",
-        f"- next_action: {payload['next_action']}",
+        f'- route: {payload["route"]}',
+        f'- task_type: {payload["task_type"]}',
+        f'- delivery_outcome: {payload["delivery_outcome"]}',
+        f'- reason: {payload["reason"]}',
+        f'- next_action: {payload["next_action"]}',
         '',
         '## Business Changed Files',
         '',
     ]
     if payload['business_changed_files']:
-        lines.extend(f"- {item}" for item in payload['business_changed_files'])
+        lines.extend(f'- {item}' for item in payload['business_changed_files'])
     else:
         lines.append('- none')
     lines.extend(['', '## Runtime Changed Files', ''])
     if payload['runtime_changed_files']:
-        lines.extend(f"- {item}" for item in payload['runtime_changed_files'])
+        lines.extend(f'- {item}' for item in payload['runtime_changed_files'])
     else:
         lines.append('- none')
     lines.extend(['', '## Governance Changed Files', ''])
     if payload.get('governance_changed_files'):
-        lines.extend(f"- {item}" for item in payload['governance_changed_files'])
+        lines.extend(f'- {item}' for item in payload['governance_changed_files'])
     else:
         lines.append('- none')
     lines.extend(['', '## Unchanged Existing Diff', ''])
     if payload.get('unchanged_existing_diff'):
-        lines.extend(f"- {item}" for item in payload['unchanged_existing_diff'])
+        lines.extend(f'- {item}' for item in payload['unchanged_existing_diff'])
     else:
         lines.append('- none')
     lines.extend(
@@ -495,10 +502,10 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
             '',
             '## Baseline',
             '',
-            f"- baseline_used: {payload.get('baseline_used')}",
-            f"- baseline_path: {payload.get('baseline_path') or ''}",
-            f"- task_delta_path: {payload.get('task_delta_path') or ''}",
-            f"- legacy_diff_mode: {payload.get('legacy_diff_mode')}",
+            f'- baseline_used: {payload.get("baseline_used")}',
+            f'- baseline_path: {payload.get("baseline_path") or ""}',
+            f'- task_delta_path: {payload.get("task_delta_path") or ""}',
+            f'- legacy_diff_mode: {payload.get("legacy_diff_mode")}',
         ]
     )
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
@@ -641,7 +648,9 @@ def evaluate(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         'codex_returncode': returncode,
         'scope_guard_status': scope_status,
         'tests_status': tests_status,
-        'result_collected': bool(attempt.get('collected_result') or (run_dir / 'codex-results' / args.task_id).exists()),
+        'result_collected': bool(
+            attempt.get('collected_result') or (run_dir / 'codex-results' / args.task_id).exists()
+        ),
         'denied_files_touched': denied,
         'no_op_evidence_present': no_op_evidence,
         'delivery_outcome': outcome,
@@ -669,7 +678,11 @@ def main() -> int:
     parser.add_argument('--baseline', default='')
     parser.add_argument('--task-delta', default='')
     parser.add_argument('--route', default='')
-    parser.add_argument('--task-type', choices=['coding', 'docs', 'edit', 'bootstrap', 'governance', 'research', 'analysis', 'unknown'], default='')
+    parser.add_argument(
+        '--task-type',
+        choices=['coding', 'docs', 'edit', 'bootstrap', 'governance', 'research', 'analysis', 'unknown'],
+        default='',
+    )
     parser.add_argument('--input-text', default='')
     parser.add_argument('--scope-guard-status', default='')
     parser.add_argument('--tests-status', default='')

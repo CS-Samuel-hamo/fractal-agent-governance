@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -11,11 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from local_scanner_worker import scan_repo  # noqa: E402
+from local_scanner_worker import scan_repo
 
 
 def run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(command, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(command, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
@@ -64,7 +63,9 @@ def main() -> int:
     assert 'API_KEY=' not in text
     for relative, content in tracked_before.items():
         assert (root / relative).read_text(encoding='utf-8') == content
-    assert not run(['git', 'diff', '--', 'README.md', 'pyproject.toml', 'src/app.py', 'tests/test_app.py', 'docs/guide.md'], root).stdout
+    assert not run(
+        ['git', 'diff', '--', 'README.md', 'pyproject.toml', 'src/app.py', 'tests/test_app.py', 'docs/guide.md'], root
+    ).stdout
     assert report['map_support']['evidence']
     assert (root / '.zoo-agent' / 'workers' / 'local_scanner_report.json').exists()
     print('local scanner worker tests passed')

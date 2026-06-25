@@ -11,14 +11,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from execution_policy import (  # noqa: E402
+from execution_policy import (
     DEFAULT_DENIED_FILES,
     conflict_keys_for_allowed_files,
     detect_cross_surface,
     detect_hard_risk,
 )
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 UNCERTAINTY_TERMS = [
     'maybe',
@@ -155,7 +154,9 @@ def has_explicit_file_patterns(allowed_files: list[str]) -> bool:
     return bool(allowed_files) and all('*' not in item for item in allowed_files)
 
 
-def task_parallel_blockers(task_rows: list[dict[str, Any]], text: str, *, overlap: bool, hard_risk_hits: list[str], dependency_hits: list[str]) -> list[str]:
+def task_parallel_blockers(
+    task_rows: list[dict[str, Any]], text: str, *, overlap: bool, hard_risk_hits: list[str], dependency_hits: list[str]
+) -> list[str]:
     blockers: list[str] = []
     if len(task_rows) <= 1:
         blockers.append('single_task_no_parallelism')
@@ -235,7 +236,13 @@ def score_level(value: int) -> str:
     return 'high'
 
 
-def detect_big_task(text: str, allowed_files: list[str], changed_file_estimate: int, hard_risk_hits: list[str], cross_surface_hits: list[str]) -> tuple[bool, list[str]]:
+def detect_big_task(
+    text: str,
+    allowed_files: list[str],
+    changed_file_estimate: int,
+    hard_risk_hits: list[str],
+    cross_surface_hits: list[str],
+) -> tuple[bool, list[str]]:
     lowered = text.lower()
     reasons: list[str] = []
     for term in BIG_TASK_TERMS:
@@ -256,7 +263,9 @@ def is_bounded_doc_edit(text: str, allowed_files: list[str]) -> bool:
     normalized = [str(item).replace('\\', '/') for item in allowed_files]
     if any('*' in item for item in normalized):
         return False
-    if not all(item == 'README.md' or item.startswith('docs/') or item.lower().endswith(('.md', '.txt')) for item in normalized):
+    if not all(
+        item == 'README.md' or item.startswith('docs/') or item.lower().endswith(('.md', '.txt')) for item in normalized
+    ):
         return False
     lowered = text.lower()
     action_terms = [
@@ -308,7 +317,9 @@ def classify(
     semantic_hits = semantic_resource_hits(text, allowed)
     broad_allowed = allowed == ['**'] or len(allowed) > 4
     bounded_doc_edit = is_bounded_doc_edit(text, allowed)
-    big_task, big_task_reasons = detect_big_task(text, allowed, changed_file_estimate, hard_risk_hits, cross_surface_hits)
+    big_task, big_task_reasons = detect_big_task(
+        text, allowed, changed_file_estimate, hard_risk_hits, cross_surface_hits
+    )
     if bounded_doc_edit and not hard_risk_hits and not cross_surface_hits:
         big_task = False
         big_task_reasons = []
@@ -401,7 +412,9 @@ def classify(
                 'agent goal-loop',
                 'agent global-loop',
                 'agent integration-check',
-            ] if big_task else [],
+            ]
+            if big_task
+            else [],
             'default_execution_mode': 'decomposition_only' if big_task else 'route_default',
             'leaf_resolution_policy': 'execute|refine_once|merge|defer|collapse',
             'goal_driven_loop': '/goal-set -> global loop -> scheduler -> active goal -> decomposition -> leaf execution -> aggregation -> goal update',

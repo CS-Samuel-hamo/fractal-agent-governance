@@ -10,13 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from task_profile_classifier import classify_task_profile  # noqa: E402
-from worker_fallback_engine import fallback_for_result  # noqa: E402
-from worker_router import route_worker  # noqa: E402
+from task_profile_classifier import classify_task_profile
+from worker_fallback_engine import fallback_for_result
+from worker_router import route_worker
 
 
 def run(command: list[str], cwd: Path) -> None:
-    proc = subprocess.run(command, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(command, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
 
@@ -38,7 +38,15 @@ def load(path: Path) -> dict:
 
 def main() -> int:
     root = repo()
-    docs_profile = classify_task_profile({'title': 'Add README note', 'risk_level': 'low', 'trust_zone': 'trusted', 'execution_mode': 'auto', 'target_files': ['README.md']})
+    docs_profile = classify_task_profile(
+        {
+            'title': 'Add README note',
+            'risk_level': 'low',
+            'trust_zone': 'trusted',
+            'execution_mode': 'auto',
+            'target_files': ['README.md'],
+        }
+    )
     decision = route_worker(root, task_profile=docs_profile, requested_worker='codex', execution_mode='auto')
     assert decision['selected_worker'] != 'claude_worker_stub'
     assert decision['execution_allowed'] is True
@@ -63,7 +71,15 @@ def main() -> int:
     assert fallback_trace['final_mode'] in {'preview', 'needs_attention'}
     assert len(fallback_trace['fallback_chain']) <= len(decision['fallback_workers'])
 
-    blocked_profile = classify_task_profile({'title': 'Modify .env token', 'risk_level': 'high', 'trust_zone': 'blocked', 'execution_mode': 'auto', 'target_files': ['.env']})
+    blocked_profile = classify_task_profile(
+        {
+            'title': 'Modify .env token',
+            'risk_level': 'high',
+            'trust_zone': 'blocked',
+            'execution_mode': 'auto',
+            'target_files': ['.env'],
+        }
+    )
     blocked = route_worker(root, task_profile=blocked_profile, requested_worker='mock', execution_mode='auto')
     assert blocked['execution_allowed'] is False
     blocked_trace = load(root / '.zoo-agent' / 'workers' / 'fallback_trace.json')

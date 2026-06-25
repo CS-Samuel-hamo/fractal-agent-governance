@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 READY = 'READY_FOR_099_PUBLIC_ALPHA_FREEZE'
 FIX = 'FIX_BEFORE_099'
@@ -31,8 +30,22 @@ def compute_readiness(project: Path) -> dict[str, Any]:
     closure = round(pass_count / max(len(runs), 1), 2)
     cockpit_runs = [item for item in runs if item.get('scenario') == 'cockpit_release_view']
     cockpit_score = 1.0 if cockpit_runs and cockpit_runs[0].get('outcome') == 'pass' else 0.0
-    safety_score = 1.0 if all(not item.get('network_called') and not item.get('push_detected') and not item.get('merge_detected') for item in runs) and artifact_quality.get('safety_score') == 1.0 else 0.0
-    privacy_score = 1.0 if all(not item.get('secret_leak_detected') for item in runs) and artifact_quality.get('privacy_score') == 1.0 and not pr_quality.get('secret_leak_detected') else 0.0
+    safety_score = (
+        1.0
+        if all(
+            not item.get('network_called') and not item.get('push_detected') and not item.get('merge_detected')
+            for item in runs
+        )
+        and artifact_quality.get('safety_score') == 1.0
+        else 0.0
+    )
+    privacy_score = (
+        1.0
+        if all(not item.get('secret_leak_detected') for item in runs)
+        and artifact_quality.get('privacy_score') == 1.0
+        and not pr_quality.get('secret_leak_detected')
+        else 0.0
+    )
     must_fix = []
     if artifact_quality.get('recommendation') != 'pass':
         must_fix.extend(artifact_quality.get('failed_checks') or ['release artifact quality'])
@@ -48,7 +61,12 @@ def compute_readiness(project: Path) -> dict[str, Any]:
         must_fix.append('privacy score below threshold')
 
     readiness = READY
-    if artifact_quality.get('unsafe_behavior_detected') or artifact_quality.get('secret_leak_detected') or pr_quality.get('fabrication_detected') or pr_quality.get('secret_leak_detected'):
+    if (
+        artifact_quality.get('unsafe_behavior_detected')
+        or artifact_quality.get('secret_leak_detected')
+        or pr_quality.get('fabrication_detected')
+        or pr_quality.get('secret_leak_detected')
+    ):
         readiness = NOT_READY
     elif must_fix:
         readiness = FIX
@@ -73,7 +91,7 @@ def generate_report(project: Path) -> dict[str, Any]:
     trace = load_json(dogfood_dir(project) / 'release_workflow_dogfood_trace.json')
     runs = [item for item in trace.get('runs') or [] if isinstance(item, dict)]
     must_fix_rows = (
-        [f"- {item}" for item in readiness.get('must_fix_before_099') or []]
+        [f'- {item}' for item in readiness.get('must_fix_before_099') or []]
         if readiness.get('must_fix_before_099')
         else ['- No must-fix item from controlled dogfood.']
     )
@@ -81,7 +99,7 @@ def generate_report(project: Path) -> dict[str, Any]:
         '# Release Product Closure Report',
         '',
         '## First impression',
-        f"- Final recommendation: {readiness.get('readiness')}",
+        f'- Final recommendation: {readiness.get("readiness")}',
         '- The workflow behaves like an AI Project Operator closing the path from project state to local PR/release handoff.',
         '',
         '## Does release/pr workflow feel like AI Project Operator?',
@@ -97,26 +115,30 @@ def generate_report(project: Path) -> dict[str, Any]:
         '- Yes: Cockpit displays Git status, GitHub readiness, release score, blockers, draft paths, and suggested next command.',
         '',
         '## Does workflow remain local-first and safe?',
-        f"- Safety score: {readiness.get('safety_score')}",
-        f"- Privacy score: {readiness.get('privacy_score')}",
+        f'- Safety score: {readiness.get("safety_score")}',
+        f'- Privacy score: {readiness.get("privacy_score")}',
         '',
         '## Does workflow avoid overclaiming?',
         '- Yes when quality gates pass: missing evidence remains draft/not-run/not-included rather than being promoted to release claims.',
         '',
         '## Scenario outcomes',
-        *(f"- {item.get('scenario')}: {item.get('outcome')}" for item in runs),
+        *(f'- {item.get("scenario")}: {item.get("outcome")}' for item in runs),
         '',
         '## What remains weak before 0.99?',
         *must_fix_rows,
         '',
         '## Should we proceed to 0.99 Public Alpha Packaging & Positioning Freeze?',
-        f"- {readiness.get('readiness')}",
+        f'- {readiness.get("readiness")}',
         '',
     ]
     dogfood_dir(project).mkdir(parents=True, exist_ok=True)
     (dogfood_dir(project) / 'release_product_report.md').write_text('\n'.join(lines), encoding='utf-8')
     write_json(dogfood_dir(project) / 'readiness_for_099.json', readiness)
-    return {'status': readiness.get('readiness'), 'report': '.zoo-agent/release_dogfood/release_product_report.md', 'readiness': readiness}
+    return {
+        'status': readiness.get('readiness'),
+        'report': '.zoo-agent/release_dogfood/release_product_report.md',
+        'readiness': readiness,
+    }
 
 
 def main() -> int:

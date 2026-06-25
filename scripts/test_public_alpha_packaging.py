@@ -9,16 +9,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from demo_fixture_packager import ensure_demo_fixture  # noqa: E402
-from public_alpha_audit import run_audit  # noqa: E402
-from public_alpha_packager import CORE_SCRIPTS, CORE_TESTS, PUBLIC_DOCS, build_manifest, write_manifest  # noqa: E402
-from public_alpha_report_generator import generate_report  # noqa: E402
+from demo_fixture_packager import ensure_demo_fixture
+from public_alpha_audit import run_audit
+from public_alpha_packager import CORE_SCRIPTS, CORE_TESTS, PUBLIC_DOCS, write_manifest
+from public_alpha_report_generator import generate_report
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 

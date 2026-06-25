@@ -6,10 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from runtime_common import load_json, project_root, utc_now, write_json
 from project_logic_rules_check import build_project_logic_rules_check, render_logic_rules_check
+from runtime_common import project_root, utc_now, write_json
 from seed_action_queue import progress_summary as seed_progress_summary
-
 
 PHASE1_FILES = {
     'docs/usage_guide.md',
@@ -74,7 +73,13 @@ def _project_label(project: Path) -> str:
 
 
 def _blocked_state(stop_reason: str) -> str:
-    if stop_reason in {'needs_attention', 'safety_boundary', 'unclear_target', 'unsafe_or_unsupported_target', 'active_job_requires_review'}:
+    if stop_reason in {
+        'needs_attention',
+        'safety_boundary',
+        'unclear_target',
+        'unsafe_or_unsupported_target',
+        'active_job_requires_review',
+    }:
         return 'yes'
     return 'no'
 
@@ -85,7 +90,9 @@ def _display_stop_reason(stop_reason: str) -> str:
 
 def normalize_result_status(status: str) -> str:
     key = str(status or '').strip().lower()
-    return RESULT_LABELS.get(key, status if status in {'Done', 'Working', 'Needs attention', 'Not applied'} else 'Working')
+    return RESULT_LABELS.get(
+        key, status if status in {'Done', 'Working', 'Needs attention', 'Not applied'} else 'Working'
+    )
 
 
 def _phase_progress_line(overview: dict[str, Any]) -> str:
@@ -101,7 +108,11 @@ def _phase_completion_note(overview: dict[str, Any]) -> str:
     if 'ready for trial use' in current:
         return 'This project is usable now for trial use.'
     lowered = current.lower()
-    if lowered.startswith('phase 0 complete') or lowered.startswith('phase 1 complete') or lowered.startswith('phase 1 hardened'):
+    if (
+        lowered.startswith('phase 0 complete')
+        or lowered.startswith('phase 1 complete')
+        or lowered.startswith('phase 1 hardened')
+    ):
         return 'This phase is complete. The whole project may still have later phases.'
     return ''
 
@@ -133,12 +144,18 @@ def _next_items(
                 'command': next_action or 'agent',
                 'why': attention or 'the request needs review before more files are changed',
             },
-            {'command': 'agent do "explain what changed"', 'why': 'understand the current state without changing the project goal'},
+            {
+                'command': 'agent do "explain what changed"',
+                'why': 'understand the current state without changing the project goal',
+            },
             {'command': 'agent undo', 'why': 'return to the latest recoverable state if the direction is wrong'},
         ]
     if one_off:
         return [
-            {'command': next_action or 'agent', 'why': 'return to the main project overview after the independent task'},
+            {
+                'command': next_action or 'agent',
+                'why': 'return to the main project overview after the independent task',
+            },
             {'command': 'git diff', 'why': 'verify exactly what changed on disk'},
             {'command': 'agent cockpit', 'why': 'open the visual project overview'},
         ]
@@ -157,7 +174,10 @@ def _next_items(
     if command == 'agent continue':
         command = 'agent "<next project goal>"'
     return [
-        {'command': command, 'why': str(overview.get('suggested_next') or 'choose the next project goal in natural language')},
+        {
+            'command': command,
+            'why': str(overview.get('suggested_next') or 'choose the next project goal in natural language'),
+        },
         {'command': 'git diff', 'why': 'verify exactly what changed on disk'},
         {'command': 'agent cockpit', 'why': 'open the visual project overview'},
     ]
@@ -177,7 +197,11 @@ def render_interaction_summary(
     one_off: bool = False,
 ) -> list[str]:
     changed = [str(item) for item in (changed_files or []) if str(item).strip()]
-    overview = build_overview(project, last_changed=changed, stop_reason=stop_reason or ('needs_attention' if status == 'Needs attention' else 'reviewable_batch_complete'))
+    overview = build_overview(
+        project,
+        last_changed=changed,
+        stop_reason=stop_reason or ('needs_attention' if status == 'Needs attention' else 'reviewable_batch_complete'),
+    )
     result = normalize_result_status(status)
     completion_note = _phase_completion_note(overview)
     next_items = _next_items(overview, status=result, next_action=next_action, attention=attention, one_off=one_off)
@@ -278,7 +302,9 @@ def build_overview(project: Path, *, last_changed: list[str] | None = None, stop
                 'git diff',
             ]
     else:
-        current_position = f'Phase 1 in progress: reusable toolkit files are {len(phase1_done_files)}/{len(PHASE1_FILES)} complete.'
+        current_position = (
+            f'Phase 1 in progress: reusable toolkit files are {len(phase1_done_files)}/{len(PHASE1_FILES)} complete.'
+        )
         suggested_next = 'Finish the remaining toolkit files.'
         choices = ['agent "<describe the missing toolkit docs>"', 'agent cockpit', 'git diff']
     overview = {
@@ -342,7 +368,9 @@ def render_overview(project: Path, *, last_changed: list[str] | None = None, sto
     ]
     for phase in overview.get('phases') or []:
         if isinstance(phase, dict):
-            lines.append(f'- {phase.get("phase")}: {phase.get("title")} [{phase.get("status")}, {phase.get("progress")}]')
+            lines.append(
+                f'- {phase.get("phase")}: {phase.get("title")} [{phase.get("status")}, {phase.get("progress")}]'
+            )
     choices = [str(item) for item in overview.get('choices') or [] if str(item).strip()]
     if choices:
         lines.extend(['', 'Choices:'])
@@ -351,7 +379,9 @@ def render_overview(project: Path, *, last_changed: list[str] | None = None, sto
     return lines
 
 
-def render_landing_proof(project: Path, *, changed_files: list[str] | None = None, preview_path: str = '', status: str = '') -> list[str]:
+def render_landing_proof(
+    project: Path, *, changed_files: list[str] | None = None, preview_path: str = '', status: str = ''
+) -> list[str]:
     changed = [str(item) for item in (changed_files or []) if str(item).strip()]
     lines = ['Landing proof:']
     if changed:

@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 LEGACY_COMMANDS = ['plan-big', 'decompose', 'aggregate', 'goal-loop', 'global-loop', 'integration-check']
 
@@ -49,12 +48,18 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
         or 'external-user-release-simulation-alpha' in agent_py
     )
     pipeline_command = "'pipeline'" in agent_py and 'pipeline_parser' in agent_py
-    run_defaults_pipeline = 'def run(args)' in agent_py and 'return pipeline(' in agent_py and 'legacy_runtime' in agent_py
-    route_defaults_pipeline = 'def delegate_to_pipeline' in route_task_py and 'if not args.legacy_runtime:' in route_task_py
+    run_defaults_pipeline = (
+        'def run(args)' in agent_py and 'return pipeline(' in agent_py and 'legacy_runtime' in agent_py
+    )
+    route_defaults_pipeline = (
+        'def delegate_to_pipeline' in route_task_py and 'if not args.legacy_runtime:' in route_task_py
+    )
     legacy_flag_present = '--legacy-runtime' in agent_py and '--legacy-runtime' in route_task_py
 
     if not version_pipeline:
-        conflicts.append({'type': 'version', 'message': 'agent version does not advertise pipeline/runtime engine authority'})
+        conflicts.append(
+            {'type': 'version', 'message': 'agent version does not advertise pipeline/runtime engine authority'}
+        )
     if not pipeline_command:
         conflicts.append({'type': 'entrypoint', 'message': 'agent pipeline command is missing'})
         blocking_paths.append('agent pipeline')
@@ -67,7 +72,7 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
     if not legacy_flag_present:
         conflicts.append({'type': 'compatibility', 'message': 'legacy runtime flag is missing'})
 
-    help_code, help_text = command_output([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'])
+    help_code, _help_text = command_output([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'])
     if help_code != 0:
         conflicts.append({'type': 'cli', 'message': 'agent --help failed'})
     legacy_help_conflicts = []
@@ -76,7 +81,7 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
             legacy_help_conflicts.append(command)
             continue
         parser_index = agent_py.find(f"sub.add_parser('{command}'")
-        window = agent_py[parser_index: parser_index + 260].lower()
+        window = agent_py[parser_index : parser_index + 260].lower()
         if 'compatibility/debug' not in window and 'argparse.suppress' not in window:
             legacy_help_conflicts.append(command)
     if legacy_help_conflicts:
@@ -118,7 +123,9 @@ def build_report(workspace: Path | None = None) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Validate that the three-stage pipeline owns production execution authority.')
+    parser = argparse.ArgumentParser(
+        description='Validate that the three-stage pipeline owns production execution authority.'
+    )
     parser.add_argument('--workspace', default='')
     parser.add_argument('--json-output', default='')
     args = parser.parse_args()

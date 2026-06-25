@@ -10,12 +10,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_conflict_detector import apply_conflict_resolutions, detect_conflicts, write_conflict_report  # noqa: E402
-from goal_priority_engine import dependency_blocked, rank_goals  # noqa: E402
-from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state, sync_goals  # noqa: E402
-from filter_system_goals import filter_goals  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from filter_system_goals import filter_goals
+from goal_conflict_detector import apply_conflict_resolutions, detect_conflicts, write_conflict_report
+from goal_priority_engine import dependency_blocked, rank_goals
+from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state, sync_goals
+from runtime_common import project_root, utc_now, write_json
 
 BACKEND_UNHEALTHY = {'unhealthy', 'UNHEALTHY'}
 
@@ -76,7 +75,9 @@ def loop_patch(field: str, value: Any, reason: str) -> dict[str, Any]:
     return {'goal_id': '', 'op': 'set_loop_status', 'field': field, 'to': value, 'reason': reason}
 
 
-def write_and_apply_patch(project: Path, *, source: str, reason: str, changes: list[dict[str, Any]], filename: str) -> dict[str, Any]:
+def write_and_apply_patch(
+    project: Path, *, source: str, reason: str, changes: list[dict[str, Any]], filename: str
+) -> dict[str, Any]:
     if not changes:
         return {}
     patch = build_state_patch(project, source=source, reason=reason, changes=changes)
@@ -104,7 +105,11 @@ def schedule_goals(
         changes=[
             loop_patch('max_continuous_goal_iterations', max_continuous_iterations, 'scheduler_loop_metadata_update'),
             loop_patch('single_goal_mode', bool(single_goal_mode), 'scheduler_loop_metadata_update'),
-            loop_patch('backend_health', backend_health or loop.get('backend_health') or 'unknown', 'scheduler_loop_metadata_update'),
+            loop_patch(
+                'backend_health',
+                backend_health or loop.get('backend_health') or 'unknown',
+                'scheduler_loop_metadata_update',
+            ),
         ],
     )
     state = load_goal_state(project)
@@ -132,7 +137,7 @@ def schedule_goals(
                     'from': 'active',
                     'to': 'paused',
                     'requires_explicit_reason': True,
-                    'reason': f"excluded_from_production_scheduler:{excluded.get('goal_type')}",
+                    'reason': f'excluded_from_production_scheduler:{excluded.get("goal_type")}',
                 }
             )
     if actual_execution_frozen:
@@ -191,7 +196,11 @@ def schedule_goals(
             ]
         )
 
-    production_goals = [item for item in state.get('goals') or [] if item.get('goal_id') in {row.get('goal_id') for row in goal_filter.get('eligible_goals') or []}]
+    production_goals = [
+        item
+        for item in state.get('goals') or []
+        if item.get('goal_id') in {row.get('goal_id') for row in goal_filter.get('eligible_goals') or []}
+    ]
     groups = status_groups(production_goals)
     if production_goals and len(groups['completed_goals']) == len(production_goals):
         schedule_changes.extend(
@@ -214,8 +223,14 @@ def schedule_goals(
     state = load_goal_state(project)
     final_filter = filter_goals(state)
     final_queue_ids = eligible_goal_ids(state)
-    final_eligible_goals = [row for row in final_filter.get('eligible_goals') or [] if row.get('goal_id') in final_queue_ids]
-    final_production_goals = [item for item in state.get('goals') or [] if item.get('goal_id') in {row.get('goal_id') for row in final_filter.get('eligible_goals') or []}]
+    final_eligible_goals = [
+        row for row in final_filter.get('eligible_goals') or [] if row.get('goal_id') in final_queue_ids
+    ]
+    final_production_goals = [
+        item
+        for item in state.get('goals') or []
+        if item.get('goal_id') in {row.get('goal_id') for row in final_filter.get('eligible_goals') or []}
+    ]
     groups = status_groups(final_production_goals)
 
     report = {
@@ -250,11 +265,17 @@ def schedule_goals(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Schedule multi-goal runtime state with priority, fairness, and conflicts.')
+    parser = argparse.ArgumentParser(
+        description='Schedule multi-goal runtime state with priority, fairness, and conflicts.'
+    )
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--max-continuous-iterations', type=int, default=3)
     parser.add_argument('--backend-health', default='')
-    parser.add_argument('--multi-goal-mode', action='store_true', help='Allow scheduler to consider the full goal set while still activating one goal.')
+    parser.add_argument(
+        '--multi-goal-mode',
+        action='store_true',
+        help='Allow scheduler to consider the full goal set while still activating one goal.',
+    )
     parser.add_argument('--no-apply-conflicts', action='store_true')
     parser.add_argument('--json-output', default='')
     args = parser.parse_args()

@@ -11,8 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from bounded_docs_writer import apply_docs_patch, is_safe_docs_target  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from bounded_docs_writer import apply_docs_patch, is_safe_docs_target
+from runtime_common import project_root, utc_now, write_json
 
 
 def enabled() -> bool:
@@ -35,7 +35,9 @@ def health(project: Path | None = None) -> dict[str, Any]:
         'health': 'healthy' if enabled() and configured() else 'unavailable',
         'supports_actual_execution': bool(enabled() and configured()),
         'supports_preview': True,
-        'reason': '' if enabled() and configured() else ('OPENAI_API_KEY not set' if enabled() else 'remote AI worker disabled'),
+        'reason': ''
+        if enabled() and configured()
+        else ('OPENAI_API_KEY not set' if enabled() else 'remote AI worker disabled'),
         'key_source': 'environment' if configured() else '',
         'key_value_stored': False,
         'model': os.environ.get('AGENT_OPENAI_MODEL', 'gpt-5.1'),
@@ -91,7 +93,11 @@ def call_openai_responses(prompt: str) -> dict[str, Any]:
         parsed = json.loads(text)
     except Exception:
         parsed = {}
-    return {'status': 'success' if parsed.get('append_markdown') else 'failed', 'patch': parsed, 'reason': '' if parsed else 'invalid_model_json'}
+    return {
+        'status': 'success' if parsed.get('append_markdown') else 'failed',
+        'patch': parsed,
+        'reason': '' if parsed else 'invalid_model_json',
+    }
 
 
 def execute_docs_patch(project: Path, *, objective: str, target_files: list[str]) -> dict[str, Any]:
@@ -144,7 +150,11 @@ def main() -> int:
     parser.add_argument('--target-file', action='append', default=[])
     args = parser.parse_args()
     project = project_root(args.workspace)
-    payload = health(project) if args.health else execute_docs_patch(project, objective=args.objective, target_files=args.target_file)
+    payload = (
+        health(project)
+        if args.health
+        else execute_docs_patch(project, objective=args.objective, target_files=args.target_file)
+    )
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if payload.get('status') in {'success', 'skipped'} or payload.get('available') is not False else 1
 

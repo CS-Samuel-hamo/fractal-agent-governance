@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 FEEDBACK_DIR = Path('.zoo-agent') / 'feedback'
 ITEMS_FILE = FEEDBACK_DIR / 'feedback_items.jsonl'
@@ -21,13 +20,28 @@ ALLOWED = {
     'source': {'github_issue', 'manual', 'discord', 'email', 'self_dogfood', 'unknown'},
     'user_type': {'solo_dev', 'indie_hacker', 'oss_maintainer', 'small_team_lead', 'vibe_coding_user', 'unknown'},
     'project_type': {'python_cli', 'node_app', 'library', 'docs_site', 'agent_runtime', 'unknown'},
-    'flow': {'install', 'first_run', 'project_map', 'session', 'cockpit', 'release', 'pr', 'worker', 'learning', 'docs', 'positioning'},
+    'flow': {
+        'install',
+        'first_run',
+        'project_map',
+        'session',
+        'cockpit',
+        'release',
+        'pr',
+        'worker',
+        'learning',
+        'docs',
+        'positioning',
+    },
     'severity': {'low', 'medium', 'high', 'critical'},
     'product_signal': {'bug', 'friction', 'confusion', 'positioning', 'missing_capability', 'delight', 'unknown'},
     'status': {'new', 'triaged', 'planned', 'closed', 'wont_fix'},
 }
 
-SECRET_RE = re.compile(r'(gho_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|password\s*=|token\s*=)', re.I)
+SECRET_RE = re.compile(
+    r'(gho_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|password\s*=|token\s*=)',
+    re.I,
+)
 ABS_PATH_RE = re.compile(r'([A-Za-z]:\\[^\s]+|/Users/[^\s]+|/home/[^\s]+)')
 
 

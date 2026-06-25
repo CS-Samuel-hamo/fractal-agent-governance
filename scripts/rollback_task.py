@@ -11,7 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, safe_name, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, safe_name, utc_now, write_json
 
 
 def git_root(workspace: Path) -> Path:
@@ -21,8 +21,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -36,8 +35,7 @@ def run_command(command: list[str], cwd: Path) -> dict[str, Any]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {
         'command': [str(item) for item in command],
@@ -204,7 +202,12 @@ def rollback(args) -> tuple[int, dict[str, Any]]:
         if not isolated:
             blockers.append({'id': 'target_not_isolated_worktree', 'path': str(path), 'reasons': isolation_reasons})
         target_branch = git_branch(path) if path.exists() else ''
-        if path.exists() and target_branch and target_branch in {current_branch, 'main', 'master'} and not args.confirm_current_branch:
+        if (
+            path.exists()
+            and target_branch
+            and target_branch in {current_branch, 'main', 'master'}
+            and not args.confirm_current_branch
+        ):
             blockers.append(
                 {
                     'id': 'protected_branch_requires_second_confirmation',
@@ -227,7 +230,9 @@ def rollback(args) -> tuple[int, dict[str, Any]]:
             result = run_command(['git', 'worktree', 'remove', '--force', str(path)], repo_root)
             action['git_worktree_remove'] = result
             if result.get('returncode') != 0:
-                blockers.append({'id': 'git_worktree_remove_failed', 'path': str(path), 'stderr': result.get('stderr', '')})
+                blockers.append(
+                    {'id': 'git_worktree_remove_failed', 'path': str(path), 'stderr': result.get('stderr', '')}
+                )
         actions.append(action)
 
     lock_release = release_locks(repo_root, args.run_id, args.task_id, dry_run=args.dry_run or bool(blockers))
@@ -246,7 +251,11 @@ def rollback(args) -> tuple[int, dict[str, Any]]:
             'destructive_git_commands_allowed': [],
             'git_reset_hard_allowed': False,
             'delete_business_source_allowed': False,
-            'actual_remove_requires': ['--yes', 'isolated_worktree', 'not_current_or_main_branch_or_second_confirmation'],
+            'actual_remove_requires': [
+                '--yes',
+                'isolated_worktree',
+                'not_current_or_main_branch_or_second_confirmation',
+            ],
         },
         'managed_worktree_root': str(managed_root),
         'targets': [str(path) for path in targets],
@@ -264,7 +273,9 @@ def rollback(args) -> tuple[int, dict[str, Any]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Rollback a task by discarding managed worktrees and releasing task locks.')
+    parser = argparse.ArgumentParser(
+        description='Rollback a task by discarding managed worktrees and releasing task locks.'
+    )
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--task-id', required=True)

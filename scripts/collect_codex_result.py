@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, json, subprocess, datetime, shutil, sys, hashlib
+
+import argparse
+import datetime
+import hashlib
+import json
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -12,8 +19,7 @@ def run(cmd, cwd):
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         if proc.returncode != 0 and proc.stderr:
             return proc.stdout + proc.stderr
@@ -155,14 +161,23 @@ def environment_fingerprint(workspace: Path) -> dict:
         },
         'native_dependencies': {},
     }
-    if frontend.exists() and (frontend / 'package.json').exists() and node_available and package_declares_or_installs(frontend, 'better-sqlite3'):
+    if (
+        frontend.exists()
+        and (frontend / 'package.json').exists()
+        and node_available
+        and package_declares_or_installs(frontend, 'better-sqlite3')
+    ):
         payload['native_dependencies']['better-sqlite3'] = {
             'package_version_probe': probe(
                 ['node', '-p', "require('./node_modules/better-sqlite3/package.json').version"],
                 frontend,
             ),
             'load_probe': probe(
-                ['node', '-e', "try { const Database = require('better-sqlite3'); const db = new Database(':memory:'); db.close(); console.log('load_ok') } catch (error) { console.error(error && error.message ? error.message : error); process.exit(1) }"],
+                [
+                    'node',
+                    '-e',
+                    "try { const Database = require('better-sqlite3'); const db = new Database(':memory:'); db.close(); console.log('load_ok') } catch (error) { console.error(error && error.message ? error.message : error); process.exit(1) }",
+                ],
                 frontend,
             ),
         }
@@ -182,12 +197,16 @@ def main():
     out_dir = workspace / '.zoo-agent' / 'runs' / args.run_id / 'codex-results' / short_name(args.task_id, 28)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    status = run(['git','status','--short'], workspace)
-    diff_names = run(['git','diff','--name-only'], workspace)
-    diff_stat = run(['git','diff','--stat'], workspace)
-    final_msg = (task_dir / 'codex-final-message.md').read_text(encoding='utf-8') if (task_dir/'codex-final-message.md').exists() else ''
-    progress = (task_dir / 'PROGRESS.md').read_text(encoding='utf-8') if (task_dir/'PROGRESS.md').exists() else ''
-    blockers = (task_dir / 'BLOCKERS.md').read_text(encoding='utf-8') if (task_dir/'BLOCKERS.md').exists() else ''
+    status = run(['git', 'status', '--short'], workspace)
+    diff_names = run(['git', 'diff', '--name-only'], workspace)
+    diff_stat = run(['git', 'diff', '--stat'], workspace)
+    final_msg = (
+        (task_dir / 'codex-final-message.md').read_text(encoding='utf-8')
+        if (task_dir / 'codex-final-message.md').exists()
+        else ''
+    )
+    progress = (task_dir / 'PROGRESS.md').read_text(encoding='utf-8') if (task_dir / 'PROGRESS.md').exists() else ''
+    blockers = (task_dir / 'BLOCKERS.md').read_text(encoding='utf-8') if (task_dir / 'BLOCKERS.md').exists() else ''
     task_evidence_dir = workspace / '.zoo-agent' / 'runs' / args.run_id / 'tasks' / args.task_id
     task_baseline_path = task_evidence_dir / 'task-baseline.json'
     task_delta_path = task_evidence_dir / 'task-delta.json'
@@ -216,7 +235,7 @@ def main():
                 '--tasks',
                 str(tasks),
                 '--json-output',
-                str(out_dir/'scope-guard.json'),
+                str(out_dir / 'scope-guard.json'),
                 '--ignore-file',
                 ignore_result,
                 '--ignore-file',
@@ -226,8 +245,7 @@ def main():
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         output = proc.stdout if proc.returncode == 0 else proc.stdout + proc.stderr
         scope = {'status': 'pass' if proc.returncode == 0 else 'fail', 'returncode': proc.returncode, 'output': output}
@@ -268,7 +286,7 @@ def main():
 {scope.get('status')}
 
 ```
-{scope.get('output','')}
+{scope.get('output', '')}
 ```
 
 ## Environment Fingerprint
@@ -309,6 +327,7 @@ def main():
 """
     (out_dir / 'result.md').write_text(md, encoding='utf-8')
     print(out_dir)
+
 
 if __name__ == '__main__':
     main()

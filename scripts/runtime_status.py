@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, safe_name, utc_now, write_json
 
 
 def latest_run_id(project: Path) -> str:
@@ -80,9 +80,16 @@ def runtime_status(project: Path, run_id: str = '') -> dict[str, Any]:
     elif quality_gate.get('gate_status') == 'needs_review':
         warnings.append({'id': 'quality_gate_needs_review', 'message': 'quality-gate.json needs review.'})
     if int(risk_register.get('open_risk_count') or 0):
-        blockers.append({'id': 'open_run_risks', 'message': 'Open run risks remain.', 'count': risk_register.get('open_risk_count')})
+        blockers.append(
+            {'id': 'open_run_risks', 'message': 'Open run risks remain.', 'count': risk_register.get('open_risk_count')}
+        )
     if merge_queue.get('queue_status') == 'record_only_parallel_candidates_not_processable':
-        warnings.append({'id': 'record_only_merge_queue', 'message': 'Parallel merge queue is record-only and not merge authorization.'})
+        warnings.append(
+            {
+                'id': 'record_only_merge_queue',
+                'message': 'Parallel merge queue is record-only and not merge authorization.',
+            }
+        )
     if task_board.get('status') == 'warnings':
         warnings.append({'id': 'task_board_warnings', 'message': 'Task-board consistency warnings remain.'})
 
@@ -114,8 +121,12 @@ def runtime_status(project: Path, run_id: str = '') -> dict[str, Any]:
             'quality_gate': quality_gate,
             'merge_queue': {
                 'queue_status': merge_queue.get('queue_status', 'missing') if merge_queue else 'missing',
-                'candidate_count': len(merge_queue.get('candidates') or []) if isinstance(merge_queue.get('candidates'), list) else 0,
-                'readiness_flags': merge_queue.get('readiness_flags', {}) if isinstance(merge_queue.get('readiness_flags'), dict) else {},
+                'candidate_count': len(merge_queue.get('candidates') or [])
+                if isinstance(merge_queue.get('candidates'), list)
+                else 0,
+                'readiness_flags': merge_queue.get('readiness_flags', {})
+                if isinstance(merge_queue.get('readiness_flags'), dict)
+                else {},
             },
         },
         'blockers': blockers,

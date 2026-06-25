@@ -11,7 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, utc_now, write_json
 
 
 def run_command(command: list[str], cwd: Path) -> dict[str, Any]:
@@ -21,8 +21,7 @@ def run_command(command: list[str], cwd: Path) -> dict[str, Any]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {
         'command': [str(item) for item in command],
@@ -68,7 +67,9 @@ def merge_queue_findings(run_dir: Path) -> tuple[list[dict[str, Any]], list[dict
         )
     flags = queue.get('readiness_flags') if isinstance(queue.get('readiness_flags'), dict) else {}
     if flags.get('approved_for_deploy') or flags.get('approved_for_release'):
-        warnings.append({'id': 'unexpected_deploy_release_flag', 'message': 'Review evidence should not approve deploy or release.'})
+        warnings.append(
+            {'id': 'unexpected_deploy_release_flag', 'message': 'Review evidence should not approve deploy or release.'}
+        )
     return blockers, warnings
 
 
@@ -84,7 +85,9 @@ def cli_runtime_reports(run_dir: Path) -> list[dict[str, Any]]:
 
 def fast_only_run(run_dir: Path) -> bool:
     reports = cli_runtime_reports(run_dir)
-    return bool(reports) and all(str(item.get('route') or item.get('selected_path') or '') == 'fast' for item in reports)
+    return bool(reports) and all(
+        str(item.get('route') or item.get('selected_path') or '') == 'fast' for item in reports
+    )
 
 
 def fast_review_verdict(quality_payload: dict[str, Any]) -> str:
@@ -194,7 +197,11 @@ def main() -> int:
         blockers.append({'id': 'task_board_consistency_warnings', 'message': 'Task-board consistency warnings remain.'})
 
     status = 'blocked' if blockers else ('pass' if is_fast_run else ('needs_review' if warnings else 'pass'))
-    verdict = fast_review_verdict(quality_payload) if is_fast_run else ('GOVERNED_REVIEW_REQUIRED' if status != 'pass' else 'GOVERNED_REVIEW_PASS')
+    verdict = (
+        fast_review_verdict(quality_payload)
+        if is_fast_run
+        else ('GOVERNED_REVIEW_REQUIRED' if status != 'pass' else 'GOVERNED_REVIEW_PASS')
+    )
     report = {
         'schema_version': '1.0',
         'generated_by': 'runtime_review.py',

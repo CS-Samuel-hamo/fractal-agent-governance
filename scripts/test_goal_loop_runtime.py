@@ -12,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
-def run(cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         cmd,
         cwd=cwd,
@@ -69,7 +71,7 @@ def test_goal_cli(repo: Path, env: dict[str, str]) -> str:
     assert current['goal'] == 'Ship bounded README fixes'
     assert current['active'] is True
     assert current['risk_tolerance'] == 'low'
-    assert (repo / '.zoo-agent' / 'goals' / f"{current['goal_id']}.json").exists()
+    assert (repo / '.zoo-agent' / 'goals' / f'{current["goal_id"]}.json').exists()
     show = run([sys.executable, str(AGENT), 'goal', 'show', '--workspace', str(repo)], repo, env=env)
     assert 'Ship bounded README fixes' in show.stdout
     return current['goal_id']
@@ -90,34 +92,128 @@ def test_loop_cli(repo: Path, env: dict[str, str]) -> None:
 def test_loop_loss_controls(repo: Path, env: dict[str, str], goal_id: str) -> None:
     update = ROOT / 'scripts' / 'update_loop_state.py'
     run([sys.executable, str(AGENT), 'loop', 'reset', '--workspace', str(repo), '--max-iterations', '5'], repo, env=env)
-    run([sys.executable, str(update), '--workspace', str(repo), '--run-id', 'run-delivered', '--goal-id', goal_id, '--route', 'fast', '--delivery-outcome', 'delivered'], ROOT, check=False, env=env)
+    run(
+        [
+            sys.executable,
+            str(update),
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-delivered',
+            '--goal-id',
+            goal_id,
+            '--route',
+            'fast',
+            '--delivery-outcome',
+            'delivered',
+        ],
+        ROOT,
+        check=False,
+        env=env,
+    )
     state = load(repo / '.zoo-agent' / 'loop' / 'loop-state.json')
     assert state['status'] == 'converged'
 
     run([sys.executable, str(AGENT), 'loop', 'reset', '--workspace', str(repo), '--max-iterations', '5'], repo, env=env)
     for idx in [1, 2]:
-        run([sys.executable, str(update), '--workspace', str(repo), '--run-id', f'run-no-delivery-{idx}', '--goal-id', goal_id, '--route', 'fast', '--delivery-outcome', 'no_delivery'], ROOT, check=False, env=env)
+        run(
+            [
+                sys.executable,
+                str(update),
+                '--workspace',
+                str(repo),
+                '--run-id',
+                f'run-no-delivery-{idx}',
+                '--goal-id',
+                goal_id,
+                '--route',
+                'fast',
+                '--delivery-outcome',
+                'no_delivery',
+            ],
+            ROOT,
+            check=False,
+            env=env,
+        )
     state = load(repo / '.zoo-agent' / 'loop' / 'loop-state.json')
     assert state['status'] == 'stopped'
     assert state['next_action'] == 'clarify_task_before_actual_run'
 
     run([sys.executable, str(AGENT), 'loop', 'reset', '--workspace', str(repo), '--max-iterations', '5'], repo, env=env)
     for idx in [1, 2]:
-        run([sys.executable, str(update), '--workspace', str(repo), '--run-id', f'run-backend-{idx}', '--goal-id', goal_id, '--route', 'fast', '--delivery-outcome', 'blocked', '--failure-type', 'timeout'], ROOT, check=False, env=env)
+        run(
+            [
+                sys.executable,
+                str(update),
+                '--workspace',
+                str(repo),
+                '--run-id',
+                f'run-backend-{idx}',
+                '--goal-id',
+                goal_id,
+                '--route',
+                'fast',
+                '--delivery-outcome',
+                'blocked',
+                '--failure-type',
+                'timeout',
+            ],
+            ROOT,
+            check=False,
+            env=env,
+        )
     state = load(repo / '.zoo-agent' / 'loop' / 'loop-state.json')
     assert state['status'] == 'stopped'
     assert state['next_action'] == 'switch_to_dry_run_or_manual_task_pack'
 
     run([sys.executable, str(AGENT), 'loop', 'reset', '--workspace', str(repo), '--max-iterations', '5'], repo, env=env)
     for idx in [1, 2]:
-        run([sys.executable, str(update), '--workspace', str(repo), '--run-id', f'run-doc-{idx}', '--goal-id', goal_id, '--route', 'fast', '--delivery-outcome', 'executed', '--doc-only'], ROOT, check=False, env=env)
+        run(
+            [
+                sys.executable,
+                str(update),
+                '--workspace',
+                str(repo),
+                '--run-id',
+                f'run-doc-{idx}',
+                '--goal-id',
+                goal_id,
+                '--route',
+                'fast',
+                '--delivery-outcome',
+                'executed',
+                '--doc-only',
+            ],
+            ROOT,
+            check=False,
+            env=env,
+        )
     state = load(repo / '.zoo-agent' / 'loop' / 'loop-state.json')
     assert state['status'] == 'blocked'
     assert state['next_action'] == 'schedule_implementation_pass'
 
     run([sys.executable, str(AGENT), 'loop', 'reset', '--workspace', str(repo), '--max-iterations', '5'], repo, env=env)
     for idx in [1, 2]:
-        run([sys.executable, str(update), '--workspace', str(repo), '--run-id', f'run-local-{idx}', '--goal-id', goal_id, '--route', 'fast', '--delivery-outcome', 'executed', '--local-optimization'], ROOT, check=False, env=env)
+        run(
+            [
+                sys.executable,
+                str(update),
+                '--workspace',
+                str(repo),
+                '--run-id',
+                f'run-local-{idx}',
+                '--goal-id',
+                goal_id,
+                '--route',
+                'fast',
+                '--delivery-outcome',
+                'executed',
+                '--local-optimization',
+            ],
+            ROOT,
+            check=False,
+            env=env,
+        )
     state = load(repo / '.zoo-agent' / 'loop' / 'loop-state.json')
     assert state['status'] == 'converged'
     assert state['next_action'] == 'record_follow_up'

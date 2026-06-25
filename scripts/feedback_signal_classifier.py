@@ -10,8 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import feedback_dir, load_items, write_schema  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from feedback_intake_schema import feedback_dir, load_items, write_schema
+from runtime_common import project_root, utc_now, write_json
 
 
 def _strength(count: int) -> str:
@@ -25,7 +25,10 @@ def _strength(count: int) -> str:
 def classify(project: Path) -> dict[str, Any]:
     write_schema(project)
     items = load_items(project, create_sample=True)
-    text_by_item = {str(item.get('feedback_id')): f"{item.get('summary', '')} {item.get('raw_feedback_sanitized', '')}".lower() for item in items}
+    text_by_item = {
+        str(item.get('feedback_id')): f'{item.get("summary", "")} {item.get("raw_feedback_sanitized", "")}'.lower()
+        for item in items
+    }
 
     signals: list[dict[str, Any]] = []
 
@@ -40,21 +43,35 @@ def classify(project: Path) -> dict[str, Any]:
             }
         )
 
-    codex_confusion = [fid for fid, text in text_by_item.items() if 'codex' in text and ('wrapper' in text or 'why not' in text or 'directly' in text)]
+    codex_confusion = [
+        fid
+        for fid, text in text_by_item.items()
+        if 'codex' in text and ('wrapper' in text or 'why not' in text or 'directly' in text)
+    ]
     map_useful = [fid for fid, text in text_by_item.items() if 'project map' in text or 'map' in text]
     cockpit = [fid for fid, text in text_by_item.items() if 'cockpit' in text or 'next step' in text]
     release = [fid for fid, text in text_by_item.items() if 'release' in text or 'pr' in text]
-    first_run = [fid for fid, text in text_by_item.items() if 'first' in text or 'install' in text or 'push main' in text or 'release branch' in text]
+    first_run = [
+        fid
+        for fid, text in text_by_item.items()
+        if 'first' in text or 'install' in text or 'push main' in text or 'release branch' in text
+    ]
     safety = [fid for fid, text in text_by_item.items() if 'secret' in text or 'privacy' in text or 'unsafe' in text]
 
     if codex_confusion:
-        add('positioning', codex_confusion, 'Clarify that Codex is a worker and the product is Project Map-backed Autopilot.')
+        add(
+            'positioning',
+            codex_confusion,
+            'Clarify that Codex is a worker and the product is Project Map-backed Autopilot.',
+        )
     if map_useful:
         add('map_quality', map_useful, 'Keep Project Map visible in onboarding and Cockpit.')
     if cockpit:
         add('cockpit_clarity', cockpit, 'Improve Cockpit wording around next action and project state.')
     if release:
-        add('release_workflow_value', release, 'Preserve local release/PR draft workflow and clarify manual publishing.')
+        add(
+            'release_workflow_value', release, 'Preserve local release/PR draft workflow and clarify manual publishing.'
+        )
     if first_run:
         add('activation', first_run, 'Patch first-run and branch-aware publishing guidance.')
     if safety:

@@ -25,8 +25,7 @@ def project_root(workspace: str | Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode == 0 and proc.stdout.strip():
         return Path(proc.stdout.strip()).resolve()
@@ -173,9 +172,33 @@ def ensure_goal(project: Path, *, goal_id: str = '', run_id: str = '', fallback_
 def tokenize(text: str) -> set[str]:
     normalized = ''.join(ch.lower() if ch.isalnum() else ' ' for ch in text)
     stop = {
-        'the', 'and', 'for', 'with', 'from', 'this', 'that', 'into', 'task', 'goal',
-        'project', 'system', 'runtime', 'agent', 'code', 'make', 'update', 'fix',
-        'implement', 'add', 'use', 'to', 'of', 'in', 'on', 'a', 'an',
+        'the',
+        'and',
+        'for',
+        'with',
+        'from',
+        'this',
+        'that',
+        'into',
+        'task',
+        'goal',
+        'project',
+        'system',
+        'runtime',
+        'agent',
+        'code',
+        'make',
+        'update',
+        'fix',
+        'implement',
+        'add',
+        'use',
+        'to',
+        'of',
+        'in',
+        'on',
+        'a',
+        'an',
     }
     return {part for part in normalized.split() if len(part) > 2 and part not in stop}
 

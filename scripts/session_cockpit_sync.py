@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cockpit_renderer import render_cockpit  # noqa: E402
-from runtime_common import project_root  # noqa: E402
+from cockpit_renderer import render_cockpit
+from runtime_common import project_root
 
 
 def sync_cockpit(project: Path) -> dict:

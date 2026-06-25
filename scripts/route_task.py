@@ -13,8 +13,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from execution_policy import DEFAULT_DENIED_FILES  # noqa: E402
-from runtime_common import (  # noqa: E402
+from check_task_specificity import evaluate as evaluate_specificity
+from classify_codex_failure import classify as classify_codex_failure
+from classify_goal_domain import classify_goal
+from execution_policy import DEFAULT_DENIED_FILES
+from runtime_common import (
     advance_loop,
     alignment_report,
     ensure_goal,
@@ -25,12 +28,9 @@ from runtime_common import (  # noqa: E402
     utc_now,
     write_json,
 )
-from check_task_specificity import evaluate as evaluate_specificity  # noqa: E402
-from task_classifier import classify  # noqa: E402
-from update_runtime_metrics import update_metrics  # noqa: E402
-from classify_codex_failure import classify as classify_codex_failure  # noqa: E402
-from update_loop_state import update_state as update_loop_from_outcome  # noqa: E402
-from classify_goal_domain import classify_goal  # noqa: E402
+from task_classifier import classify
+from update_loop_state import update_state as update_loop_from_outcome
+from update_runtime_metrics import update_metrics
 
 FAST_SKIPPED_GOVERNANCE = [
     'product_doc_generation',
@@ -44,8 +44,31 @@ FAST_SKIPPED_GOVERNANCE = [
     'merge_queue',
 ]
 
-LOCAL_OPTIMIZATION_TERMS = ['optimize', 'optimization', 'cleanup', 'polish', 'tune', 'refactor', 'local', '\u4f18\u5316', '\u6574\u7406']
-CODING_INTENT_TERMS = ['implement', 'code', 'build', 'validation', 'bug', 'form', 'api', 'schema', 'database', '\u5b9e\u73b0', '\u4fee\u590d', '\u65b0\u589e']
+LOCAL_OPTIMIZATION_TERMS = [
+    'optimize',
+    'optimization',
+    'cleanup',
+    'polish',
+    'tune',
+    'refactor',
+    'local',
+    '\u4f18\u5316',
+    '\u6574\u7406',
+]
+CODING_INTENT_TERMS = [
+    'implement',
+    'code',
+    'build',
+    'validation',
+    'bug',
+    'form',
+    'api',
+    'schema',
+    'database',
+    '\u5b9e\u73b0',
+    '\u4fee\u590d',
+    '\u65b0\u589e',
+]
 DOC_INTENT_TERMS = ['readme', 'doc', 'docs', 'documentation', 'typo', 'markdown', '\u6587\u6863']
 HEALTHY_BACKEND_STATUSES = {'healthy', 'healthy_with_warnings'}
 
@@ -59,8 +82,7 @@ def run_command(command: list[str], cwd: Path, *, timeout: int = 0) -> dict[str,
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout or None,
         )
         return {
@@ -127,8 +149,7 @@ def delegate_to_pipeline(args: argparse.Namespace) -> int:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.stdout:
         print(proc.stdout, end='')
@@ -191,7 +212,7 @@ def backend_actual_allowed(
         'reason': '',
     }
     if goal_domain.get('goal_type') in {'system_goal', 'runtime_goal'}:
-        gate['reason'] = f"non_production_goal_no_codex_actual:{goal_domain.get('goal_type')}"
+        gate['reason'] = f'non_production_goal_no_codex_actual:{goal_domain.get("goal_type")}'
         payload['execution_gate'] = gate
         return False, payload
     if goal_domain.get('goal_type') == 'diagnostic_goal':
@@ -216,10 +237,18 @@ def backend_actual_allowed(
         return allowed, payload
     if status == 'healthy_with_warnings':
         class_payload = classification or {}
-        low_risk = class_payload.get('path') == 'fast' and class_payload.get('task_scale') != 'big' and not (class_payload.get('signals') or {}).get('hard_risk_hits')
+        low_risk = (
+            class_payload.get('path') == 'fast'
+            and class_payload.get('task_scale') != 'big'
+            and not (class_payload.get('signals') or {}).get('hard_risk_hits')
+        )
         allowed = selected_path == 'fast' and low_risk and bool(recommended.get('allow_fast_actual'))
         gate['allowed'] = allowed
-        gate['reason'] = 'healthy_with_warnings_single_low_risk_fast_allowed' if allowed else 'healthy_with_warnings_blocks_non_fast_or_risky_actual'
+        gate['reason'] = (
+            'healthy_with_warnings_single_low_risk_fast_allowed'
+            if allowed
+            else 'healthy_with_warnings_blocks_non_fast_or_risky_actual'
+        )
         payload['execution_gate'] = gate
         return allowed, payload
     allowed = bool(recommended.get('allow_fast_actual')) and status in HEALTHY_BACKEND_STATUSES
@@ -275,7 +304,10 @@ def is_doc_only_coding_task(text: str, allowed_files: list[str]) -> bool:
     if not has_coding_intent or not allowed_files:
         return False
     normalized = [str(item).replace('\\', '/').lower() for item in allowed_files]
-    return all(item.startswith('docs/') or item.startswith('doc/') or item.endswith('.md') or item in {'docs/**', '*.md'} for item in normalized)
+    return all(
+        item.startswith('docs/') or item.startswith('doc/') or item.endswith('.md') or item in {'docs/**', '*.md'}
+        for item in normalized
+    )
 
 
 def fast_statuses(execution: dict[str, Any]) -> tuple[str, str]:
@@ -458,7 +490,11 @@ def execute_parallel(project: Path, args, leaf_index: str, goal_id: str) -> dict
     if args.ephemeral:
         run_command_args.append('--ephemeral')
     run = run_command(run_command_args, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0)
-    return {'status': 'parallel_executed' if run.get('returncode') == 0 else 'parallel_failed', 'concurrency_check': check, 'execution': run}
+    return {
+        'status': 'parallel_executed' if run.get('returncode') == 0 else 'parallel_failed',
+        'concurrency_check': check,
+        'execution': run,
+    }
 
 
 def write_runtime_marker(project: Path) -> None:
@@ -531,8 +567,17 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     goal_id = str(goal.get('goal_id') or args.goal_id or '')
     loop_state = advance_loop(project, run_id=args.run_id, task_id=args.task_id, max_iteration=args.max_iteration)
     args.allowed_file = [str(item) for item in classification.get('allowed_files') or args.allowed_file]
-    alignment = alignment_report(project, objective=args.input_text, task_id=args.task_id, run_id=args.run_id, goal_id=goal_id, source='route_task.py')
-    write_json(project / '.zoo-agent' / 'runs' / args.run_id / 'goal-alignment' / f'{safe_name(args.task_id)}.json', alignment)
+    alignment = alignment_report(
+        project,
+        objective=args.input_text,
+        task_id=args.task_id,
+        run_id=args.run_id,
+        goal_id=goal_id,
+        source='route_task.py',
+    )
+    write_json(
+        project / '.zoo-agent' / 'runs' / args.run_id / 'goal-alignment' / f'{safe_name(args.task_id)}.json', alignment
+    )
 
     selected_path = classification['path']
     local_optimization_deferred = False
@@ -553,7 +598,12 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     backend_health_check_counted = False
     backend_check_run: dict[str, Any] = {}
     backend_profile_snapshot = backend_profile(project)
-    if selected_path in {'fast', 'parallel'} and not args.dry_run and not args.worker_dry_run and not args.skip_health_check:
+    if (
+        selected_path in {'fast', 'parallel'}
+        and not args.dry_run
+        and not args.worker_dry_run
+        and not args.skip_health_check
+    ):
         allowed_now, current_backend = backend_actual_allowed(
             project,
             require_parallel=selected_path == 'parallel',
@@ -561,7 +611,11 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             goal=goal,
             classification=classification,
         )
-        needs_full_health = not current_backend or current_backend.get('health_status') == 'missing' or current_backend.get('_health_stale')
+        needs_full_health = (
+            not current_backend
+            or current_backend.get('health_status') == 'missing'
+            or current_backend.get('_health_stale')
+        )
         if not allowed_now and needs_full_health:
             backend_check_run = run_full_backend_check(project, args)
             backend_health_check_counted = True
@@ -585,9 +639,7 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         write_json(run_dir / 'task-specificity' / f'{safe_name(args.task_id)}.json', task_specificity)
 
     fast_needs_clarification = (
-        selected_path == 'fast'
-        and task_specificity.get('status') != 'pass'
-        and not args.allow_ambiguous_fast
+        selected_path == 'fast' and task_specificity.get('status') != 'pass' and not args.allow_ambiguous_fast
     )
     if fast_needs_clarification:
         pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
@@ -608,11 +660,15 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             scope_guard_status, tests_status = fast_statuses(execution)
     elif selected_path == 'fast':
         pre_codex_overhead_ms = round((time.monotonic() - wall_started) * 1000, 3)
-        health_ok, health_report = (True, {'health_status': 'skipped_for_worker_dry_run'}) if args.worker_dry_run else backend_actual_allowed(
-            project,
-            selected_path='fast',
-            goal=goal,
-            classification=classification,
+        health_ok, health_report = (
+            (True, {'health_status': 'skipped_for_worker_dry_run'})
+            if args.worker_dry_run
+            else backend_actual_allowed(
+                project,
+                selected_path='fast',
+                goal=goal,
+                classification=classification,
+            )
         )
         if not health_ok:
             failure = classify_codex_failure(text=json.dumps(health_report, ensure_ascii=False), worker_status='failed')
@@ -630,7 +686,9 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             returncode = 21
         else:
             command = dispatcher_base(args, project, goal_id, 'fast')
-            execution = run_command(command, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0)
+            execution = run_command(
+                command, ROOT, timeout=args.timeout_seconds + 120 if args.timeout_seconds > 0 else 0
+            )
             codex_execution_ms = round(float(execution.get('elapsed_seconds') or 0.0) * 1000, 3)
             scope_guard_status, tests_status = fast_statuses(execution)
             returncode = int(execution.get('returncode') or 0)
@@ -642,13 +700,17 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
                 'parallel_denial_reason': classification.get('parallel_denial_reason') or 'not_independent',
             }
             returncode = 20
-        elif not args.dry_run and not args.worker_dry_run and not backend_actual_allowed(
-            project,
-            require_parallel=True,
-            selected_path='parallel',
-            goal=goal,
-            classification=classification,
-        )[0]:
+        elif (
+            not args.dry_run
+            and not args.worker_dry_run
+            and not backend_actual_allowed(
+                project,
+                require_parallel=True,
+                selected_path='parallel',
+                goal=goal,
+                classification=classification,
+            )[0]
+        ):
             execution = {
                 'status': 'blocked_codex_backend_not_healthy_for_parallel',
                 'message': 'Parallel actual requires HEALTHY backend without warnings. Use dry-run or reduce to serial/fast.',
@@ -751,9 +813,15 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
                 'worker_backend': 'codex_cli',
             }
             write_json(run_dir / 'implementation-queue.json', implementation_queue)
-            execution = {'status': 'governed_parent_recorded', 'parent_dispatcher': parent, 'implementation_queue': implementation_queue}
+            execution = {
+                'status': 'governed_parent_recorded',
+                'parent_dispatcher': parent,
+                'implementation_queue': implementation_queue,
+            }
             returncode = int(parent.get('returncode') or 0)
-            leaf_index_path = run_dir / 'fractal-workstreams' / safe_name(args.task_id) / 'leaf-tasks' / 'leaf-tasks.json'
+            leaf_index_path = (
+                run_dir / 'fractal-workstreams' / safe_name(args.task_id) / 'leaf-tasks' / 'leaf-tasks.json'
+            )
             if parent.get('returncode') == 0 and leaf_index_path.exists() and args.execute_governed_workers:
                 worker_result = execute_parallel(project, args, str(leaf_index_path), goal_id)
                 execution['worker_execution'] = worker_result
@@ -788,17 +856,25 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
     total_wall_time_ms = round((time.monotonic() - wall_started) * 1000, 3)
 
     status_text = str(execution.get('status') or '')
-    failure_classification = execution.get('failure_classification') if isinstance(execution.get('failure_classification'), dict) else {}
+    failure_classification = (
+        execution.get('failure_classification') if isinstance(execution.get('failure_classification'), dict) else {}
+    )
     if not failure_classification and status_text.startswith('blocked_codex_backend'):
-        failure_classification = classify_codex_failure(text=json.dumps(execution, ensure_ascii=False), worker_status='failed')
+        failure_classification = classify_codex_failure(
+            text=json.dumps(execution, ensure_ascii=False), worker_status='failed'
+        )
     backend_failure = bool(failure_classification.get('is_backend_failure'))
     backend_failure_type = str(failure_classification.get('failure_type') or '')
-    manual_intervention = str(execution.get('recommended_next_action') or '').startswith('agent codex-health') or backend_failure
+    manual_intervention = (
+        str(execution.get('recommended_next_action') or '').startswith('agent codex-health') or backend_failure
+    )
     code_delivered = 'merge_candidate' in json.dumps(execution, ensure_ascii=False)
     doc_only_task = is_doc_only_coding_task(args.input_text, args.allowed_file)
     code_delivery_gate = {
         'status': 'fail' if doc_only_task and not code_delivered else 'pass',
-        'reason': 'coding_intent_only_touched_documentation' if doc_only_task and not code_delivered else 'not_doc_only_coding_task',
+        'reason': 'coding_intent_only_touched_documentation'
+        if doc_only_task and not code_delivered
+        else 'not_doc_only_coding_task',
         'recommended_next_action': 'schedule_implementation_pass' if doc_only_task and not code_delivered else '',
     }
     doc_overproduction = (selected_path == 'governed' and not code_delivered) or code_delivery_gate['status'] == 'fail'
@@ -857,7 +933,9 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         'goal_alignment': alignment,
         'execution': execution,
         'backend_profile': backend_profile_snapshot,
-        'backend_execution_gate': backend_profile_snapshot.get('execution_gate') if isinstance(backend_profile_snapshot, dict) else {},
+        'backend_execution_gate': backend_profile_snapshot.get('execution_gate')
+        if isinstance(backend_profile_snapshot, dict)
+        else {},
         'backend_check_run': backend_check_run,
         'fast_path_report': fast_path_report,
         'fast_path_pre_codex_overhead_ms': pre_codex_overhead_ms if selected_path == 'fast' else 0.0,
@@ -879,14 +957,21 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
         },
     }
     write_json(report_path, report)
-    if selected_path == 'fast' and not args.dry_run and not args.worker_dry_run and execution.get('codex_launched') is not False:
+    if (
+        selected_path == 'fast'
+        and not args.dry_run
+        and not args.worker_dry_run
+        and execution.get('codex_launched') is not False
+    ):
         delivery_outcome, fast_gate, delivery_run, gate_run = run_fast_post_checks(project, args)
         failure_from_delivery = classify_codex_failure(
             text=json.dumps(delivery_outcome, ensure_ascii=False),
             worker_status=str(delivery_outcome.get('worker_execution_status') or ''),
             delivery_outcome=str(delivery_outcome.get('delivery_outcome') or ''),
             scope_guard_status=str(delivery_outcome.get('scope_guard_status') or ''),
-            returncode=delivery_outcome.get('codex_returncode') if isinstance(delivery_outcome.get('codex_returncode'), int) else None,
+            returncode=delivery_outcome.get('codex_returncode')
+            if isinstance(delivery_outcome.get('codex_returncode'), int)
+            else None,
         )
         loop_update = update_loop_from_outcome(
             project,
@@ -908,7 +993,9 @@ def route_and_execute(args) -> tuple[int, dict[str, Any]]:
             'fast_path_gate_check': gate_run,
         }
         report['safety_status'] = 'safe' if fast_gate.get('checks', {}).get('scope_guard_pass') else 'unsafe_or_unknown'
-        report['delivery_status'] = fast_gate.get('delivery_outcome') or delivery_outcome.get('delivery_outcome') or 'unknown'
+        report['delivery_status'] = (
+            fast_gate.get('delivery_outcome') or delivery_outcome.get('delivery_outcome') or 'unknown'
+        )
         if fast_gate.get('gate_status') == 'pass':
             returncode = 0
         elif fast_gate.get('verdict') == 'FAST_NO_DELIVERY':
@@ -938,7 +1025,9 @@ def main() -> int:
     parser.add_argument('--max-iteration', type=int, default=10)
     parser.add_argument('--max-workers', type=int, default=2)
     parser.add_argument('--start-point', default='HEAD')
-    parser.add_argument('--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access'])
+    parser.add_argument(
+        '--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access']
+    )
     parser.add_argument('--profile', default='')
     parser.add_argument('--codex-home', default='')
     parser.add_argument('--timeout-seconds', type=int, default=360)
@@ -951,7 +1040,11 @@ def main() -> int:
     parser.add_argument('--skip-health-check', action='store_true')
     parser.add_argument('--allow-ambiguous-fast', action='store_true')
     parser.add_argument('--no-execute-governed-workers', dest='execute_governed_workers', action='store_false')
-    parser.add_argument('--legacy-runtime', action='store_true', help='Compatibility/debug only: run the pre-pipeline router implementation.')
+    parser.add_argument(
+        '--legacy-runtime',
+        action='store_true',
+        help='Compatibility/debug only: run the pre-pipeline router implementation.',
+    )
     parser.add_argument('--dry-run', action='store_true')
     parser.set_defaults(execute_governed_workers=True)
     args = parser.parse_args()

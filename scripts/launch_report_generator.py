@@ -12,9 +12,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_launch_audit import audit  # noqa: E402
-from public_launch_packager import RELEASE_TAG, VERSION, public_launch_dir  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from public_launch_audit import audit
+from public_launch_packager import RELEASE_TAG, VERSION, public_launch_dir
+from runtime_common import load_json, project_root, utc_now, write_json
 
 
 def status_from_audit(payload: dict[str, Any]) -> str:
@@ -64,22 +64,22 @@ def generate(project: Path) -> dict[str, Any]:
             '',
             '## First User Flow',
             '',
-            f"- score: {first_user.get('first_user_flow_score')}",
-            f"- recommendation: {first_user.get('recommendation')}",
+            f'- score: {first_user.get("first_user_flow_score")}',
+            f'- recommendation: {first_user.get("recommendation")}',
             '',
             '## Feedback Collection',
             '',
-            f"- score: {feedback.get('feedback_template_score')}",
-            f"- templates found: {len(feedback.get('templates_found') or [])}",
+            f'- score: {feedback.get("feedback_template_score")}',
+            f'- templates found: {len(feedback.get("templates_found") or [])}',
             '',
             '## Community Launch Copy',
             '',
-            f"- score: {community.get('community_copy_score')}",
-            f"- codex wrapper risk: {community.get('codex_wrapper_risk')}",
+            f'- score: {community.get("community_copy_score")}',
+            f'- codex wrapper risk: {community.get("codex_wrapper_risk")}',
             '',
             '## Issue Templates',
             '',
-            f"- missing templates: {len(feedback.get('missing_templates') or [])}",
+            f'- missing templates: {len(feedback.get("missing_templates") or [])}',
             '',
             '## Demo Status',
             '',
@@ -87,7 +87,7 @@ def generate(project: Path) -> dict[str, Any]:
             '',
             '## Post-publish Smoke Plan',
             '',
-            f"- smoke passed: {smoke.get('post_publish_smoke_passed')}",
+            f'- smoke passed: {smoke.get("post_publish_smoke_passed")}',
             '',
             '## Known Launch Risks',
             '',
@@ -108,7 +108,11 @@ def generate(project: Path) -> dict[str, Any]:
         'must_fix_before_launch': audit_payload.get('must_fix_before_launch') or [],
     }
     write_json(out / 'readiness_for_public_launch.json', readiness)
-    payload = {'status': status, 'report_path': '.zoo-agent/public_launch/public_launch_report.md', 'readiness': readiness}
+    payload = {
+        'status': status,
+        'report_path': '.zoo-agent/public_launch/public_launch_report.md',
+        'readiness': readiness,
+    }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return payload
 

@@ -12,9 +12,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-from worker_adapter_contract import worker_contract  # noqa: E402
-from worker_interface import worker_result  # noqa: E402
+from runtime_common import project_root, utc_now, write_json
+from worker_adapter_contract import worker_contract
+from worker_interface import worker_result
 
 
 def resolve_codex_command() -> str:
@@ -47,11 +47,12 @@ def detect_codex_cli() -> dict[str, Any]:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=5,
         )
-        version = (proc.stdout or proc.stderr).strip().splitlines()[0][:120] if (proc.stdout or proc.stderr).strip() else ''
+        version = (
+            (proc.stdout or proc.stderr).strip().splitlines()[0][:120] if (proc.stdout or proc.stderr).strip() else ''
+        )
         if proc.returncode != 0:
             status = 'degraded'
             reason = 'codex CLI detected but version check returned non-zero'
@@ -108,7 +109,7 @@ def normalize_codex_status(command_result: dict[str, Any], worker_payload: dict[
     if not detect_codex_cli().get('available'):
         return 'unavailable'
     if command_result.get('returncode') != 0:
-        text = f"{command_result.get('stdout_tail', '')}\n{command_result.get('stderr_tail', '')}".lower()
+        text = f'{command_result.get("stdout_tail", "")}\n{command_result.get("stderr_tail", "")}'.lower()
         if 'timed out' in text or 'timeout' in text:
             return 'timeout'
         if 'scope' in text and 'violation' in text:
@@ -122,7 +123,9 @@ def normalize_codex_status(command_result: dict[str, Any], worker_payload: dict[
     return 'no_delivery' if not worker_payload.get('changed_files') and status not in {'skipped'} else 'success'
 
 
-def execute(project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int = 1) -> dict[str, Any]:
+def execute(
+    project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int = 1
+) -> dict[str, Any]:
     from worker_execution_adapter import execute_routed_worker  # local import avoids a cycle
 
     health = codex_health(project)

@@ -12,8 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 EXPECTED_BRANCH = 'release/v1.0.0-alpha.1'
 EXPECTED_TAG = 'v1.0.0-alpha.1'
@@ -30,11 +29,15 @@ def run_git(project: Path, args: list[str], timeout: int = 30) -> dict[str, Any]
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
-        return {'ok': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout.strip(), 'stderr': proc.stderr.strip()}
+        return {
+            'ok': proc.returncode == 0,
+            'returncode': proc.returncode,
+            'stdout': proc.stdout.strip(),
+            'stderr': proc.stderr.strip(),
+        }
     except Exception as exc:
         return {'ok': False, 'returncode': 1, 'stdout': '', 'stderr': str(exc)}
 
@@ -69,14 +72,25 @@ def _remote_ref_exists(project: Path, kind: str, name: str) -> tuple[bool, str]:
     return bool(result.get('stdout')), ''
 
 
-def verify(project: Path, *, expected_branch: str = EXPECTED_BRANCH, expected_tag: str = EXPECTED_TAG, expected_tree: str = EXPECTED_TREE, local_branch: str = LOCAL_BRANCH) -> dict[str, Any]:
+def verify(
+    project: Path,
+    *,
+    expected_branch: str = EXPECTED_BRANCH,
+    expected_tag: str = EXPECTED_TAG,
+    expected_tree: str = EXPECTED_TREE,
+    local_branch: str = LOCAL_BRANCH,
+) -> dict[str, Any]:
     notes: list[str] = []
     inconclusive = False
     repo = _first_remote(project)
     branch_result = run_git(project, ['branch', '--show-current'], timeout=10)
     current_branch = branch_result.get('stdout') or local_branch
 
-    fetch = run_git(project, ['fetch', 'origin', f'refs/heads/{expected_branch}:refs/remotes/origin/{expected_branch}', '--no-tags'], timeout=90)
+    fetch = run_git(
+        project,
+        ['fetch', 'origin', f'refs/heads/{expected_branch}:refs/remotes/origin/{expected_branch}', '--no-tags'],
+        timeout=90,
+    )
     if not fetch.get('ok'):
         inconclusive = True
         notes.append('remote branch fetch failed; using any existing local remote ref if available')
@@ -149,7 +163,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--expected-tag', default=EXPECTED_TAG)
     parser.add_argument('--expected-tree', default=EXPECTED_TREE)
     args = parser.parse_args(argv)
-    payload = verify(project_root(args.workspace), expected_branch=args.expected_branch, expected_tag=args.expected_tag, expected_tree=args.expected_tree)
+    payload = verify(
+        project_root(args.workspace),
+        expected_branch=args.expected_branch,
+        expected_tag=args.expected_tag,
+        expected_tree=args.expected_tree,
+    )
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if payload.get('remote_verification_passed') or payload.get('tree_equal') else 1
 

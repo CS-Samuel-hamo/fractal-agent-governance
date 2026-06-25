@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_state_manager import load_goal_state, project_root  # noqa: E402
+from goal_state_manager import load_goal_state, project_root
 
 
 def dependency_blocked(goal: dict[str, Any], goals_by_id: dict[str, dict[str, Any]]) -> bool:
@@ -20,7 +20,9 @@ def dependency_blocked(goal: dict[str, Any], goals_by_id: dict[str, dict[str, An
     return False
 
 
-def priority_score(goal: dict[str, Any], goals_by_id: dict[str, dict[str, Any]], *, active_goal_id: str = '') -> dict[str, Any]:
+def priority_score(
+    goal: dict[str, Any], goals_by_id: dict[str, dict[str, Any]], *, active_goal_id: str = ''
+) -> dict[str, Any]:
     status = str(goal.get('status') or 'paused')
     base = int(goal.get('priority') or 0)
     starvation = int(goal.get('starvation_count') or 0)

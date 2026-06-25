@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -11,12 +11,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from route_task import backend_actual_allowed  # noqa: E402
-from runtime_common import utc_now, write_json  # noqa: E402
+from route_task import backend_actual_allowed
+from runtime_common import utc_now, write_json
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -54,8 +56,12 @@ def test_healthy_allows_fast_and_parallel() -> None:
     goal = {'goal_id': 'production', 'goal': 'Improve README for users', 'goal_type': 'production_goal'}
     classification = {'path': 'fast', 'task_scale': 'small', 'signals': {'hard_risk_hits': []}}
     write_profile(path, 'healthy')
-    fast_allowed, fast_profile = backend_actual_allowed(path, selected_path='fast', goal=goal, classification=classification)
-    parallel_allowed, parallel_profile = backend_actual_allowed(path, require_parallel=True, selected_path='parallel', goal=goal, classification=classification)
+    fast_allowed, fast_profile = backend_actual_allowed(
+        path, selected_path='fast', goal=goal, classification=classification
+    )
+    parallel_allowed, parallel_profile = backend_actual_allowed(
+        path, require_parallel=True, selected_path='parallel', goal=goal, classification=classification
+    )
     assert fast_allowed is True
     assert fast_profile['execution_gate']['reason'] == 'healthy_backend_actual_allowed'
     assert parallel_allowed is True
@@ -67,8 +73,12 @@ def test_warnings_allow_single_fast_but_block_parallel() -> None:
     goal = {'goal_id': 'production', 'goal': 'Improve README for users', 'goal_type': 'production_goal'}
     classification = {'path': 'fast', 'task_scale': 'small', 'signals': {'hard_risk_hits': []}}
     write_profile(path, 'healthy_with_warnings', allow_parallel=False)
-    fast_allowed, fast_profile = backend_actual_allowed(path, selected_path='fast', goal=goal, classification=classification)
-    parallel_allowed, parallel_profile = backend_actual_allowed(path, require_parallel=True, selected_path='parallel', goal=goal, classification=classification)
+    fast_allowed, fast_profile = backend_actual_allowed(
+        path, selected_path='fast', goal=goal, classification=classification
+    )
+    parallel_allowed, parallel_profile = backend_actual_allowed(
+        path, require_parallel=True, selected_path='parallel', goal=goal, classification=classification
+    )
     assert fast_allowed is True
     assert fast_profile['execution_gate']['reason'] == 'healthy_with_warnings_single_low_risk_fast_allowed'
     assert parallel_allowed is False
@@ -78,14 +88,20 @@ def test_warnings_allow_single_fast_but_block_parallel() -> None:
 def test_unhealthy_blocks_all_actual_and_diagnostic_blocks_actual() -> None:
     path = repo()
     prod = {'goal_id': 'production', 'goal': 'Improve README for users', 'goal_type': 'production_goal'}
-    diagnostic = {'goal_id': 'diagnostic', 'goal': 'Controlled diagnostic dry-run validation test', 'goal_type': 'diagnostic_goal'}
+    diagnostic = {
+        'goal_id': 'diagnostic',
+        'goal': 'Controlled diagnostic dry-run validation test',
+        'goal_type': 'diagnostic_goal',
+    }
     classification = {'path': 'fast', 'task_scale': 'small', 'signals': {'hard_risk_hits': []}}
     write_profile(path, 'unhealthy')
     allowed, profile = backend_actual_allowed(path, selected_path='fast', goal=prod, classification=classification)
     assert allowed is False
     assert profile['execution_gate']['reason'] == 'backend_unhealthy_blocks_actual_execution'
     write_profile(path, 'healthy')
-    diagnostic_allowed, diagnostic_profile = backend_actual_allowed(path, selected_path='fast', goal=diagnostic, classification=classification)
+    diagnostic_allowed, diagnostic_profile = backend_actual_allowed(
+        path, selected_path='fast', goal=diagnostic, classification=classification
+    )
     assert diagnostic_allowed is False
     assert diagnostic_profile['execution_gate']['reason'] == 'diagnostic_goal_dry_run_only'
 

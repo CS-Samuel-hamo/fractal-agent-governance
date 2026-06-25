@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,6 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_GLOBAL_ROO = Path.home() / '.roo'
@@ -249,7 +248,9 @@ def write_with_backup(path: Path, text: str, backup_root: Path, actions: list[di
     path.write_text(text, encoding='utf-8')
 
 
-def inject_block(path: Path, block_name: str, block: str, backup_root: Path, actions: list[dict], dry_run: bool) -> None:
+def inject_block(
+    path: Path, block_name: str, block: str, backup_root: Path, actions: list[dict], dry_run: bool
+) -> None:
     begin, end = marker(block_name)
     wrapped = f'{begin}\n{block.rstrip()}\n{end}\n'
     text = read_text(path)
@@ -288,7 +289,9 @@ def copy_file(src_rel: str, target_root: Path, backup_root: Path, actions: list[
     shutil.copy2(src, dst)
 
 
-def copy_file_if_missing(src_rel: str, target_root: Path, backup_root: Path, actions: list[dict], dry_run: bool) -> None:
+def copy_file_if_missing(
+    src_rel: str, target_root: Path, backup_root: Path, actions: list[dict], dry_run: bool
+) -> None:
     src = ROOT / src_rel
     dst = target_root / src_rel
     if not src.exists():
@@ -309,8 +312,22 @@ def copy_file_if_missing(src_rel: str, target_root: Path, backup_root: Path, act
 
 
 def sync_roo_tree(roo_root: Path, backup_root: Path, actions: list[dict], dry_run: bool) -> None:
-    inject_block(roo_root / 'commands' / 'agent-run.md', 'AI_NATIVE_DISPATCHER_OVERRIDE', AGENT_RUN_BLOCK, backup_root, actions, dry_run)
-    inject_block(roo_root / 'commands' / 'progress.md', 'AI_NATIVE_PROGRESS_SUMMARY', PROGRESS_BLOCK, backup_root, actions, dry_run)
+    inject_block(
+        roo_root / 'commands' / 'agent-run.md',
+        'AI_NATIVE_DISPATCHER_OVERRIDE',
+        AGENT_RUN_BLOCK,
+        backup_root,
+        actions,
+        dry_run,
+    )
+    inject_block(
+        roo_root / 'commands' / 'progress.md',
+        'AI_NATIVE_PROGRESS_SUMMARY',
+        PROGRESS_BLOCK,
+        backup_root,
+        actions,
+        dry_run,
+    )
     for rel in COMMAND_COPY_FILES + ROO_COPY_FILES:
         copy_file(rel, roo_root.parent if rel.startswith('.roo/') else roo_root, backup_root, actions, dry_run)
 
@@ -324,13 +341,29 @@ def sync_kit(kit_root: Path, backup_root: Path, actions: list[dict], dry_run: bo
 def sync_project_roo(project_root: Path, backup_root: Path, actions: list[dict], dry_run: bool) -> None:
     roo_root = project_root / '.roo'
     actions.append({'action': 'project_roo_sync', 'target': str(project_root), 'roo_root': str(roo_root)})
-    inject_block(roo_root / 'commands' / 'agent-run.md', 'AI_NATIVE_DISPATCHER_OVERRIDE', AGENT_RUN_BLOCK, backup_root, actions, dry_run)
-    inject_block(roo_root / 'commands' / 'progress.md', 'AI_NATIVE_PROGRESS_SUMMARY', PROGRESS_BLOCK, backup_root, actions, dry_run)
+    inject_block(
+        roo_root / 'commands' / 'agent-run.md',
+        'AI_NATIVE_DISPATCHER_OVERRIDE',
+        AGENT_RUN_BLOCK,
+        backup_root,
+        actions,
+        dry_run,
+    )
+    inject_block(
+        roo_root / 'commands' / 'progress.md',
+        'AI_NATIVE_PROGRESS_SUMMARY',
+        PROGRESS_BLOCK,
+        backup_root,
+        actions,
+        dry_run,
+    )
 
     for rel in COMMAND_COPY_FILES:
         copy_file_if_missing(rel, roo_root.parent, backup_root, actions, dry_run)
 
-    write_with_backup(roo_root / 'rules' / '00-ai-native-global-bridge.md', PROJECT_BRIDGE_RULE, backup_root, actions, dry_run)
+    write_with_backup(
+        roo_root / 'rules' / '00-ai-native-global-bridge.md', PROJECT_BRIDGE_RULE, backup_root, actions, dry_run
+    )
 
     for rel in [
         '.roo/skills-agent-codex-worker/codex-task-pack-generation/SKILL.md',
@@ -340,23 +373,38 @@ def sync_project_roo(project_root: Path, backup_root: Path, actions: list[dict],
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='Sync AI-native Zoo/Roo entrypoints into installed global targets with backups.')
+    ap = argparse.ArgumentParser(
+        description='Sync AI-native Zoo/Roo entrypoints into installed global targets with backups.'
+    )
     ap.add_argument('--global-roo', default=str(DEFAULT_GLOBAL_ROO))
     ap.add_argument('--kit-root', default=str(DEFAULT_KIT))
-    ap.add_argument('--project-root', action='append', default=[], help='Optional business project root whose local .roo overrides should be patched')
-    ap.add_argument('--project-only', action='store_true', help='Patch only --project-root targets; skip global and kit sync')
+    ap.add_argument(
+        '--project-root',
+        action='append',
+        default=[],
+        help='Optional business project root whose local .roo overrides should be patched',
+    )
+    ap.add_argument(
+        '--project-only', action='store_true', help='Patch only --project-root targets; skip global and kit sync'
+    )
     ap.add_argument('--backup-root', default='')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
 
     timestamp = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
-    backup_root = Path(args.backup_root).resolve() if args.backup_root else DEFAULT_GLOBAL_ROO / 'backups' / f'ai-native-sync-{timestamp}'
+    backup_root = (
+        Path(args.backup_root).resolve()
+        if args.backup_root
+        else DEFAULT_GLOBAL_ROO / 'backups' / f'ai-native-sync-{timestamp}'
+    )
     global_roo = Path(args.global_roo).resolve()
     kit_root = Path(args.kit_root).resolve()
     actions: list[dict] = []
 
     if args.project_only and not args.project_root:
-        actions.append({'action': 'missing_project_root', 'reason': '--project-only requires at least one --project-root'})
+        actions.append(
+            {'action': 'missing_project_root', 'reason': '--project-only requires at least one --project-root'}
+        )
     if not args.project_only and global_roo.exists():
         sync_roo_tree(global_roo, backup_root / 'global-roo', actions, args.dry_run)
     elif not args.project_only:

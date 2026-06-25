@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 READY = 'READY_FOR_097_CROSS_PROJECT_LEARNING'
 FIX = 'FIX_BEFORE_097'
@@ -23,7 +22,12 @@ def dogfood_dir(project: Path) -> Path:
 
 
 def readiness_from(report: dict[str, Any]) -> str:
-    if report.get('unsafe_behavior_detected') or report.get('fake_capability_detected') or report.get('secret_read_detected') or report.get('internal_leakage_detected'):
+    if (
+        report.get('unsafe_behavior_detected')
+        or report.get('fake_capability_detected')
+        or report.get('secret_read_detected')
+        or report.get('internal_leakage_detected')
+    ):
         return NOT_READY
     if (
         float(report.get('real_worker_value_score') or 0.0) >= 0.90
@@ -51,7 +55,9 @@ def build_readiness(report: dict[str, Any]) -> dict[str, Any]:
         'project_operator_positioning_score': float(report.get('project_operator_positioning_score') or 0.0),
         'must_fix_before_097': failed if readiness != READY else [],
         'recommended_next_steps': (
-            ['Proceed to 0.97 Cross-project Learning with worker readiness as supporting evidence, not as a user-facing backend panel.']
+            [
+                'Proceed to 0.97 Cross-project Learning with worker readiness as supporting evidence, not as a user-facing backend panel.'
+            ]
             if readiness == READY
             else ['Fix real worker dogfood value gate failures, then rerun agent workers --real-dogfood.']
         ),
@@ -69,23 +75,23 @@ def build_report(value_report: dict[str, Any], readiness: dict[str, Any]) -> str
             'The worker layer now behaves like local project capability, not provider configuration.',
             '',
             '## Does This Still Feel Like AI Project Operator?',
-            f"- project operator positioning score: {readiness.get('project_operator_positioning_score')}",
+            f'- project operator positioning score: {readiness.get("project_operator_positioning_score")}',
             '- The visible user path remains workers doctor, start, status, continue, and cockpit.',
             '',
             '## Does Worker Layer Reduce Codex-wrapper Risk?',
-            f"- real worker value score: {readiness.get('real_worker_value_score')}",
+            f'- real worker value score: {readiness.get("real_worker_value_score")}',
             '- Local scanner and dry-run flows remain useful even when the Code Worker is unavailable.',
             '',
             '## Does Local Scanner Improve Project Map Quality?',
-            f"- local scanner value score: {readiness.get('local_scanner_value_score')}",
+            f'- local scanner value score: {readiness.get("local_scanner_value_score")}',
             '- It contributes metadata-backed evidence without reading restricted file contents.',
             '',
             '## Does Worker Doctor Improve User Trust?',
-            f"- worker doctor score: {readiness.get('worker_doctor_score')}",
+            f'- worker doctor score: {readiness.get("worker_doctor_score")}',
             '- It explains what the machine can safely do without exposing raw logs.',
             '',
             '## Does Graceful Degradation Work?',
-            f"- graceful degradation score: {readiness.get('graceful_degradation_score')}",
+            f'- graceful degradation score: {readiness.get("graceful_degradation_score")}',
             '- External worker failures degrade to preview, dry-run, local scan, or needs attention.',
             '',
             '## Does Cockpit Show Worker Readiness Clearly?',

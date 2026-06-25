@@ -10,7 +10,6 @@ from typing import Any
 
 from runtime_common import project_root, utc_now, write_json
 
-
 DOCS_TO_SUMMARIZE = [
     'README.md',
     'docs/project_plan.md',
@@ -76,7 +75,7 @@ def _project_context(docs: list[dict[str, str]]) -> str:
 
 def build_preview(project: Path, *, objective: str) -> str:
     docs = _available_docs(project)
-    return f'''# One-off Preview
+    return f"""# One-off Preview
 
 Generated: {utc_now()}
 
@@ -118,7 +117,7 @@ This preview lets you inspect an independent request without changing the active
 - It does not replace the current project job.
 - It does not run commands, push, merge, deploy, or read restricted files.
 - It does not invent sources, citations, experiments, data, or empirical results.
-'''
+"""
 
 
 def write_preview_artifact(project: Path, *, objective: str, name: str = '') -> dict[str, Any]:

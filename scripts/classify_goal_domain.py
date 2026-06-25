@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 GOAL_TYPES = {'system_goal', 'runtime_goal', 'production_goal', 'diagnostic_goal'}
 SYSTEM_MARKERS = [
@@ -65,7 +64,9 @@ def classify_goal(payload: dict[str, Any]) -> dict[str, Any]:
         'goal_type': goal_type,
         'scheduling_allowed': scheduling_allowed,
         'actual_execution_allowed': actual_execution_allowed,
-        'execution_mode': 'dry_run_only' if goal_type == 'diagnostic_goal' else ('background_only' if goal_type in {'system_goal', 'runtime_goal'} else 'normal'),
+        'execution_mode': 'dry_run_only'
+        if goal_type == 'diagnostic_goal'
+        else ('background_only' if goal_type in {'system_goal', 'runtime_goal'} else 'normal'),
         'basis': basis,
     }
 
@@ -84,7 +85,12 @@ def main() -> int:
         payload = load_json(project / '.zoo-agent' / 'goals' / f'{args.goal_id}.json')
     else:
         payload = load_json(project / '.zoo-agent' / 'goal' / 'current-goal.json')
-    result = {'schema_version': '1.0', 'generated_by': 'classify_goal_domain.py', 'generated_at': utc_now(), **classify_goal(payload)}
+    result = {
+        'schema_version': '1.0',
+        'generated_by': 'classify_goal_domain.py',
+        'generated_at': utc_now(),
+        **classify_goal(payload),
+    }
     if args.json_output:
         write_json(Path(args.json_output).resolve(), result)
     print(json.dumps(result, ensure_ascii=False, indent=2))

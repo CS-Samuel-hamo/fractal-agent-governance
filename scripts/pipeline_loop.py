@@ -13,13 +13,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from invisible_eval_engine import run_invisible_eval  # noqa: E402
-from explanation_engine import build_execution_explanation  # noqa: E402
-from impact_analyzer import analyze_impact  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-from safety_summary_generator import build_safety_summary  # noqa: E402
-from trust_score_engine import build_trust_score  # noqa: E402
-
+from explanation_engine import build_execution_explanation
+from impact_analyzer import analyze_impact
+from invisible_eval_engine import run_invisible_eval
+from runtime_common import load_json, project_root, utc_now, write_json
+from safety_summary_generator import build_safety_summary
+from trust_score_engine import build_trust_score
 
 STAGES = ['planner', 'executor', 'verifier']
 FAST_SKIPPED_GOVERNANCE = [
@@ -47,8 +46,7 @@ def run_stage(command: list[str]) -> dict[str, Any]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {
         'command': [str(item) for item in command],
@@ -118,23 +116,29 @@ def write_cli_runtime_compat_report(
     classification = plan.get('classification') or {}
     selected_path = str((plan.get('execution_plan') or {}).get('route') or classification.get('path') or 'fast')
     duration_ms = int(
-        sum(float((stage_results.get(name) or {}).get('duration_seconds') or 0.0) for name in ['planner', 'executor', 'verifier'])
+        sum(
+            float((stage_results.get(name) or {}).get('duration_seconds') or 0.0)
+            for name in ['planner', 'executor', 'verifier']
+        )
         * 1000
     )
     leaf_results = execution.get('leaf_results') or []
     backend_ms = int(
-        sum(float(((item.get('backend_result') or {}).get('duration_seconds') or 0.0)) for item in leaf_results)
-        * 1000
+        sum(float((item.get('backend_result') or {}).get('duration_seconds') or 0.0) for item in leaf_results) * 1000
     )
     loop_state_path = project / '.zoo-agent' / 'loop_state.json'
     loop_state = load_json(loop_state_path) if loop_state_path.exists() else {}
     objective_lower = objective.lower()
-    local_optimization = maxed_loop_state(loop_state) and any(term in objective_lower for term in ['optimize', 'improve', 'polish', 'local'])
+    local_optimization = maxed_loop_state(loop_state) and any(
+        term in objective_lower for term in ['optimize', 'improve', 'polish', 'local']
+    )
     if local_optimization:
         loop_state = {**loop_state, 'status': 'diverging'}
         classification = {**classification, 'follow_up_reason': 'loop_convergence_force_follow_up'}
     allowed_files = [str(item) for item in classification.get('allowed_files') or []]
-    doc_only_task = 'implement' in objective_lower and any(item.lower().endswith('.md') or item.startswith('docs/') for item in allowed_files)
+    doc_only_task = 'implement' in objective_lower and any(
+        item.lower().endswith('.md') or item.startswith('docs/') for item in allowed_files
+    )
     code_delivery_gate = {'status': 'pass', 'reason': 'not_doc_only_coding_task', 'recommended_next_action': ''}
     if doc_only_task:
         code_delivery_gate = {
@@ -165,7 +169,9 @@ def write_cli_runtime_compat_report(
         'selected_path': selected_path,
         'classification': classification,
         'execution': {
-            'status': 'dry_run' if dry_run or (plan.get('execution_plan') or {}).get('mode') == 'dry_run_only' else final.get('final_verdict', '').lower(),
+            'status': 'dry_run'
+            if dry_run or (plan.get('execution_plan') or {}).get('mode') == 'dry_run_only'
+            else final.get('final_verdict', '').lower(),
             'pipeline_execution_result': str(execution_path),
         },
         'fast_path_report': fast_report if selected_path == 'fast' else {},
@@ -173,7 +179,9 @@ def write_cli_runtime_compat_report(
         'backend_execution_ms': backend_ms,
         'total_wall_time_ms': duration_ms,
         'scope_guard_status': 'pass' if not dry_run else 'not_run_dry_run',
-        'tests_status': 'not_applicable' if selected_path == 'fast' and any(item.endswith('.md') for item in allowed_files) else ('not_run_dry_run' if dry_run else 'unknown'),
+        'tests_status': 'not_applicable'
+        if selected_path == 'fast' and any(item.endswith('.md') for item in allowed_files)
+        else ('not_run_dry_run' if dry_run else 'unknown'),
         'parallel_denial_reason': classification.get('parallel_denial_reason', ''),
         'loop_state': loop_state,
         'local_optimization_deferred': local_optimization,
@@ -357,7 +365,9 @@ def pipeline_run(args: argparse.Namespace) -> dict[str, Any]:
                 'run_id': run_id,
                 'error': str(exc),
             }
-            write_json(project / '.zoo-agent' / 'explain' / 'trust_explainability_error.json', trust_explainability_result)
+            write_json(
+                project / '.zoo-agent' / 'explain' / 'trust_explainability_error.json', trust_explainability_result
+            )
         write_cli_runtime_compat_report(
             project=project,
             run_id=run_id,
@@ -429,7 +439,9 @@ def main() -> int:
     parser.add_argument('--max-iterations', type=int, default=1)
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--allow-actual', action='store_true')
-    parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
+    parser.add_argument(
+        '--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write'
+    )
     parser.add_argument('--backend', default='codex')
     parser.add_argument('--backend-option', action='append', default=[])
     parser.add_argument('--timeout-seconds', type=int, default=360)

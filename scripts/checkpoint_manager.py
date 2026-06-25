@@ -11,7 +11,14 @@ from runtime_common import load_json, project_root, utc_now, write_json
 
 
 def git_value(project: Path, command: list[str]) -> str:
-    proc = subprocess.run(command, cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return proc.stdout.strip() if proc.returncode == 0 else ''
 
 

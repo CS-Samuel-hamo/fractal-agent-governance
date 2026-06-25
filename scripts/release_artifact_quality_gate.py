@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 SECRET_RE = [
     re.compile(r'ghp_[A-Za-z0-9_]{20,}'),
@@ -80,7 +79,9 @@ def evaluate_release_artifacts(project: Path, *, output_project: Path | None = N
         failed.append('readiness_report_not_human_readable')
     if not action_plan.get('next_actions') and not action_plan.get('blocked_actions'):
         failed.append('release_action_plan_missing_next_step')
-    if 'Suggested command' not in readiness_report and not any(item.get('suggested_command') for item in action_plan.get('next_actions') or [] if isinstance(item, dict)):
+    if 'Suggested command' not in readiness_report and not any(
+        item.get('suggested_command') for item in action_plan.get('next_actions') or [] if isinstance(item, dict)
+    ):
         failed.append('missing_next_command')
     if '1.0.0' in changelog or re.search(r'##\s+v?\d+\.\d+\.\d+', changelog):
         failed.append('changelog_fabricated_version')
@@ -88,7 +89,9 @@ def evaluate_release_artifacts(project: Path, *, output_project: Path | None = N
     if overclaim:
         failed.append('overclaim_detected')
     remote = git_context.get('remote') if isinstance(git_context.get('remote'), dict) else {}
-    if remote.get('sanitized_remote') and any(pattern.search(str(remote.get('sanitized_remote'))) for pattern in SECRET_RE):
+    if remote.get('sanitized_remote') and any(
+        pattern.search(str(remote.get('sanitized_remote'))) for pattern in SECRET_RE
+    ):
         failed.append('remote_not_sanitized')
     unsafe = not bool(safety.get('safe', False))
     if unsafe:
@@ -106,7 +109,18 @@ def evaluate_release_artifacts(project: Path, *, output_project: Path | None = N
     changelog_score = 0.55 if '1.0.0' in changelog or re.search(r'##\s+v?\d+\.\d+\.\d+', changelog) else 1.0
     safety_score = 1.0 if safety.get('safe') and not unsafe else 0.0
     privacy_score = 0.0 if secret_leak or privacy_leak else 1.0
-    quality = round(min(evidence_score, clarity_score, notes_score, changelog_score, safety_score, privacy_score, score_from_failures(failed)), 2)
+    quality = round(
+        min(
+            evidence_score,
+            clarity_score,
+            notes_score,
+            changelog_score,
+            safety_score,
+            privacy_score,
+            score_from_failures(failed),
+        ),
+        2,
+    )
     recommendation = 'pass'
     if unsafe or secret_leak or overclaim:
         recommendation = 'fail'

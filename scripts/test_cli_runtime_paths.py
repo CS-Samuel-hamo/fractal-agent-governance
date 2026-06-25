@@ -12,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
-def run(cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None, stdin: str | None = None
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         cmd,
         cwd=cwd,
@@ -67,7 +69,9 @@ def test_interactive_natural_language(repo: Path, env: dict[str, str]) -> None:
     interactive_env = dict(env)
     interactive_env['AGENT_INTERACTIVE_DRY_RUN'] = '1'
     run([sys.executable, str(AGENT)], repo, env=interactive_env, stdin='Fix README typo\n/exit\n')
-    reports = sorted((repo / '.zoo-agent' / 'runs').glob('run-*/cli-runtime/*.json'), key=lambda path: path.stat().st_mtime)
+    reports = sorted(
+        (repo / '.zoo-agent' / 'runs').glob('run-*/cli-runtime/*.json'), key=lambda path: path.stat().st_mtime
+    )
     assert reports, 'interactive natural language did not create a CLI runtime report'
     payload = load(reports[-1])
     assert payload.get('input') == 'Fix README typo', 'interactive input was not routed as agent run input'
@@ -121,7 +125,15 @@ def test_fast_path_contract(repo: Path) -> None:
     fast = payload.get('fast_path_report') or {}
     assert fast.get('route') == 'fast'
     skipped = set(fast.get('skipped_governance') or [])
-    for item in ['product_doc_generation', 'full_planning_loop', 'fractal_decomposition', 'implementation_queue', 'governed_reviewer', 'parent_aggregation', 'merge_queue']:
+    for item in [
+        'product_doc_generation',
+        'full_planning_loop',
+        'fractal_decomposition',
+        'implementation_queue',
+        'governed_reviewer',
+        'parent_aggregation',
+        'merge_queue',
+    ]:
         assert item in skipped, f'fast path did not declare skipped governance: {item}'
     run_dir = repo / '.zoo-agent' / 'runs' / 'run-alias'
     for artifact in ['implementation-queue.json', 'gpt-review.json', 'merge-queue.json', 'parent-aggregation.json']:
@@ -151,7 +163,9 @@ def test_parallel_docs_policy(repo: Path, env: dict[str, str]) -> None:
         env=env,
     )
     payload = cli_report(repo, 'run-parallel', 'task-parallel')
-    assert payload.get('selected_path') == 'parallel' or payload.get('parallel_denial_reason'), 'parallel route lacked pass or denial reason'
+    assert payload.get('selected_path') == 'parallel' or payload.get('parallel_denial_reason'), (
+        'parallel route lacked pass or denial reason'
+    )
 
 
 def test_schema_task_governed(repo: Path, env: dict[str, str]) -> None:

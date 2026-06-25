@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -40,12 +40,12 @@ def generate_replay(project: Path) -> dict[str, str]:
     for item in runs:
         lines.extend(
             [
-                f"### {item.get('scenario')}",
-                f"- Outcome: {item.get('outcome')}",
-                f"- Commands: {', '.join(item.get('commands') or []) or 'not available'}",
-                f"- Safety gate passed: {item.get('safety_gate_passed')}",
-                f"- Cockpit synced: {item.get('cockpit_synced')}",
-                f"- Release blockers: {', '.join(item.get('blockers') or []) or 'none'}",
+                f'### {item.get("scenario")}',
+                f'- Outcome: {item.get("outcome")}',
+                f'- Commands: {", ".join(item.get("commands") or []) or "not available"}',
+                f'- Safety gate passed: {item.get("safety_gate_passed")}',
+                f'- Cockpit synced: {item.get("cockpit_synced")}',
+                f'- Release blockers: {", ".join(item.get("blockers") or []) or "none"}',
                 '',
             ]
         )
@@ -65,8 +65,8 @@ def generate_replay(project: Path) -> dict[str, str]:
             '- Cockpit shows Release / PR state, readiness, blockers, draft paths, and the suggested next command.',
             '',
             '## Quality gates',
-            f"- Release artifact quality: {artifact_quality.get('recommendation')} ({artifact_quality.get('release_artifact_quality_score')})",
-            f"- PR draft quality: {pr_quality.get('recommendation')} ({pr_quality.get('pr_draft_quality_score')})",
+            f'- Release artifact quality: {artifact_quality.get("recommendation")} ({artifact_quality.get("release_artifact_quality_score")})',
+            f'- PR draft quality: {pr_quality.get("recommendation")} ({pr_quality.get("pr_draft_quality_score")})',
             '',
             '## Next command',
             '- `agent release` to refresh the local release workflow pack.',

@@ -10,12 +10,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import feedback_dir, load_items, write_schema  # noqa: E402
-from feedback_priority_ranker import rank  # noqa: E402
-from feedback_signal_classifier import classify  # noqa: E402
-from feedback_triage_engine import triage  # noqa: E402
-from positioning_feedback_analyzer import analyze  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from feedback_intake_schema import feedback_dir, load_items, write_schema
+from feedback_priority_ranker import rank
+from feedback_signal_classifier import classify
+from feedback_triage_engine import triage
+from positioning_feedback_analyzer import analyze
+from runtime_common import project_root, utc_now, write_json
 
 
 def write_markdown_plans(project: Path, priority: dict[str, Any], positioning: dict[str, Any]) -> None:
@@ -85,9 +85,9 @@ def write_markdown_plans(project: Path, priority: dict[str, Any], positioning: d
         '',
         f'Generated: {utc_now()}',
         '',
-        f"- Patch candidates: {len(patch_items)}",
-        f"- Roadmap candidates: {len(roadmap_items)}",
-        f"- Positioning risk: {positioning.get('positioning_risk')}",
+        f'- Patch candidates: {len(patch_items)}',
+        f'- Roadmap candidates: {len(roadmap_items)}',
+        f'- Positioning risk: {positioning.get("positioning_risk")}',
         '',
         '## Current Decision',
         '',

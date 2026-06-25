@@ -15,14 +15,27 @@ def _changed_files(execution_result: dict[str, Any]) -> list[str]:
     changed: list[str] = []
     for leaf in execution_result.get('leaf_results') or []:
         delivery = leaf.get('delivery') if isinstance(leaf.get('delivery'), dict) else {}
-        for path in leaf.get('business_changed_files') or delivery.get('business_changed_files') or leaf.get('changed_files') or leaf.get('diff') or []:
+        for path in (
+            leaf.get('business_changed_files')
+            or delivery.get('business_changed_files')
+            or leaf.get('changed_files')
+            or leaf.get('diff')
+            or []
+        ):
             normalized = str(path).replace('\\', '/')
             if normalized and normalized not in changed:
                 changed.append(normalized)
     return changed
 
 
-def update_project_map(project: Path, *, run_id: str = '', action: dict[str, Any] | None = None, execution_result: dict[str, Any] | None = None, final_result: dict[str, Any] | None = None) -> dict[str, Any]:
+def update_project_map(
+    project: Path,
+    *,
+    run_id: str = '',
+    action: dict[str, Any] | None = None,
+    execution_result: dict[str, Any] | None = None,
+    final_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     out_dir = map_dir(project)
     current = load_json(out_dir / 'project_map.json')
     if not current:
@@ -40,7 +53,9 @@ def update_project_map(project: Path, *, run_id: str = '', action: dict[str, Any
     }
     for module in current.get('modules') or []:
         key_files = [str(item) for item in module.get('key_files') or []]
-        if changed and any(path == item or path.startswith(item.rstrip('/') + '/') for path in changed for item in key_files):
+        if changed and any(
+            path == item or path.startswith(item.rstrip('/') + '/') for path in changed for item in key_files
+        ):
             module['status'] = 'working' if verdict != 'COMPLETED' else 'complete'
             module.setdefault('evidence', []).append(update_evidence)
             module['confidence'] = min(1.0, round(float(module.get('confidence') or 0.5) + 0.05, 3))

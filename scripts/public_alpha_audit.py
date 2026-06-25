@@ -10,11 +10,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from demo_fixture_packager import ensure_demo_fixture  # noqa: E402
-from public_alpha_packager import build_manifest, public_alpha_dir, write_manifest  # noqa: E402
-from public_docs_leakage_scanner import scan_project  # noqa: E402
-from public_positioning_linter import lint_project  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from demo_fixture_packager import ensure_demo_fixture
+from public_alpha_packager import public_alpha_dir, write_manifest
+from public_docs_leakage_scanner import scan_project
+from public_positioning_linter import lint_project
+from runtime_common import project_root, utc_now, write_json
 
 
 def score_packaging(manifest: dict[str, Any]) -> float:

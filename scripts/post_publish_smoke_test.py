@@ -13,20 +13,35 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_docs_leakage_scanner import scan_texts  # noqa: E402
-from public_launch_packager import FEEDBACK_TEMPLATES, public_launch_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from public_docs_leakage_scanner import scan_texts
+from public_launch_packager import FEEDBACK_TEMPLATES, public_launch_dir
+from runtime_common import project_root, utc_now, write_json
 
 
 def run_agent(project: Path, args: list[str]) -> dict[str, Any]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='post-smoke-codex-home-')).resolve()))
-    proc = subprocess.run([sys.executable, str(project / 'scripts' / 'agent.py'), *args], cwd=project, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        [sys.executable, str(project / 'scripts' / 'agent.py'), *args],
+        cwd=project,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return {'command': 'agent ' + ' '.join(args), 'returncode': proc.returncode}
 
 
 def tracked_runtime_artifacts(project: Path) -> list[str]:
-    proc = subprocess.run(['git', 'ls-files', '.zoo-agent'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        ['git', 'ls-files', '.zoo-agent'],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
@@ -43,7 +58,7 @@ def smoke(project: Path) -> dict[str, Any]:
         result = run_agent(project, args)
         commands.append(result)
         if result['returncode'] != 0:
-            failed.append(f"command_failed:{result['command']}")
+            failed.append(f'command_failed:{result["command"]}')
     if tracked_runtime_artifacts(project):
         failed.append('tracked_runtime_artifacts')
     texts = {}

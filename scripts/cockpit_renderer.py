@@ -9,10 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cockpit_data_builder import build_cockpit_data  # noqa: E402
-from cockpit_html_template import render_cockpit_html  # noqa: E402
-from cockpit_schema import cockpit_dir  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
+from cockpit_data_builder import build_cockpit_data
+from cockpit_html_template import render_cockpit_html
+from cockpit_schema import cockpit_dir
+from runtime_common import load_json, project_root, write_json
 
 
 def render_cockpit(project: Path) -> dict:
@@ -48,7 +48,11 @@ def main() -> int:
         data = build_cockpit_data(project)
         write_json(data_path, data)
     html_path.write_text(render_cockpit_html(data), encoding='utf-8')
-    print(json.dumps({'status': 'ok', 'cockpit': str(html_path), 'cockpit_data': str(data_path)}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'cockpit': str(html_path), 'cockpit_data': str(data_path)}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 

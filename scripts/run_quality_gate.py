@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -23,8 +22,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -46,18 +44,26 @@ def write_json(path: Path, payload: dict) -> None:
 
 def refresh_summary(repo_root: Path, run_id: str) -> dict:
     proc = subprocess.run(
-        [sys.executable, str(ROOT / 'scripts' / 'summarize_ai_native_run.py'), '--run-id', run_id, '--workspace', str(repo_root)],
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'summarize_ai_native_run.py'),
+            '--run-id',
+            run_id,
+            '--workspace',
+            str(repo_root),
+        ],
         cwd=ROOT,
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
 
 
-def blocker(blockers: list[dict], blocker_id: str, message: str, *, severity: str = 'medium', evidence: str = '') -> None:
+def blocker(
+    blockers: list[dict], blocker_id: str, message: str, *, severity: str = 'medium', evidence: str = ''
+) -> None:
     blockers.append({'id': blocker_id, 'severity': severity, 'message': message, 'evidence': evidence})
 
 
@@ -76,7 +82,9 @@ def cli_runtime_reports(run_dir: Path) -> list[dict]:
 
 
 def is_fast_only_run(reports: list[dict]) -> bool:
-    return bool(reports) and all(str(item.get('route') or item.get('selected_path') or '') == 'fast' for item in reports)
+    return bool(reports) and all(
+        str(item.get('route') or item.get('selected_path') or '') == 'fast' for item in reports
+    )
 
 
 def run_fast_gate(repo_root: Path, run_id: str, task_id: str) -> dict:
@@ -95,8 +103,7 @@ def run_fast_gate(repo_root: Path, run_id: str, task_id: str) -> dict:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     payload = load_json(repo_root / '.zoo-agent' / 'runs' / run_id / 'fast-path-gate.json')
     payload['_command_returncode'] = proc.returncode
@@ -204,7 +211,9 @@ def test_findings(run_dir: Path) -> tuple[list[dict], list[dict]]:
     return failed, missing
 
 
-def goal_alignment_findings(run_dir: Path, summary: dict, merge_queue: dict) -> tuple[list[dict], list[dict], list[dict]]:
+def goal_alignment_findings(
+    run_dir: Path, summary: dict, merge_queue: dict
+) -> tuple[list[dict], list[dict], list[dict]]:
     observed: set[str] = set()
     for key in ['dispatcher_runs', 'optimistic_runs', 'codex_results', 'merge_candidates']:
         for item in summary.get(key) or []:
@@ -256,15 +265,15 @@ def parent_aggregation_requires_review(parent: dict) -> bool:
 
 def write_markdown(path: Path, payload: dict) -> None:
     lines = [
-        f"# Quality Gate: {payload['run_id']}",
+        f'# Quality Gate: {payload["run_id"]}',
         '',
-        f"- status: {payload['gate_status']}",
-        f"- execution_closure: {payload['closure']['execution_closure']}",
-        f"- evidence_closure: {payload['closure']['evidence_closure']}",
-        f"- goal_alignment_closure: {payload['closure']['goal_alignment_closure']}",
-        f"- state_closure: {payload['closure']['state_closure']}",
-        f"- integration_closure: {payload['closure']['integration_closure']}",
-        f"- merge_queue_processing_authorized: {payload['readiness_flags']['merge_queue_processing_authorized']}",
+        f'- status: {payload["gate_status"]}',
+        f'- execution_closure: {payload["closure"]["execution_closure"]}',
+        f'- evidence_closure: {payload["closure"]["evidence_closure"]}',
+        f'- goal_alignment_closure: {payload["closure"]["goal_alignment_closure"]}',
+        f'- state_closure: {payload["closure"]["state_closure"]}',
+        f'- integration_closure: {payload["closure"]["integration_closure"]}',
+        f'- merge_queue_processing_authorized: {payload["readiness_flags"]["merge_queue_processing_authorized"]}',
         '',
         '## Blockers',
         '',
@@ -273,13 +282,13 @@ def write_markdown(path: Path, payload: dict) -> None:
         lines.append('- none')
     else:
         for item in payload['blockers']:
-            lines.append(f"- {item.get('id')}: {item.get('message')}")
+            lines.append(f'- {item.get("id")}: {item.get("message")}')
     lines += ['', '## Warnings', '']
     if not payload['warnings']:
         lines.append('- none')
     else:
         for item in payload['warnings']:
-            lines.append(f"- {item.get('id')}: {item.get('message')}")
+            lines.append(f'- {item.get("id")}: {item.get("message")}')
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
@@ -326,7 +335,12 @@ def main() -> int:
 
     worker_count = int(totals.get('optimistic_runs') or 0) + int(totals.get('codex_results') or 0)
     if worker_count == 0 and not args.governance_only:
-        blocker(blockers, 'execution_closure_missing', 'No worker/result evidence was found and the run is not marked governance-only.', severity='high')
+        blocker(
+            blockers,
+            'execution_closure_missing',
+            'No worker/result evidence was found and the run is not marked governance-only.',
+            severity='high',
+        )
 
     if readiness.get('blocking_issues') and not args.allow_project_readiness_blocks:
         blocker(
@@ -339,7 +353,12 @@ def main() -> int:
 
     arch_status = str(architecture.get('status') or 'missing')
     if arch_status == 'blocked' and not args.allow_architecture_blocks:
-        blocker(blockers, 'architecture_compatibility_blocked', 'Architecture compatibility report is blocked.', severity='high')
+        blocker(
+            blockers,
+            'architecture_compatibility_blocked',
+            'Architecture compatibility report is blocked.',
+            severity='high',
+        )
     elif arch_status == 'needs_review':
         warning(warnings, 'architecture_compatibility_needs_review', 'Architecture compatibility report needs review.')
 
@@ -348,18 +367,44 @@ def main() -> int:
         if isinstance(result, dict) and result.get('scope_status') != 'pass':
             bad_scope.append(result)
     for run in summary.get('optimistic_runs') or []:
-        if isinstance(run, dict) and run.get('status') in {'merge_candidate', 'merge_candidate_partial'} and run.get('scope_status') != 'pass':
+        if (
+            isinstance(run, dict)
+            and run.get('status') in {'merge_candidate', 'merge_candidate_partial'}
+            and run.get('scope_status') != 'pass'
+        ):
             bad_scope.append(run)
     if bad_scope:
-        blocker(blockers, 'scope_guard_not_passing', 'One or more candidate results lack a passing scope guard.', severity='high', evidence=json.dumps(bad_scope[:5], ensure_ascii=False))
+        blocker(
+            blockers,
+            'scope_guard_not_passing',
+            'One or more candidate results lack a passing scope guard.',
+            severity='high',
+            evidence=json.dumps(bad_scope[:5], ensure_ascii=False),
+        )
 
     failed_tests, missing_tests = test_findings(run_dir)
     if failed_tests:
-        blocker(blockers, 'tests_failed', 'One or more harness test commands failed.', severity='high', evidence=json.dumps(failed_tests[:5], ensure_ascii=False))
+        blocker(
+            blockers,
+            'tests_failed',
+            'One or more harness test commands failed.',
+            severity='high',
+            evidence=json.dumps(failed_tests[:5], ensure_ascii=False),
+        )
     if missing_tests and not args.allow_missing_tests:
-        blocker(blockers, 'tests_missing_for_candidate', 'Merge candidates exist without recorded harness tests.', severity='medium', evidence=json.dumps(missing_tests[:5], ensure_ascii=False))
+        blocker(
+            blockers,
+            'tests_missing_for_candidate',
+            'Merge candidates exist without recorded harness tests.',
+            severity='medium',
+            evidence=json.dumps(missing_tests[:5], ensure_ascii=False),
+        )
     elif missing_tests:
-        warning(warnings, 'tests_missing_allowed', 'Merge candidates exist without recorded harness tests, but this was allowed.')
+        warning(
+            warnings,
+            'tests_missing_allowed',
+            'Merge candidates exist without recorded harness tests, but this was allowed.',
+        )
 
     missing_alignment, blocked_alignment, review_alignment = goal_alignment_findings(run_dir, summary, merge_queue)
     if missing_alignment and not args.allow_missing_goal_alignment:
@@ -371,7 +416,11 @@ def main() -> int:
             evidence=json.dumps(missing_alignment[:10], ensure_ascii=False),
         )
     elif missing_alignment:
-        warning(warnings, 'goal_alignment_missing_allowed', 'Observed tasks are missing goal-alignment evidence, but this was allowed.')
+        warning(
+            warnings,
+            'goal_alignment_missing_allowed',
+            'Observed tasks are missing goal-alignment evidence, but this was allowed.',
+        )
     if blocked_alignment:
         blocker(
             blockers,
@@ -390,35 +439,64 @@ def main() -> int:
 
     open_risk_count = int(risk_register.get('open_risk_count') or 0)
     if open_risk_count and not args.allow_open_risks:
-        blocker(blockers, 'open_run_risks', 'Open run-level risks remain.', severity='high', evidence=str(open_risk_count))
+        blocker(
+            blockers, 'open_run_risks', 'Open run-level risks remain.', severity='high', evidence=str(open_risk_count)
+        )
     elif open_risk_count:
         warning(warnings, 'open_run_risks_allowed', 'Open run-level risks remain, but this was allowed.')
 
     if task_board.get('status') == 'warnings' and not args.allow_task_board_warnings:
-        blocker(blockers, 'task_board_consistency_warnings', 'Task-board consistency warnings remain.', severity='medium')
+        blocker(
+            blockers, 'task_board_consistency_warnings', 'Task-board consistency warnings remain.', severity='medium'
+        )
     elif task_board.get('status') == 'warnings':
-        warning(warnings, 'task_board_consistency_warnings_allowed', 'Task-board consistency warnings remain, but this was allowed.')
+        warning(
+            warnings,
+            'task_board_consistency_warnings_allowed',
+            'Task-board consistency warnings remain, but this was allowed.',
+        )
 
     if parent_aggregation_requires_review(parent_aggregation) and not args.accept_parent_aggregation:
-        blocker(blockers, 'parent_aggregation_review_required', 'Parent aggregation requires review before queue processing.', severity='medium')
+        blocker(
+            blockers,
+            'parent_aggregation_review_required',
+            'Parent aggregation requires review before queue processing.',
+            severity='medium',
+        )
     elif parent_aggregation_requires_review(parent_aggregation):
-        warning(warnings, 'parent_aggregation_accepted', 'Parent aggregation review requirement was explicitly accepted.')
+        warning(
+            warnings, 'parent_aggregation_accepted', 'Parent aggregation review requirement was explicitly accepted.'
+        )
 
-    candidate_count = len(merge_queue.get('candidates') or []) if isinstance(merge_queue.get('candidates'), list) else int(totals.get('merge_candidates') or 0)
+    candidate_count = (
+        len(merge_queue.get('candidates') or [])
+        if isinstance(merge_queue.get('candidates'), list)
+        else int(totals.get('merge_candidates') or 0)
+    )
     if candidate_count and not merge_queue:
         warning(warnings, 'merge_queue_missing', 'Merge candidates exist but merge-queue.json is missing.')
 
     gate_status = 'blocked' if blockers else ('needs_review' if warnings else 'pass')
     can_authorize_queue = gate_status == 'pass' and args.authorize_merge_queue
-    merge_queue_flags = merge_queue.get('readiness_flags') if isinstance(merge_queue.get('readiness_flags'), dict) else {}
+    merge_queue_flags = (
+        merge_queue.get('readiness_flags') if isinstance(merge_queue.get('readiness_flags'), dict) else {}
+    )
     closure = {
         'execution_closure': worker_count > 0 or args.governance_only,
-        'evidence_closure': not any(item['id'] in {'scope_guard_not_passing', 'tests_failed', 'tests_missing_for_candidate'} for item in blockers),
-        'goal_alignment_closure': not any(item['id'] in {'goal_alignment_missing', 'goal_alignment_blocked'} for item in blockers),
-        'state_closure': not any(item['id'] in {'open_run_risks', 'task_board_consistency_warnings'} for item in blockers),
+        'evidence_closure': not any(
+            item['id'] in {'scope_guard_not_passing', 'tests_failed', 'tests_missing_for_candidate'}
+            for item in blockers
+        ),
+        'goal_alignment_closure': not any(
+            item['id'] in {'goal_alignment_missing', 'goal_alignment_blocked'} for item in blockers
+        ),
+        'state_closure': not any(
+            item['id'] in {'open_run_risks', 'task_board_consistency_warnings'} for item in blockers
+        ),
         'integration_closure': bool(
             merge_queue_flags.get('merge_queue_processing_authorized')
-            and merge_queue.get('queue_status') not in {'record_only_parallel_candidates_not_processable', 'missing', ''}
+            and merge_queue.get('queue_status')
+            not in {'record_only_parallel_candidates_not_processable', 'missing', ''}
         ),
     }
     readiness_flags = {

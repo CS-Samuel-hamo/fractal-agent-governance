@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 FALLBACK_CHAIN = ['retry_backend', 'split_execution', 'reduce_scope_execution', 'dry_run_mode', 'escalate_to_planner']
 
 
@@ -49,7 +48,9 @@ def main() -> int:
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     model = json.loads(Path(args.model).resolve().read_text(encoding='utf-8-sig'))
-    payload = fallback_decision(model, retry_available=args.retry_available, split_available=args.split_available, fallback_history=args.history)
+    payload = fallback_decision(
+        model, retry_available=args.retry_available, split_available=args.split_available, fallback_history=args.history
+    )
     if args.output:
         path = Path(args.output).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

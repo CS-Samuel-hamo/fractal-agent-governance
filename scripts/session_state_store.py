@@ -11,7 +11,6 @@ from typing import Any
 
 from runtime_common import load_json, project_root, utc_now, write_json
 
-
 SESSION_SCHEMA_VERSION = '1.0'
 LOCK_TTL_SECONDS = 30 * 60
 
@@ -112,7 +111,14 @@ def append_session_history(project: Path, row: dict[str, Any]) -> dict[str, Any]
     history = load_session_history(project)
     steps = [item for item in history.get('steps') or [] if isinstance(item, dict)]
     steps.append(row)
-    history.update({'schema_version': SESSION_SCHEMA_VERSION, 'generated_by': 'session_state_store.py', 'updated_at': utc_now(), 'steps': steps})
+    history.update(
+        {
+            'schema_version': SESSION_SCHEMA_VERSION,
+            'generated_by': 'session_state_store.py',
+            'updated_at': utc_now(),
+            'steps': steps,
+        }
+    )
     atomic_write_json(session_history_path(project), history)
     return history
 
@@ -174,7 +180,15 @@ def acquire_session_lock(project: Path, *, session_id: str = '') -> dict[str, An
 def release_session_lock(project: Path) -> None:
     path = session_lock_path(project)
     if path.exists():
-        atomic_write_json(path, {'schema_version': SESSION_SCHEMA_VERSION, 'generated_by': 'session_state_store.py', 'released_at': utc_now(), 'released': True})
+        atomic_write_json(
+            path,
+            {
+                'schema_version': SESSION_SCHEMA_VERSION,
+                'generated_by': 'session_state_store.py',
+                'released_at': utc_now(),
+                'released': True,
+            },
+        )
 
 
 def main() -> int:

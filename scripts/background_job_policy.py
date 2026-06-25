@@ -8,7 +8,6 @@ from typing import Any
 
 from runtime_common import project_root, utc_now, write_json
 
-
 PROJECT_GOAL_TERMS = {
     'project',
     'release',
@@ -25,7 +24,14 @@ PROJECT_GOAL_TERMS = {
 }
 
 
-def decide_policy(goal: str, *, explicit_preview: bool = False, explicit_apply: bool = False, has_allowed_file: bool = False, existing_job: bool = False) -> dict[str, Any]:
+def decide_policy(
+    goal: str,
+    *,
+    explicit_preview: bool = False,
+    explicit_apply: bool = False,
+    has_allowed_file: bool = False,
+    existing_job: bool = False,
+) -> dict[str, Any]:
     normalized = goal.lower()
     tokens = {part.strip('.,:;"\'()[]{}') for part in normalized.split()}
     project_like = bool(tokens & PROJECT_GOAL_TERMS) or len(tokens) >= 4
@@ -65,7 +71,12 @@ def main() -> int:
     parser.add_argument('--has-allowed-file', action='store_true')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    decision = decide_policy(' '.join(args.goal).strip(), explicit_preview=args.preview, explicit_apply=args.apply, has_allowed_file=args.has_allowed_file)
+    decision = decide_policy(
+        ' '.join(args.goal).strip(),
+        explicit_preview=args.preview,
+        explicit_apply=args.apply,
+        has_allowed_file=args.has_allowed_file,
+    )
     write_policy_report(project, decision)
     print(json.dumps(decision, ensure_ascii=False, indent=2))
     return 0

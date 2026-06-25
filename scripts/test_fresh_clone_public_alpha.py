@@ -9,15 +9,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from demo_flow_verifier import verify as verify_demo_flow  # noqa: E402
-from fresh_clone_verifier import verify as verify_fresh_clone  # noqa: E402
-from public_release_report_generator import generate_report  # noqa: E402
+from demo_flow_verifier import verify as verify_demo_flow
+from fresh_clone_verifier import verify as verify_fresh_clone
+from public_release_report_generator import generate_report
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(cmd, cwd=ROOT, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -40,7 +40,9 @@ def test_demo_flow_verifier_runs() -> None:
 def test_public_release_report_generates_clear_readiness() -> None:
     payload = generate_report(ROOT, run_fresh_clone=False, run_demo=False)
     assert payload['status'] == 'READY_TO_PUBLISH_GITHUB_ALPHA', payload
-    readiness = json.loads((ROOT / '.zoo-agent' / 'public_release' / 'readiness_for_github_publish.json').read_text(encoding='utf-8-sig'))
+    readiness = json.loads(
+        (ROOT / '.zoo-agent' / 'public_release' / 'readiness_for_github_publish.json').read_text(encoding='utf-8-sig')
+    )
     assert readiness['readiness'] == 'READY_TO_PUBLISH_GITHUB_ALPHA', readiness
     assert (ROOT / '.zoo-agent' / 'public_release' / 'public_release_report.md').exists()
 

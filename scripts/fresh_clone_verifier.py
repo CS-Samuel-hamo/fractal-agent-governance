@@ -14,9 +14,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_release_packager import build_release_manifest, public_release_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_release_packager import build_release_manifest, public_release_dir
+from runtime_common import project_root, utc_now, write_json
 
 TEST_COMMANDS = [
     ['scripts/validate_starter_pack.py'],
@@ -45,15 +44,41 @@ def copy_public_tree(source: Path, target: Path) -> list[str]:
 def run_python_script(root: Path, script: str) -> dict[str, Any]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='fresh-clone-codex-home-')).resolve()))
-    proc = subprocess.run([sys.executable, script], cwd=root, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return {'command': f'python {script}', 'returncode': proc.returncode, 'stdout_tail': proc.stdout[-800:], 'stderr_tail': proc.stderr[-800:]}
+    proc = subprocess.run(
+        [sys.executable, script],
+        cwd=root,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
+    return {
+        'command': f'python {script}',
+        'returncode': proc.returncode,
+        'stdout_tail': proc.stdout[-800:],
+        'stderr_tail': proc.stderr[-800:],
+    }
 
 
 def run_agent(root: Path, args: list[str]) -> dict[str, Any]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='fresh-clone-agent-codex-home-')).resolve()))
-    proc = subprocess.run([sys.executable, str(root / 'scripts' / 'agent.py'), *args], cwd=root, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return {'command': 'agent ' + ' '.join(args), 'returncode': proc.returncode, 'stdout_tail': proc.stdout[-800:], 'stderr_tail': proc.stderr[-800:]}
+    proc = subprocess.run(
+        [sys.executable, str(root / 'scripts' / 'agent.py'), *args],
+        cwd=root,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
+    return {
+        'command': 'agent ' + ' '.join(args),
+        'returncode': proc.returncode,
+        'stdout_tail': proc.stdout[-800:],
+        'stderr_tail': proc.stderr[-800:],
+    }
 
 
 def verify(project: Path) -> dict[str, Any]:

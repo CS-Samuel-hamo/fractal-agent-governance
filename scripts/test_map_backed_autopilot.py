@@ -13,7 +13,16 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, env: dict[str, str], check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -49,7 +58,20 @@ def test_standard_executes_trusted_zone() -> None:
     repo = init_repo('map-autopilot-standard-')
     test_env = env()
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=test_env)
-    result = run([sys.executable, str(AGENT), 'start', 'improve project readiness', '--workspace', str(repo), '--mode', 'standard'], repo, env=test_env)
+    result = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'start',
+            'improve project readiness',
+            '--workspace',
+            str(repo),
+            '--mode',
+            'standard',
+        ],
+        repo,
+        env=test_env,
+    )
     assert 'Done.' in result.stdout
     assert 'Undo:' in result.stdout
     assert 'Mock backend delivered.' in (repo / 'README.md').read_text(encoding='utf-8')
@@ -84,7 +106,9 @@ def test_blocked_zone_pauses() -> None:
                         'risk_level': 'low',
                         'target_files': ['.env'],
                         'autopilot_eligible': True,
-                        'evidence': [{'kind': 'test', 'path': '<hidden>', 'summary': 'blocked action fixture', 'confidence': 1.0}],
+                        'evidence': [
+                            {'kind': 'test', 'path': '<hidden>', 'summary': 'blocked action fixture', 'confidence': 1.0}
+                        ],
                     }
                 ],
                 'last_updated': 'test',
@@ -93,7 +117,11 @@ def test_blocked_zone_pauses() -> None:
         ),
         encoding='utf-8',
     )
-    result = run([sys.executable, str(AGENT), 'start', 'avoid unsafe work', '--workspace', str(repo), '--mode', 'standard'], repo, env=test_env)
+    result = run(
+        [sys.executable, str(AGENT), 'start', 'avoid unsafe work', '--workspace', str(repo), '--mode', 'standard'],
+        repo,
+        env=test_env,
+    )
     assert 'Needs attention.' in result.stdout
     attention = load(repo / '.zoo-agent' / 'autopilot' / 'attention_required.json')
     assert attention['status'] == 'needs_attention'
@@ -104,7 +132,22 @@ def test_autopilot_multiple_low_risk_steps() -> None:
     repo = init_repo('map-autopilot-multi-')
     test_env = env()
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=test_env)
-    run([sys.executable, str(AGENT), 'start', 'improve project readiness', '--workspace', str(repo), '--mode', 'autopilot', '--max-steps', '2'], repo, env=test_env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'start',
+            'improve project readiness',
+            '--workspace',
+            str(repo),
+            '--mode',
+            'autopilot',
+            '--max-steps',
+            '2',
+        ],
+        repo,
+        env=test_env,
+    )
     history = load(repo / '.zoo-agent' / 'autopilot' / 'action_history.json')
     assert len(history['actions']) == 2
     checkpoints = load(repo / '.zoo-agent' / 'autopilot' / 'checkpoints.json')
@@ -116,7 +159,20 @@ def test_no_delivery_pauses_session() -> None:
     repo = init_repo('map-autopilot-nodelivery-')
     test_env = env()
     run([sys.executable, str(AGENT), 'config', 'backend', 'dry_run', '--workspace', str(repo)], repo, env=test_env)
-    run([sys.executable, str(AGENT), 'start', 'improve project readiness', '--workspace', str(repo), '--mode', 'standard'], repo, env=test_env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'start',
+            'improve project readiness',
+            '--workspace',
+            str(repo),
+            '--mode',
+            'standard',
+        ],
+        repo,
+        env=test_env,
+    )
     session = load(repo / '.zoo-agent' / 'autopilot' / 'session.json')
     assert session['status'] == 'needs_attention'
     attention = load(repo / '.zoo-agent' / 'autopilot' / 'attention_required.json')

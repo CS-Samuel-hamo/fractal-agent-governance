@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import detect_independence, load_backend_profile, load_leaf_contracts, project_root  # noqa: E402
-from runtime_common import load_json, write_json  # noqa: E402
+from big_task_common import detect_independence, load_backend_profile, load_leaf_contracts, project_root
+from runtime_common import load_json, write_json
 
 
 def main() -> int:

@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 PASSING_TEST_STATUSES = {'passed', 'skipped_with_reason', 'not_applicable'}
 ACCEPTED_OUTCOMES = {'delivered', 'no_op_with_evidence'}
@@ -35,8 +34,7 @@ def run_delivery_check(project: Path, run_id: str, task_id: str) -> dict[str, An
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     payload = load_json(project / '.zoo-agent' / 'runs' / run_id / 'delivery-outcome.json')
     payload['_check_returncode'] = proc.returncode
@@ -76,9 +74,13 @@ def build_gate(project: Path, run_id: str, task_id: str, *, output: Path | None 
     if not checks['route_is_fast']:
         blockers.append({'id': 'not_fast_route', 'message': 'Fast path gate only applies to route=fast.'})
     if not checks['scope_guard_pass']:
-        blockers.append({'id': 'scope_guard_not_pass', 'message': f'Scope guard status is {scope_status or "missing"}.'})
+        blockers.append(
+            {'id': 'scope_guard_not_pass', 'message': f'Scope guard status is {scope_status or "missing"}.'}
+        )
     if delivery == 'no_delivery':
-        blockers.append({'id': 'fast_no_delivery', 'message': 'Codex or worker ran but produced no accepted business diff.'})
+        blockers.append(
+            {'id': 'fast_no_delivery', 'message': 'Codex or worker ran but produced no accepted business diff.'}
+        )
     elif delivery == 'unsafe':
         blockers.append({'id': 'fast_unsafe', 'message': 'Denied files were touched or scope guard failed.'})
     elif delivery == 'blocked':

@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, json, shutil, datetime, sys
+
+import argparse
+import datetime
+import json
+import shutil
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import ensure_goal, project_root  # noqa: E402
+from runtime_common import ensure_goal, project_root
 
 TEMPLATE_DIR = ROOT / 'templates' / 'codex'
 
-def render(text: str, mapping: dict[str,str]) -> str:
-    for k,v in mapping.items():
-        text = text.replace('{{'+k+'}}', v)
+
+def render(text: str, mapping: dict[str, str]) -> str:
+    for k, v in mapping.items():
+        text = text.replace('{{' + k + '}}', v)
     return text
+
 
 def yaml_list(items, indent='      '):
     if not items:
         return indent + '- ""'
-    return '\n'.join(indent + '- "' + str(x).replace('"','\\"') + '"' for x in items)
+    return '\n'.join(indent + '- "' + str(x).replace('"', '\\"') + '"' for x in items)
 
 
 def yaml_scalar(value: str) -> str:
@@ -58,15 +65,23 @@ def main():
     ap.add_argument('--task-id', required=True)
     ap.add_argument('--branch-id', default='')
     ap.add_argument('--objective', required=True)
-    ap.add_argument('--goal-id', default='', help='Goal id to bind this task pack to; defaults to active goal or creates one from the objective')
+    ap.add_argument(
+        '--goal-id',
+        default='',
+        help='Goal id to bind this task pack to; defaults to active goal or creates one from the objective',
+    )
     ap.add_argument('--allowed-file', action='append', default=[])
     ap.add_argument('--denied-file', action='append', default=[])
     ap.add_argument('--acceptance', action='append', default=[])
     ap.add_argument('--test-command', action='append', default=[])
     ap.add_argument('--worktree', default='')
     ap.add_argument('--output', default='')
-    ap.add_argument('--prompt-template', default='CODEX_TASK_PROMPT.md', help='Prompt template file under templates/codex')
-    ap.add_argument('--task-context', default='', help='Optional task context JSON or Markdown file to copy into the task pack')
+    ap.add_argument(
+        '--prompt-template', default='CODEX_TASK_PROMPT.md', help='Prompt template file under templates/codex'
+    )
+    ap.add_argument(
+        '--task-context', default='', help='Optional task context JSON or Markdown file to copy into the task pack'
+    )
     args = ap.parse_args()
 
     out = Path(args.output) if args.output else Path('.zoo-agent') / 'runs' / args.run_id / 'codex-tasks' / args.task_id
@@ -80,9 +95,15 @@ def main():
         'BRANCH_ID': args.branch_id or args.task_id,
         'OBJECTIVE': args.objective,
         'OBJECTIVE_YAML': yaml_scalar(args.objective),
-        'ALLOWED_FILES': yaml_list(list(args.allowed_file) + [f'.zoo-agent/runs/{args.run_id}/codex-tasks/{args.task_id}/**']),
-        'DENIED_FILES': yaml_list(args.denied_file or ['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**']),
-        'ACCEPTANCE': yaml_list(args.acceptance or ['Scope guard passes', 'Relevant tests pass or blockers are documented']),
+        'ALLOWED_FILES': yaml_list(
+            [*list(args.allowed_file), f'.zoo-agent/runs/{args.run_id}/codex-tasks/{args.task_id}/**']
+        ),
+        'DENIED_FILES': yaml_list(
+            args.denied_file or ['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**']
+        ),
+        'ACCEPTANCE': yaml_list(
+            args.acceptance or ['Scope guard passes', 'Relevant tests pass or blockers are documented']
+        ),
         'TEST_COMMANDS': yaml_list(args.test_command),
     }
 
@@ -90,7 +111,7 @@ def main():
     if not prompt_template.exists():
         raise SystemExit(f'Missing prompt template: {prompt_template}')
 
-    for name in ['AGENTS.md','TASKS.yaml','ACCEPTANCE.md','CODEX_TASK_PROMPT.md','PROGRESS.md','BLOCKERS.md']:
+    for name in ['AGENTS.md', 'TASKS.yaml', 'ACCEPTANCE.md', 'CODEX_TASK_PROMPT.md', 'PROGRESS.md', 'BLOCKERS.md']:
         src = TEMPLATE_DIR / name
         if name == 'CODEX_TASK_PROMPT.md':
             src = prompt_template
@@ -125,6 +146,7 @@ def main():
     }
     (out / 'task-metadata.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
     print(out)
+
 
 if __name__ == '__main__':
     main()

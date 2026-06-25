@@ -11,16 +11,17 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_alpha_packager import PUBLIC_DOCS, public_alpha_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_alpha_packager import PUBLIC_DOCS, public_alpha_dir
+from runtime_common import project_root, utc_now, write_json
 
 WINDOWS_PATH_RE = re.compile(r'\b[A-Za-z]:\\[^\s)`"\']+')
 UNIX_PRIVATE_PATH_RE = re.compile(r'(?<!`)(?:/Users/|/home/|/tmp/)[^\s)`"\']+')
 TOKEN_RE = re.compile(r'\b(?:ghp|gho|github_pat|sk|xoxb|xoxp)_[A-Za-z0-9_]{12,}\b')
 KEY_VALUE_SECRET_RE = re.compile(r'\b(?:API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY)\s*=\s*[^ \n]+', re.IGNORECASE)
 TOKENIZED_REMOTE_RE = re.compile(r'https?://[^/\s:@]+:[^@\s]+@|https?://(?:ghp|github_pat)_[^@\s]+@', re.IGNORECASE)
-RAW_LOG_RE = re.compile(r'(?:Traceback \(most recent call last\)|DEBUG\s+\[|raw backend log|stdout=|stderr=)', re.IGNORECASE)
+RAW_LOG_RE = re.compile(
+    r'(?:Traceback \(most recent call last\)|DEBUG\s+\[|raw backend log|stdout=|stderr=)', re.IGNORECASE
+)
 RAW_JSON_DUMP_RE = re.compile(r'"(?:session_state|routing_decision|execution_result)"\s*:\s*\{', re.IGNORECASE)
 UNSUPPORTED_CLAIM_PATTERNS = [
     re.compile(r'\bcreates?\s+remote\s+(?:pull\s+requests?|prs?)\b', re.IGNORECASE),

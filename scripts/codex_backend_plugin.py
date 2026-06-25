@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import time
-import shutil
 from pathlib import Path
 
 from execution_interface import ExecutionBackend, ExecutionContext, ExecutionResult, ExecutionTask
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,8 +40,7 @@ class CodexExecutionBackend(ExecutionBackend):
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         return {
             'backend': self.name,
@@ -77,8 +75,7 @@ class CodexExecutionBackend(ExecutionBackend):
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         return ExecutionResult(
             backend=self.name,

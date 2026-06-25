@@ -11,9 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import feedback_dir, load_items, write_schema  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from feedback_intake_schema import feedback_dir, load_items, write_schema
+from runtime_common import project_root, utc_now, write_json
 
 CATEGORY_BY_FLOW = {
     'install': 'install friction',
@@ -30,7 +29,7 @@ CATEGORY_BY_FLOW = {
 
 
 def category_for(item: dict[str, Any]) -> str:
-    text = f"{item.get('summary', '')} {item.get('raw_feedback_sanitized', '')}".lower()
+    text = f'{item.get("summary", "")} {item.get("raw_feedback_sanitized", "")}'.lower()
     if any(word in text for word in ['secret', 'token', 'privacy', 'unsafe', 'push', 'merge']):
         return 'privacy/safety concern'
     if any(word in text for word in ['codex wrapper', 'just use codex', 'why not just use codex']):
@@ -63,9 +62,23 @@ def triage(project: Path) -> dict[str, Any]:
         if cat == 'privacy/safety concern' or sev == 'critical':
             must_fix.append(fid)
             privacy.append(fid)
-        elif cat in {'install friction', 'first-run confusion', 'positioning confusion', 'session reliability', 'cockpit clarity', 'docs gap', 'bug'}:
+        elif cat in {
+            'install friction',
+            'first-run confusion',
+            'positioning confusion',
+            'session reliability',
+            'cockpit clarity',
+            'docs gap',
+            'bug',
+        }:
             patch.append(fid)
-        elif cat in {'project map quality', 'autopilot next_action quality', 'worker availability', 'release/pr usefulness', 'feature request'}:
+        elif cat in {
+            'project map quality',
+            'autopilot next_action quality',
+            'worker availability',
+            'release/pr usefulness',
+            'feature request',
+        }:
             roadmap.append(fid)
         else:
             later.append(fid)

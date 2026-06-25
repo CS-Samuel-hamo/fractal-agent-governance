@@ -10,10 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import feedback_dir, load_items, write_schema  # noqa: E402
-from feedback_triage_engine import category_for, triage  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from feedback_intake_schema import feedback_dir, load_items, write_schema
+from feedback_triage_engine import category_for, triage
+from runtime_common import project_root, utc_now, write_json
 
 SEVERITY = {'critical': 100.0, 'high': 75.0, 'medium': 45.0, 'low': 20.0}
 CATEGORY_BOOST = {
@@ -33,9 +32,22 @@ CATEGORY_BOOST = {
 def bucket(category: str, score: float, product_signal: str) -> str:
     if category == 'privacy/safety concern' or score >= 95:
         return 'patch'
-    if category in {'install friction', 'first-run confusion', 'positioning confusion', 'session reliability', 'cockpit clarity', 'docs gap', 'bug'}:
+    if category in {
+        'install friction',
+        'first-run confusion',
+        'positioning confusion',
+        'session reliability',
+        'cockpit clarity',
+        'docs gap',
+        'bug',
+    }:
         return 'patch'
-    if product_signal == 'missing_capability' or category in {'feature request', 'project map quality', 'release/pr usefulness', 'worker availability'}:
+    if product_signal == 'missing_capability' or category in {
+        'feature request',
+        'project map quality',
+        'release/pr usefulness',
+        'worker availability',
+    }:
         return 'roadmap'
     if category == 'not now':
         return 'later'

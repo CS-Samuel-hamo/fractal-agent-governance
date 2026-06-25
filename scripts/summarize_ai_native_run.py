@@ -5,7 +5,6 @@ import argparse
 import collections
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -16,8 +15,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -196,7 +194,9 @@ def collect_governance_state(repo_root: Path, run_dir: Path) -> dict:
             'gate_status': status.get('gate_status', 'missing'),
             'current_state': status.get('current_state') or current_run.get('current_state') or 'unknown',
             'active_branch': status.get('active_branch') or current_run.get('active_branch') or 'unknown',
-            'next_recommended_phase': status.get('next_recommended_phase') or current_run.get('next_recommended_phase') or 'unknown',
+            'next_recommended_phase': status.get('next_recommended_phase')
+            or current_run.get('next_recommended_phase')
+            or 'unknown',
             'business_code_modified': status.get('business_code_modified', 'unknown'),
         },
         'merge_queue': {
@@ -205,7 +205,9 @@ def collect_governance_state(repo_root: Path, run_dir: Path) -> dict:
             'approved_for_deploy': readiness_flags.get('approved_for_deploy', False),
             'approved_for_release': readiness_flags.get('approved_for_release', False),
             'merge_queue_processing_authorized': readiness_flags.get('merge_queue_processing_authorized', False),
-            'blocker_count': len(merge_queue.get('blockers') or []) if isinstance(merge_queue.get('blockers'), list) else 0,
+            'blocker_count': len(merge_queue.get('blockers') or [])
+            if isinstance(merge_queue.get('blockers'), list)
+            else 0,
         },
         'parent_aggregation': {
             'status': parent_status,
@@ -217,7 +219,9 @@ def collect_governance_state(repo_root: Path, run_dir: Path) -> dict:
         },
         'quality_gate': {
             'gate_status': quality_gate.get('gate_status', 'missing'),
-            'blocker_count': len(quality_gate.get('blockers') or []) if isinstance(quality_gate.get('blockers'), list) else 0,
+            'blocker_count': len(quality_gate.get('blockers') or [])
+            if isinstance(quality_gate.get('blockers'), list)
+            else 0,
             'merge_queue_processing_authorized': (
                 quality_gate.get('readiness_flags', {}).get('merge_queue_processing_authorized', False)
                 if isinstance(quality_gate.get('readiness_flags'), dict)
@@ -225,7 +229,9 @@ def collect_governance_state(repo_root: Path, run_dir: Path) -> dict:
             ),
         },
         'resource_locks': {
-            'active_lock_count': len(resource_locks.get('locks') or []) if isinstance(resource_locks.get('locks'), list) else 0,
+            'active_lock_count': len(resource_locks.get('locks') or [])
+            if isinstance(resource_locks.get('locks'), list)
+            else 0,
         },
         'task_board_consistency': {
             'status': task_board_consistency.get('status', 'missing'),
@@ -236,24 +242,24 @@ def collect_governance_state(repo_root: Path, run_dir: Path) -> dict:
 
 def write_markdown(path: Path, summary: dict) -> None:
     lines = [
-        f"# AI Native Run Summary: {summary['run_id']}",
+        f'# AI Native Run Summary: {summary["run_id"]}',
         '',
         '## Totals',
         '',
-        f"- Tasks observed: {summary['totals']['tasks_observed']}",
-        f"- Dispatcher runs: {summary['totals']['dispatcher_runs']}",
-        f"- Optimistic runs: {summary['totals']['optimistic_runs']}",
-        f"- Fractal workstreams: {summary['totals']['fractal_workstreams']}",
-        f"- Merge candidates: {summary['totals']['merge_candidates']}",
+        f'- Tasks observed: {summary["totals"]["tasks_observed"]}',
+        f'- Dispatcher runs: {summary["totals"]["dispatcher_runs"]}',
+        f'- Optimistic runs: {summary["totals"]["optimistic_runs"]}',
+        f'- Fractal workstreams: {summary["totals"]["fractal_workstreams"]}',
+        f'- Merge candidates: {summary["totals"]["merge_candidates"]}',
         '',
         '## Status Counts',
         '',
     ]
     for status, count in sorted(summary['status_counts'].items()):
-        lines.append(f"- {status}: {count}")
+        lines.append(f'- {status}: {count}')
     lines += ['', '## Path Counts', '']
     for status, count in sorted(summary['path_counts'].items()):
-        lines.append(f"- {status}: {count}")
+        lines.append(f'- {status}: {count}')
     governance = summary.get('governance_state') or {}
     readiness = governance.get('project_readiness') or {}
     run_status = governance.get('run_status') or {}
@@ -263,32 +269,32 @@ def write_markdown(path: Path, summary: dict) -> None:
     resource_locks = governance.get('resource_locks') or {}
     lines += ['', '## Governance State', '']
     lines += [
-        f"- codex_cli_ready: {readiness.get('codex_cli_ready', 'unknown')}",
-        f"- safe_for_level_0_1_trial: {readiness.get('safe_for_level_0_1_trial', 'unknown')}",
-        f"- current_state: {run_status.get('current_state', 'unknown')}",
-        f"- active_branch: {run_status.get('active_branch', 'unknown')}",
-        f"- next_recommended_phase: {run_status.get('next_recommended_phase', 'unknown')}",
-        f"- merge_queue_status: {merge_queue.get('queue_status', 'unknown')}",
-        f"- approved_for_merge: {merge_queue.get('approved_for_merge', False)}",
-        f"- merge_queue_processing_authorized: {merge_queue.get('merge_queue_processing_authorized', False)}",
-        f"- open_risk_count: {risks.get('open_risk_count', 0)}",
-        f"- quality_gate_status: {quality_gate.get('gate_status', 'missing')}",
-        f"- quality_gate_blocker_count: {quality_gate.get('blocker_count', 0)}",
-        f"- active_resource_lock_count: {resource_locks.get('active_lock_count', 0)}",
+        f'- codex_cli_ready: {readiness.get("codex_cli_ready", "unknown")}',
+        f'- safe_for_level_0_1_trial: {readiness.get("safe_for_level_0_1_trial", "unknown")}',
+        f'- current_state: {run_status.get("current_state", "unknown")}',
+        f'- active_branch: {run_status.get("active_branch", "unknown")}',
+        f'- next_recommended_phase: {run_status.get("next_recommended_phase", "unknown")}',
+        f'- merge_queue_status: {merge_queue.get("queue_status", "unknown")}',
+        f'- approved_for_merge: {merge_queue.get("approved_for_merge", False)}',
+        f'- merge_queue_processing_authorized: {merge_queue.get("merge_queue_processing_authorized", False)}',
+        f'- open_risk_count: {risks.get("open_risk_count", 0)}',
+        f'- quality_gate_status: {quality_gate.get("gate_status", "missing")}',
+        f'- quality_gate_blocker_count: {quality_gate.get("blocker_count", 0)}',
+        f'- active_resource_lock_count: {resource_locks.get("active_lock_count", 0)}',
     ]
     lines += ['', '## Dispatcher Graph', '']
     if summary['dispatcher_runs']:
         for item in summary['dispatcher_runs']:
             lines.append(
-                f"- {item['task_id']}: {item['recommended_path']}, weight={item.get('chain_weight')}, "
-                f"risk={item.get('misroute_risk')}, parallel={item.get('parallelizable')}, rollback={item.get('rollback_mode')}"
+                f'- {item["task_id"]}: {item["recommended_path"]}, weight={item.get("chain_weight")}, '
+                f'risk={item.get("misroute_risk")}, parallel={item.get("parallelizable")}, rollback={item.get("rollback_mode")}'
             )
     else:
         lines.append('- none')
     lines += ['', '## Merge Candidates', '']
     if summary['merge_candidates']:
         for item in summary['merge_candidates']:
-            lines.append(f"- {item['task_id']} ({item['status']}): {item['worktree']}")
+            lines.append(f'- {item["task_id"]} ({item["status"]}): {item["worktree"]}')
     else:
         lines.append('- none')
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')

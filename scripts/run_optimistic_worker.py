@@ -11,11 +11,10 @@ import sys
 import time
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from execution_policy import DEFAULT_DENIED_FILES, detect_hard_risk  # noqa: E402
+from execution_policy import DEFAULT_DENIED_FILES, detect_hard_risk
 
 FAST_SKIPPED_GOVERNANCE = [
     'product_doc_generation',
@@ -64,8 +63,7 @@ def run_command(cmd, cwd: Path, *, env=None, shell=False, timeout=None) -> dict:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             env=env,
             timeout=timeout,
         )
@@ -92,13 +90,12 @@ def run_command(cmd, cwd: Path, *, env=None, shell=False, timeout=None) -> dict:
 
 def git_output(args: list[str], cwd: Path) -> str:
     proc = subprocess.run(
-        ['git'] + args,
+        ['git', *args],
         cwd=cwd,
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or f'git command failed: {args}')
@@ -124,10 +121,7 @@ def append_retry_context(task_dir: Path, evidence: str) -> None:
     retry_context.write_text(evidence, encoding='utf-8')
     current = prompt.read_text(encoding='utf-8')
     prompt.write_text(
-        current
-        + '\n\nRetry context from the previous isolated attempt:\n'
-        + evidence[:6000]
-        + '\n',
+        current + '\n\nRetry context from the previous isolated attempt:\n' + evidence[:6000] + '\n',
         encoding='utf-8',
     )
 
@@ -136,18 +130,20 @@ def summarize_failure(attempt: dict) -> str:
     parts = []
     codex = attempt.get('codex_worker', {})
     if codex.get('returncode') not in (None, 0):
-        parts.append(f"Codex worker exited with {codex.get('returncode')}.")
+        parts.append(f'Codex worker exited with {codex.get("returncode")}.')
         if codex.get('stderr'):
             parts.append('Worker stderr tail:\n' + codex['stderr'][-2500:])
     for result in attempt.get('test_results', []):
         if result.get('returncode') != 0:
-            parts.append(f"Test failed: {result.get('command')}")
+            parts.append(f'Test failed: {result.get("command")}')
             output = (result.get('stdout') or '') + (result.get('stderr') or '')
             parts.append(output[-3500:])
     return '\n\n'.join(parts) or 'Previous attempt failed without detailed output.'
 
 
-def create_worktree(repo_root: Path, worktree_root: Path, run_id: str, task_id: str, attempt: int, start_point: str) -> tuple[Path, str, dict]:
+def create_worktree(
+    repo_root: Path, worktree_root: Path, run_id: str, task_id: str, attempt: int, start_point: str
+) -> tuple[Path, str, dict]:
     timestamp = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
     safe_run = short_name(run_id, 28)
     safe_task = short_name(task_id, 36)
@@ -247,7 +243,14 @@ def capture_task_baseline(args, task_id: str, worktree_path: Path) -> dict:
         '--input-text',
         args.objective,
         '--output',
-        str(worktree_path / '.zoo-agent' / 't' / short_name(args.run_id, 18) / short_name(task_id, 24) / 'task-baseline.json'),
+        str(
+            worktree_path
+            / '.zoo-agent'
+            / 't'
+            / short_name(args.run_id, 18)
+            / short_name(task_id, 24)
+            / 'task-baseline.json'
+        ),
     ]
     for pattern in args.allowed_file:
         cmd += ['--allowed-file', pattern]
@@ -273,7 +276,14 @@ def compare_task_baseline(args, baseline_path: str, worktree_path: Path, task_id
         '--workspace',
         str(worktree_path),
         '--output',
-        str(worktree_path / '.zoo-agent' / 't' / short_name(args.run_id, 18) / short_name(task_id, 24) / 'task-delta.json'),
+        str(
+            worktree_path
+            / '.zoo-agent'
+            / 't'
+            / short_name(args.run_id, 18)
+            / short_name(task_id, 24)
+            / 'task-delta.json'
+        ),
     ]
     for pattern in args.denied_file:
         cmd += ['--denied-file', pattern]
@@ -316,7 +326,9 @@ def choose_policy(codex_result: dict, test_results: list[dict], collected: dict 
     scope = (collected or {}).get('scope_guard', {})
     scope_status = scope.get('status', 'not_run')
     failed_tests = [r for r in test_results if r.get('returncode') != 0]
-    worker_status = (collected or {}).get('worker_status') if isinstance((collected or {}).get('worker_status'), dict) else {}
+    worker_status = (
+        (collected or {}).get('worker_status') if isinstance((collected or {}).get('worker_status'), dict) else {}
+    )
     worker_state = str(worker_status.get('status') or '')
 
     if worker_state in {'timeout', 'no_output_timeout', 'spawn_failed', 'exception'}:
@@ -362,7 +374,9 @@ def choose_policy(codex_result: dict, test_results: list[dict], collected: dict 
     }
 
 
-def fast_contract(*, pre_codex_ms: float, codex_ms: float, total_ms: float, scope_status: str, tests_status: str) -> dict:
+def fast_contract(
+    *, pre_codex_ms: float, codex_ms: float, total_ms: float, scope_status: str, tests_status: str
+) -> dict:
     return {
         'route': 'fast',
         'skipped_governance': FAST_SKIPPED_GOVERNANCE,
@@ -388,7 +402,9 @@ def maybe_discard_worktree(repo_root: Path, worktree_path: Path, worktree_root: 
 
 def main() -> int:
     wall_started = time.monotonic()
-    ap = argparse.ArgumentParser(description='Run a cheap-risk-gated optimistic Codex worker in an isolated git worktree.')
+    ap = argparse.ArgumentParser(
+        description='Run a cheap-risk-gated optimistic Codex worker in an isolated git worktree.'
+    )
     ap.add_argument('--run-id', required=True)
     ap.add_argument('--task-id', required=True)
     ap.add_argument('--workspace', required=True, help='Existing git workspace/repo root used as the base')
@@ -397,10 +413,18 @@ def main() -> int:
     ap.add_argument('--allowed-file', action='append', default=[])
     ap.add_argument('--denied-file', action='append', default=DEFAULT_DENIED_FILES)
     ap.add_argument('--test-command', action='append', default=[])
-    ap.add_argument('--task-context', default='', help='Optional task context JSON/Markdown file to copy into the task pack')
-    ap.add_argument('--worktree-root', default='', help='Managed worktree root; defaults to <repo>/.zoo-agent/worktrees/<run>/<task>')
+    ap.add_argument(
+        '--task-context', default='', help='Optional task context JSON/Markdown file to copy into the task pack'
+    )
+    ap.add_argument(
+        '--worktree-root',
+        default='',
+        help='Managed worktree root; defaults to <repo>/.zoo-agent/worktrees/<run>/<task>',
+    )
     ap.add_argument('--start-point', default='HEAD')
-    ap.add_argument('--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access'])
+    ap.add_argument(
+        '--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access']
+    )
     ap.add_argument('--execution-path', default='optimistic_worker', choices=['optimistic_worker', 'planned_worker'])
     ap.add_argument('--profile', default='')
     ap.add_argument('--codex-home', default='')
@@ -429,8 +453,14 @@ def main() -> int:
 
     repo_root = Path(git_output(['rev-parse', '--show-toplevel'], workspace)).resolve()
     base_status = run_command(['git', 'status', '--short'], repo_root)
-    worktree_root = Path(args.worktree_root).resolve() if args.worktree_root else repo_root / '.zoo-agent' / 'worktrees' / short_name(args.run_id, 28) / short_name(args.task_id, 36)
-    run_report_path = repo_root / '.zoo-agent' / 'runs' / args.run_id / 'optimistic-runs' / f'{safe_name(args.task_id)}.json'
+    worktree_root = (
+        Path(args.worktree_root).resolve()
+        if args.worktree_root
+        else repo_root / '.zoo-agent' / 'worktrees' / short_name(args.run_id, 28) / short_name(args.task_id, 36)
+    )
+    run_report_path = (
+        repo_root / '.zoo-agent' / 'runs' / args.run_id / 'optimistic-runs' / f'{safe_name(args.task_id)}.json'
+    )
 
     hard_risk_hits = detect_hard_risk(args.objective, args.allowed_file)
     route_decision = {
@@ -452,7 +482,9 @@ def main() -> int:
         payload = {
             'route_decision': route_decision,
             'status': 'dry_run' if args.dry_run else 'blocked_by_hard_risk_gate',
-            'recommended_next_action': 'run without --dry-run' if args.dry_run else 'use planned_worker_or_pass_--allow-hard-risk',
+            'recommended_next_action': 'run without --dry-run'
+            if args.dry_run
+            else 'use planned_worker_or_pass_--allow-hard-risk',
             'fast_path_report': fast_contract(
                 pre_codex_ms=elapsed_ms,
                 codex_ms=0.0,
@@ -481,7 +513,9 @@ def main() -> int:
             'started_at': utc_now(),
         }
 
-        worktree_path, branch_name, add_result = create_worktree(repo_root, worktree_root, args.run_id, args.task_id, attempt_no, args.start_point)
+        worktree_path, branch_name, add_result = create_worktree(
+            repo_root, worktree_root, args.run_id, args.task_id, attempt_no, args.start_point
+        )
         attempt['worktree'] = str(worktree_path)
         attempt['branch'] = branch_name
         attempt['worktree_add'] = add_result
@@ -527,7 +561,9 @@ def main() -> int:
                 attempt['worker_status_path'] = codex_report.get('worker_status_path')
         test_results = run_tests(args.test_command, worktree_path, args.test_timeout_seconds)
         attempt['test_results'] = test_results
-        (task_dir / 'harness-tests.json').write_text(json.dumps(test_results, ensure_ascii=False, indent=2), encoding='utf-8')
+        (task_dir / 'harness-tests.json').write_text(
+            json.dumps(test_results, ensure_ascii=False, indent=2), encoding='utf-8'
+        )
 
         delta = compare_task_baseline(args, str(baseline.get('path') or ''), worktree_path, attempt_task_id)
         attempt['task_delta'] = delta
@@ -543,7 +579,12 @@ def main() -> int:
         attempts.append(attempt)
         final_policy = policy
 
-        if policy['status'] in {'merge_candidate', 'merge_candidate_partial', 'verification_partial', 'escalate_scope_violation'}:
+        if policy['status'] in {
+            'merge_candidate',
+            'merge_candidate_partial',
+            'verification_partial',
+            'escalate_scope_violation',
+        }:
             if args.discard_failed_worktree and policy['status'] == 'escalate_scope_violation':
                 attempt['discard_worktree'] = maybe_discard_worktree(repo_root, worktree_path, worktree_root)
             break

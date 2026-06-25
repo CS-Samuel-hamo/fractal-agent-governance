@@ -12,7 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, safe_name, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, safe_name, utc_now, write_json
 
 
 def run_command(command: list[str], cwd: Path, *, timeout: int = 0) -> dict[str, Any]:
@@ -24,8 +24,7 @@ def run_command(command: list[str], cwd: Path, *, timeout: int = 0) -> dict[str,
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout or None,
         )
         return {
@@ -149,7 +148,9 @@ def main() -> int:
         'route_result': result,
         'preserves_old_evidence': True,
     }
-    write_json(project / '.zoo-agent' / 'runs' / args.run_id / 'route-audit' / f'{safe_name(args.task_id)}.json', report)
+    write_json(
+        project / '.zoo-agent' / 'runs' / args.run_id / 'route-audit' / f'{safe_name(args.task_id)}.json', report
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return int(result.get('returncode') or 0)
 

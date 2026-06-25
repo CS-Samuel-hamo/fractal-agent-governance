@@ -7,13 +7,23 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN = ['eval', 'governance', 'planner', 'verifier', 'scheduler', 'backend', 'execution_result', 'pipeline_loop.py']
+FORBIDDEN = [
+    'eval',
+    'governance',
+    'planner',
+    'verifier',
+    'scheduler',
+    'backend',
+    'execution_result',
+    'pipeline_loop.py',
+]
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if proc.returncode:
@@ -37,9 +47,26 @@ def fixture_repo() -> Path:
             'project_type': 'docs',
             'main_goal': 'make project understandable',
             'last_updated': '2026-06-20T00:00:00Z',
-            'modules': [{'name': 'Docs', 'status': 'mapped', 'confidence': 0.72, 'key_files': ['README.md'], 'evidence': evidence}],
-            'capabilities': [{'name': 'Project onboarding', 'status': 'partial', 'related_modules': ['Docs'], 'evidence': evidence}],
-            'risks': [{'description': 'Docs may be stale', 'severity': 'medium', 'affected_files': ['README.md'], 'evidence': evidence}],
+            'modules': [
+                {
+                    'name': 'Docs',
+                    'status': 'mapped',
+                    'confidence': 0.72,
+                    'key_files': ['README.md'],
+                    'evidence': evidence,
+                }
+            ],
+            'capabilities': [
+                {'name': 'Project onboarding', 'status': 'partial', 'related_modules': ['Docs'], 'evidence': evidence}
+            ],
+            'risks': [
+                {
+                    'description': 'Docs may be stale',
+                    'severity': 'medium',
+                    'affected_files': ['README.md'],
+                    'evidence': evidence,
+                }
+            ],
             'next_actions': [
                 {
                     'action_id': 'docs-action',
@@ -54,9 +81,21 @@ def fixture_repo() -> Path:
             ],
         },
     )
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'session.json', {'goal': 'make project understandable', 'status': 'doing'})
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'attention_required.json', {'reason': 'Review needed', 'suggested_next_step': 'Run agent continue after review.'})
-    write_json(repo / '.zoo-agent' / 'autopilot' / 'checkpoints.json', {'checkpoints': [{'checkpoint_id': 'checkpoint-0001', 'created_at': '2026-06-20T00:01:00Z', 'undo_available': True}]})
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'session.json', {'goal': 'make project understandable', 'status': 'doing'}
+    )
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'attention_required.json',
+        {'reason': 'Review needed', 'suggested_next_step': 'Run agent continue after review.'},
+    )
+    write_json(
+        repo / '.zoo-agent' / 'autopilot' / 'checkpoints.json',
+        {
+            'checkpoints': [
+                {'checkpoint_id': 'checkpoint-0001', 'created_at': '2026-06-20T00:01:00Z', 'undo_available': True}
+            ]
+        },
+    )
     return repo
 
 

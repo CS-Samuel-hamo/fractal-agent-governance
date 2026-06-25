@@ -13,8 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 UNTRACKED_BLOCK_THRESHOLD = 1000
 KNOWN_BLOCKER_TYPES = [
@@ -41,8 +40,7 @@ def run_git(args: list[str], cwd: Path, *, timeout: int = 15) -> dict[str, Any]:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
         return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
@@ -50,7 +48,9 @@ def run_git(args: list[str], cwd: Path, *, timeout: int = 15) -> dict[str, Any]:
         return {'returncode': 124, 'stdout': '', 'stderr': 'git command timed out'}
 
 
-def add_blocker(blockers: list[dict[str, Any]], kind: str, severity: str, message: str, action: str, *, auto_fix: bool = False) -> None:
+def add_blocker(
+    blockers: list[dict[str, Any]], kind: str, severity: str, message: str, action: str, *, auto_fix: bool = False
+) -> None:
     blockers.append(
         {
             'type': kind,
@@ -102,7 +102,9 @@ def analyze_project_readiness(workspace: Path | str, *, assume_codex_home: str =
     blockers: list[dict[str, Any]] = []
     git_probe = run_git(['rev-parse', '--show-toplevel'], project)
     git_repo = git_probe.get('returncode') == 0
-    repo = Path(str(git_probe.get('stdout') or '').strip()).resolve() if git_repo and git_probe.get('stdout') else project
+    repo = (
+        Path(str(git_probe.get('stdout') or '').strip()).resolve() if git_repo and git_probe.get('stdout') else project
+    )
 
     if not git_repo:
         add_blocker(
@@ -194,14 +196,19 @@ def analyze_project_readiness(workspace: Path | str, *, assume_codex_home: str =
         'generated_by': 'check_project_readiness.py',
         'generated_at': utc_now(),
         'workspace': str(project),
-        'safe_for_bootstrap': not any(item['type'] in {'missing_git_repo', 'nested_git_repo', 'stale_git_index_lock'} and item['severity'] == 'blocking' for item in blockers),
+        'safe_for_bootstrap': not any(
+            item['type'] in {'missing_git_repo', 'nested_git_repo', 'stale_git_index_lock'}
+            and item['severity'] == 'blocking'
+            for item in blockers
+        ),
         'safe_for_level_0_1_trial': not blocking,
         'safe_for_codex_actual_run': not blocking and bool(codex_path),
         'blockers': blockers,
         'known_blocker_types': KNOWN_BLOCKER_TYPES,
         'blocking_issues': [item['type'] for item in blocking],
         'warnings': [item['type'] for item in warnings],
-        'next_actions': [item['recommended_action'] for item in blockers] or ['Run a bounded dry-run before actual Codex execution.'],
+        'next_actions': [item['recommended_action'] for item in blockers]
+        or ['Run a bounded dry-run before actual Codex execution.'],
         'git': {
             'is_repo': git_repo,
             'repo_root': str(repo) if git_repo else '',
@@ -223,7 +230,11 @@ def main() -> int:
     args = parser.parse_args()
 
     payload = analyze_project_readiness(args.workspace, assume_codex_home=args.codex_home)
-    output = Path(args.output).resolve() if args.output else Path(args.workspace).resolve() / '.zoo-agent' / 'project-readiness.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else Path(args.workspace).resolve() / '.zoo-agent' / 'project-readiness.json'
+    )
     if args.write or args.output:
         write_json(output, payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2))

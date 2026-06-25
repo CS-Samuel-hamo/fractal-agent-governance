@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import load_big_task_contract, project_root, render_contract_md  # noqa: E402
+from big_task_common import load_big_task_contract, project_root, render_contract_md
 
 
 def main() -> int:

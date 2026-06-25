@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,9 @@ def changed_files_from_execution(execution: dict[str, Any]) -> list[str]:
     return changed
 
 
-def build_progress_summary(project: Path, *, action: dict[str, Any], execution: dict[str, Any], final_result: dict[str, Any], mode: str) -> dict[str, Any]:
+def build_progress_summary(
+    project: Path, *, action: dict[str, Any], execution: dict[str, Any], final_result: dict[str, Any], mode: str
+) -> dict[str, Any]:
     changed = changed_files_from_execution(execution)
     verdict = str(final_result.get('final_verdict') or '')
     if verdict in {'COMPLETED', 'DRY_RUN_COMPLETE'}:
@@ -48,7 +49,11 @@ def build_progress_summary(project: Path, *, action: dict[str, Any], execution: 
 
 def render_user_summary(summary: dict[str, Any]) -> str:
     if summary.get('status') == 'needs_attention':
-        return 'Needs attention.\nReason:\n* ' + str(summary.get('result') or 'review required') + '\n\nSuggested next step:\n* Review the latest result and run agent continue when ready.'
+        return (
+            'Needs attention.\nReason:\n* '
+            + str(summary.get('result') or 'review required')
+            + '\n\nSuggested next step:\n* Review the latest result and run agent continue when ready.'
+        )
     heading = 'Preview ready.' if summary.get('status') == 'preview_ready' else 'Done.'
     changed = summary.get('changed_files') or []
     changed_lines = '\n'.join(f'* {item}' for item in changed) if changed else '* No business files changed'

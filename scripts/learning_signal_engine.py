@@ -26,7 +26,9 @@ def append_learning_signal(project: Path, signal: dict[str, Any], *, limit: int 
     return output
 
 
-def collect_and_write_learning_signal(project: Path, eval_payload: dict[str, Any], governance_decision: dict[str, Any]) -> dict[str, Any]:
+def collect_and_write_learning_signal(
+    project: Path, eval_payload: dict[str, Any], governance_decision: dict[str, Any]
+) -> dict[str, Any]:
     signal = build_learning_signal(eval_payload, governance_decision)
     return append_learning_signal(project, signal)
 

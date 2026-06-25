@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import parent_aggregation, project_root, write_parent_aggregation  # noqa: E402
-from goal_loop_engine import run_goal_loop  # noqa: E402
+from big_task_common import parent_aggregation, project_root, write_parent_aggregation
+from goal_loop_engine import run_goal_loop
 
 
 def main() -> int:
@@ -25,8 +25,17 @@ def main() -> int:
     report = parent_aggregation(project, args.run_id)
     paths = write_parent_aggregation(project, args.run_id, report)
     goal_loop = run_goal_loop(project, args.run_id, goal_id=args.goal_id, max_iterations=args.max_iterations)
-    print(json.dumps({'status': 'ok', 'paths': paths, 'report': report, 'goal_loop': goal_loop}, ensure_ascii=True, indent=2))
-    return 0 if report.get('verdict') == 'READY_FOR_INTEGRATION_WORKTREE' and goal_loop.get('goal_completion_verdict') == 'COMPLETED' else 10
+    print(
+        json.dumps(
+            {'status': 'ok', 'paths': paths, 'report': report, 'goal_loop': goal_loop}, ensure_ascii=True, indent=2
+        )
+    )
+    return (
+        0
+        if report.get('verdict') == 'READY_FOR_INTEGRATION_WORKTREE'
+        and goal_loop.get('goal_completion_verdict') == 'COMPLETED'
+        else 10
+    )
 
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
+from runtime_common import load_json, project_root, write_json
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -39,7 +39,9 @@ def compare_row(row: dict[str, Any]) -> dict[str, Any]:
     learning = row.get('learning_enabled') if isinstance(row.get('learning_enabled'), dict) else {}
     evidence_backed = has_evidence(row)
     safe = safety_preserved(row)
-    next_changed = list_changed(baseline.get('selected_next_actions') or [], learning.get('selected_next_actions') or [])
+    next_changed = list_changed(
+        baseline.get('selected_next_actions') or [], learning.get('selected_next_actions') or []
+    )
     release_changed = list_changed(baseline.get('release_sequence') or [], learning.get('release_sequence') or [])
     worker_changed = list_changed(baseline.get('worker_preferences') or [], learning.get('worker_preferences') or [])
     warning_added = len(learning.get('failure_warnings') or []) > len(baseline.get('failure_warnings') or [])
@@ -74,10 +76,25 @@ def compare_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def compare_baseline(project: Path, *, trace_path: Path | None = None, output_path: Path | None = None) -> dict[str, Any]:
+def compare_baseline(
+    project: Path, *, trace_path: Path | None = None, output_path: Path | None = None
+) -> dict[str, Any]:
     trace = load_json(trace_path or dogfood_dir(project) / 'learning_dogfood_trace.json')
     rows = [compare_row(item) for item in trace.get('runs') or [] if isinstance(item, dict)]
-    positive = sum(1 for item in rows if any(item.get(key) for key in ['next_action_improved', 'release_sequence_improved', 'worker_preference_improved', 'failure_warning_added']) and not item.get('negative_lift_detected'))
+    positive = sum(
+        1
+        for item in rows
+        if any(
+            item.get(key)
+            for key in [
+                'next_action_improved',
+                'release_sequence_improved',
+                'worker_preference_improved',
+                'failure_warning_added',
+            ]
+        )
+        and not item.get('negative_lift_detected')
+    )
     negative = sum(1 for item in rows if item.get('negative_lift_detected'))
     payload = {
         'schema_version': '1.0',

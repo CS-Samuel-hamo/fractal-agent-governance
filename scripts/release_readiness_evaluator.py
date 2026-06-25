@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, utc_now, write_json
 
 
 def release_dir(project: Path) -> Path:
@@ -18,7 +18,7 @@ def release_dir(project: Path) -> Path:
 
 
 def choose_goal(project_map: dict[str, Any], templates: dict[str, Any]) -> str:
-    text = f"{project_map.get('main_goal', '')} {project_map.get('project_type', '')}".lower()
+    text = f'{project_map.get("main_goal", "")} {project_map.get("project_type", "")}'.lower()
     if 'cli' in text or 'agent' in text:
         return 'cli_tool_release'
     for item in templates.get('templates') or []:
@@ -48,7 +48,8 @@ def build_release_readiness(project: Path) -> dict[str, Any]:
     blockers = list(github_readiness.get('blockers') or [])
     warnings = list(github_readiness.get('warnings') or [])
     high_risks = [
-        item for item in project_map.get('risks') or []
+        item
+        for item in project_map.get('risks') or []
         if isinstance(item, dict) and str(item.get('severity') or '').lower() == 'high'
     ]
     for item in high_risks:
@@ -73,11 +74,13 @@ def build_release_readiness(project: Path) -> dict[str, Any]:
 
     recommended = template.get('recommended_sequence') if isinstance(template.get('recommended_sequence'), list) else []
     pattern_evidence = [
-        str(item.get('pattern_id')) for item in pattern_library.get('patterns') or []
+        str(item.get('pattern_id'))
+        for item in pattern_library.get('patterns') or []
         if isinstance(item, dict) and item.get('pattern_id')
     ][:8]
     failure_evidence = [
-        str(item.get('failure_type')) for item in failure_taxonomy.get('failure_patterns') or []
+        str(item.get('failure_type'))
+        for item in failure_taxonomy.get('failure_patterns') or []
         if isinstance(item, dict) and item.get('failure_type')
     ][:8]
     payload = {
@@ -109,7 +112,7 @@ def write_report(project: Path, payload: dict[str, Any]) -> None:
     blocker_rows = [f'- {item}' for item in blockers] if blockers else ['- No hard blocker detected.']
     warning_rows = [f'- {item}' for item in warnings] if warnings else ['- No major warning detected.']
     sequence_rows = (
-        [f"- Step {item.get('step')}: {item.get('action_type')} - {item.get('reason')}" for item in sequence[:8]]
+        [f'- Step {item.get("step")}: {item.get("action_type")} - {item.get("reason")}' for item in sequence[:8]]
         if sequence
         else ['- Generate or refresh local release templates, then run agent release again.']
     )
@@ -117,9 +120,9 @@ def write_report(project: Path, payload: dict[str, Any]) -> None:
         '# Release Readiness Report',
         '',
         '## Summary',
-        f"- Goal: {payload.get('goal')}",
-        f"- Stage: {payload.get('stage')}",
-        f"- Readiness score: {payload.get('readiness_score')}",
+        f'- Goal: {payload.get("goal")}',
+        f'- Stage: {payload.get("stage")}',
+        f'- Readiness score: {payload.get("readiness_score")}',
         '',
         '## Current release fit',
         '- This report is local-only and PR-ready oriented; it does not create a remote PR or release.',

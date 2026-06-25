@@ -2,18 +2,18 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_branch_sync_preflight import preflight  # noqa: E402
+from public_branch_sync_preflight import preflight
 
 
 def run(args: list[str], cwd: Path) -> str:
-    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
         raise AssertionError(f'command failed {args}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc.stdout.strip()

@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, json, os, shutil, subprocess, sys, datetime, time
-from pathlib import Path
 
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
 
 TASK_PACK_FILES = [
     'AGENTS.md',
@@ -28,7 +34,9 @@ def safe_name(value: str) -> str:
 
 
 def runtime_name(task_dir: Path) -> str:
-    run_id = task_dir.parent.parent.name if task_dir.parent.name in {'codex-tasks', 'codex_tasks'} else task_dir.parent.name
+    run_id = (
+        task_dir.parent.parent.name if task_dir.parent.name in {'codex-tasks', 'codex_tasks'} else task_dir.parent.name
+    )
     return safe_name(f'{run_id}__{task_dir.name}')
 
 
@@ -58,8 +66,7 @@ def kill_process_tree(pid: int) -> None:
     if os.name == 'nt':
         subprocess.run(
             ['taskkill', '/PID', str(pid), '/T', '/F'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             encoding='utf-8',
             errors='replace',
@@ -109,8 +116,7 @@ def run_adapter(command: list[str], cwd: Path, *, timeout: int | None = None) ->
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
         return {
@@ -141,8 +147,7 @@ def is_git_worktree(path: Path) -> bool:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=5,
         )
         return proc.returncode == 0 and proc.stdout.strip().lower() == 'true'
@@ -167,17 +172,25 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--task-dir', required=True, help='Directory containing CODEX_TASK_PROMPT.md')
     ap.add_argument('--workspace', required=True, help='Git worktree or repo root for codex exec --cd')
-    ap.add_argument('--sandbox', default='workspace-write', choices=['read-only','workspace-write','danger-full-access'])
+    ap.add_argument(
+        '--sandbox', default='workspace-write', choices=['read-only', 'workspace-write', 'danger-full-access']
+    )
     ap.add_argument('--profile', default='')
     ap.add_argument('--ephemeral', action='store_true')
     ap.add_argument('--json-events', action='store_true')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--codex-home', default='', help='Optional CODEX_HOME directory for Codex CLI state')
-    ap.add_argument('--timeout-seconds', type=int, default=0, help='Optional timeout for codex exec; 0 means no timeout')
+    ap.add_argument(
+        '--timeout-seconds', type=int, default=0, help='Optional timeout for codex exec; 0 means no timeout'
+    )
     ap.add_argument('--no-output-timeout-seconds', type=int, default=600)
     ap.add_argument('--skip-git-repo-check', action='store_true')
     ap.add_argument('--leaf-resolution', default='', help='Optional leaf resolution JSON that must allow execution.')
-    ap.add_argument('--require-leaf-resolution', action='store_true', help='Block actual Codex execution unless the leaf resolved to execute.')
+    ap.add_argument(
+        '--require-leaf-resolution',
+        action='store_true',
+        help='Block actual Codex execution unless the leaf resolved to execute.',
+    )
     args = ap.parse_args()
 
     task_dir = Path(args.task_dir).resolve()
@@ -190,7 +203,9 @@ def main():
         print(f'Missing workspace: {workspace}', file=sys.stderr)
         return 2
     if args.require_leaf_resolution:
-        resolution_path = Path(args.leaf_resolution).resolve() if args.leaf_resolution else task_dir / 'leaf-resolution.json'
+        resolution_path = (
+            Path(args.leaf_resolution).resolve() if args.leaf_resolution else task_dir / 'leaf-resolution.json'
+        )
         resolution = load_json(resolution_path)
         if resolution.get('final_resolution') != 'execute' or resolution.get('status') == 'stuck':
             report = {
@@ -209,7 +224,7 @@ def main():
         codex_home_display = str(codex_home)
     elif os.environ.get('CODEX_HOME'):
         codex_home = Path(os.environ['CODEX_HOME']).expanduser().resolve()
-        codex_home_display = f"{os.environ['CODEX_HOME']} (inherited)"
+        codex_home_display = f'{os.environ["CODEX_HOME"]} (inherited)'
     else:
         codex_home = None
         codex_home_display = 'inherited/unset'
@@ -218,7 +233,7 @@ def main():
     codex_tmp.mkdir(parents=True, exist_ok=True)
     pycache_tmp.mkdir(parents=True, exist_ok=True)
     codex_tmp_display = str(codex_tmp)
-    pycache_tmp_display = str(pycache_tmp)
+    str(pycache_tmp)
     env_cmd, env_sh = write_env_wrappers(codex_tmp, pycache_tmp)
 
     final_msg = task_dir / 'codex-final-message.md'
@@ -230,18 +245,17 @@ def main():
     worker_status_path = task_dir / 'codex-worker-status.json'
     prompt = prompt_path.read_text(encoding='utf-8')
     prompt = (
-        "Runtime environment note:\n"
-        f"- CODEX_HOME is `{codex_home_display}`.\n"
-        f"- Task pack directory visible to Codex is `{task_runtime_dir}`.\n"
-        f"- Read `AGENTS.md`, `TASKS.yaml`, `ACCEPTANCE.md`, `PROGRESS.md`, and `BLOCKERS.md` from `{task_runtime_dir}`.\n"
-        f"- Update `PROGRESS.md` or `BLOCKERS.md` in `{task_runtime_dir}`.\n"
-        f"- Use this temporary directory for all shell, Python, and test commands: `{codex_tmp_display}`.\n"
-        f"- On Windows, run every Python/pytest command through `{env_cmd}`. Example: `{env_cmd} python -m pytest ...`.\n"
-        f"- On POSIX shells, run every Python/pytest command through `{env_sh}`. Example: `{env_sh} python -m pytest ...`.\n"
-        f"- Run scope guard from the workspace as `{env_cmd} python {task_runtime_dir / 'check_codex_scope.py'} {task_dir.name} --tasks {task_runtime_dir / 'TASKS.yaml'}` on Windows.\n"
-        "- Do not hand-write PowerShell `$env:TEMP` commands and do not run bare Python or pytest first.\n"
-        "- Do not create temporary probe files in the workspace root.\n\n"
-        + prompt
+        'Runtime environment note:\n'
+        f'- CODEX_HOME is `{codex_home_display}`.\n'
+        f'- Task pack directory visible to Codex is `{task_runtime_dir}`.\n'
+        f'- Read `AGENTS.md`, `TASKS.yaml`, `ACCEPTANCE.md`, `PROGRESS.md`, and `BLOCKERS.md` from `{task_runtime_dir}`.\n'
+        f'- Update `PROGRESS.md` or `BLOCKERS.md` in `{task_runtime_dir}`.\n'
+        f'- Use this temporary directory for all shell, Python, and test commands: `{codex_tmp_display}`.\n'
+        f'- On Windows, run every Python/pytest command through `{env_cmd}`. Example: `{env_cmd} python -m pytest ...`.\n'
+        f'- On POSIX shells, run every Python/pytest command through `{env_sh}`. Example: `{env_sh} python -m pytest ...`.\n'
+        f'- Run scope guard from the workspace as `{env_cmd} python {task_runtime_dir / "check_codex_scope.py"} {task_dir.name} --tasks {task_runtime_dir / "TASKS.yaml"}` on Windows.\n'
+        '- Do not hand-write PowerShell `$env:TEMP` commands and do not run bare Python or pytest first.\n'
+        '- Do not create temporary probe files in the workspace root.\n\n' + prompt
     )
     prompt_adapter.write_text(prompt, encoding='utf-8')
 
@@ -298,7 +312,11 @@ def main():
     copy_if_exists(stdout_log, task_dir / 'codex-stdout.txt')
     copy_if_exists(stderr_log, task_dir / 'codex-stderr.txt')
     worker_status = load_json(worker_status_path)
-    returncode = int(worker_status.get('returncode') if worker_status.get('returncode') is not None else adapter.get('returncode') or 0)
+    returncode = int(
+        worker_status.get('returncode')
+        if worker_status.get('returncode') is not None
+        else adapter.get('returncode') or 0
+    )
     timed_out = worker_status.get('status') in {'timeout', 'no_output_timeout'} or bool(adapter.get('timed_out'))
     report = {
         'started_at': worker_status.get('started_at', ''),
@@ -330,6 +348,7 @@ def main():
     run_report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return returncode
+
 
 if __name__ == '__main__':
     raise SystemExit(main())

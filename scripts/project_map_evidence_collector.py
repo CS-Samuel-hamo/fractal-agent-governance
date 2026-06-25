@@ -10,7 +10,6 @@ from project_map_schema import SENSITIVE_PATTERNS, evidence_item, map_dir
 from runtime_common import project_root, utc_now, write_json
 from seed_prompt_discovery import discover_seed_prompt, seed_evidence_item
 
-
 SAFE_DOC_NAMES = ['README.md', 'QUICKSTART.md', 'INSTALL.md', 'EXAMPLES.md', 'CONTRIBUTING.md']
 COMMON_DIRS = ['src', 'app', 'lib', 'scripts', 'tests', 'test', 'docs', 'examples', 'frontend', 'backend', 'packages']
 MANIFESTS = ['package.json', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'pom.xml']
@@ -49,13 +48,21 @@ def collect_evidence(project: Path, *, main_goal: str = '') -> dict[str, Any]:
     for name in SAFE_DOC_NAMES:
         path = project / name
         if path.exists() and path.is_file():
-            evidence.append(evidence_item('documentation_surface', name, safe_read_excerpt(path) or f'{name} exists.', confidence=0.8))
+            evidence.append(
+                evidence_item(
+                    'documentation_surface', name, safe_read_excerpt(path) or f'{name} exists.', confidence=0.8
+                )
+            )
     docs_dir = project / 'docs'
     if docs_dir.exists() and docs_dir.is_dir():
         for path in sorted(docs_dir.glob('*.md'))[:8]:
             rel = _rel(project, path)
             if not is_sensitive_path(rel):
-                evidence.append(evidence_item('documentation_surface', rel, safe_read_excerpt(path) or f'{rel} exists.', confidence=0.72))
+                evidence.append(
+                    evidence_item(
+                        'documentation_surface', rel, safe_read_excerpt(path) or f'{rel} exists.', confidence=0.72
+                    )
+                )
 
     for name in COMMON_DIRS:
         path = project / name
@@ -70,7 +77,11 @@ def collect_evidence(project: Path, *, main_goal: str = '') -> dict[str, Any]:
                         skipped_sensitive.append(rel)
                         continue
                     sample_files.append(rel)
-            evidence.append(evidence_item('directory', name, f'{name}/ exists with {len(sample_files)} sampled files.', confidence=0.65))
+            evidence.append(
+                evidence_item(
+                    'directory', name, f'{name}/ exists with {len(sample_files)} sampled files.', confidence=0.65
+                )
+            )
 
     for name in MANIFESTS:
         path = project / name

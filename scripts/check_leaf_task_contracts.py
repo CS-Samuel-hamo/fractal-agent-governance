@@ -8,9 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import leaf_readiness, load_backend_profile, load_leaf_contracts, project_root  # noqa: E402
-from leaf_convergence_controller import run_leaf_convergence  # noqa: E402
-from runtime_common import write_json  # noqa: E402
+from big_task_common import leaf_readiness, load_backend_profile, load_leaf_contracts, project_root
+from leaf_convergence_controller import run_leaf_convergence
+from runtime_common import write_json
 
 
 def main() -> int:
@@ -35,7 +35,9 @@ def main() -> int:
         'leaf_convergence_status': convergence.get('status'),
         'leaf_resolutions': convergence.get('resolutions') or [],
         'unresolved_leaf_count': len(unresolved),
-        'status': 'convergence_failure' if unresolved else ('resolved_with_non_execution' if blocked else 'ready_for_dry_run_or_review'),
+        'status': 'convergence_failure'
+        if unresolved
+        else ('resolved_with_non_execution' if blocked else 'ready_for_dry_run_or_review'),
     }
     path = project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-contract-check.json'
     write_json(path, report)

@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_state_manager import set_goal_status, upsert_goal_record  # noqa: E402
-from runtime_common import project_root, safe_name, set_active_goal  # noqa: E402
+from goal_state_manager import set_goal_status, upsert_goal_record
+from runtime_common import project_root, safe_name, set_active_goal
 
 
 def main() -> int:
@@ -26,7 +26,9 @@ def main() -> int:
     parser.add_argument('--priority', type=int, default=50)
     parser.add_argument('--resource', action='append', default=[])
     parser.add_argument('--depends-on', action='append', default=[])
-    parser.add_argument('--scheduler-status', choices=['active', 'paused', 'completed', 'blocked', 'backlog'], default='')
+    parser.add_argument(
+        '--scheduler-status', choices=['active', 'paused', 'completed', 'blocked', 'backlog'], default=''
+    )
     parser.add_argument('--clear', action='store_true')
     parser.add_argument('--no-activate', action='store_true')
     parser.add_argument('--json-output', default='')
@@ -49,7 +51,9 @@ def main() -> int:
         state_path = project / '.zoo-agent' / 'goal' / 'goal_state.json'
         if state_path.exists():
             state = json.loads(state_path.read_text(encoding='utf-8-sig'))
-            active_goal_id = str((state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or '')
+            active_goal_id = str(
+                (state.get('global_loop_state') or {}).get('active_goal_id') or state.get('active_goal_id') or ''
+            )
             if active_goal_id:
                 set_goal_status(project, safe_name(active_goal_id), 'paused')
         report = {'status': 'cleared', 'workspace': str(project), 'goal_path': str(current)}

@@ -15,7 +15,15 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 def run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='worker-session-codex-home-')).resolve()))
-    proc = subprocess.run(command, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     if proc.returncode:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
@@ -41,7 +49,9 @@ def load(path: Path) -> dict:
 def main() -> int:
     root = repo()
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(root)], root)
-    start = run([sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(root)], root)
+    start = run(
+        [sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(root)], root
+    )
     assert 'Done.' in start.stdout or 'Needs attention.' in start.stdout
 
     routing = load(root / '.zoo-agent' / 'workers' / 'routing_decision.json')

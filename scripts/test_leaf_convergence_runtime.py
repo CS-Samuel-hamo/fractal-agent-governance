@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -7,12 +7,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -50,13 +51,25 @@ def write_leaf(repo: Path, run_id: str, leaf: dict) -> Path:
     leaf.setdefault('denied_files', ['.env', '.env.*', '**/*.pem', '**/*.key'])
     leaf.setdefault('test_commands', [])
     leaf.setdefault('rollback_note', 'discard isolated worktree')
-    path = repo / '.zoo-agent' / 'runs' / run_id / 'leaf-tasks' / f"{leaf['leaf_id']}.json"
+    path = repo / '.zoo-agent' / 'runs' / run_id / 'leaf-tasks' / f'{leaf["leaf_id"]}.json'
     write_json(path, leaf)
     return path
 
 
 def controller(repo: Path, run_id: str, *extra: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return run([sys.executable, str(ROOT / 'scripts' / 'leaf_convergence_controller.py'), '--workspace', str(repo), '--run-id', run_id, *extra], repo, check=check)
+    return run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'leaf_convergence_controller.py'),
+            '--workspace',
+            str(repo),
+            '--run-id',
+            run_id,
+            *extra,
+        ],
+        repo,
+        check=check,
+    )
 
 
 def test_infinite_decomposition_prevention() -> None:
@@ -112,7 +125,19 @@ def test_no_acceptance_leaf_records_readiness() -> None:
             'execution_allowed': False,
         },
     )
-    run([sys.executable, str(ROOT / 'scripts' / 'check_task_readiness.py'), '--workspace', str(repo), '--run-id', run_id, '--leaf-id', 'leaf-001'], repo)
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'check_task_readiness.py'),
+            '--workspace',
+            str(repo),
+            '--run-id',
+            run_id,
+            '--leaf-id',
+            'leaf-001',
+        ],
+        repo,
+    )
     readiness = load(repo / '.zoo-agent' / 'runs' / run_id / 'leaf-tasks' / 'leaf-001-readiness.json')
     assert readiness['readiness']['verdict'] == 'BLOCKED_MISSING_ACCEPTANCE'
     assert readiness['resolution']['resolution_path'][0] == 'refine'
@@ -144,7 +169,12 @@ def test_unresolved_leaf_defers_to_backlog() -> None:
     controller(repo, run_id)
     backlog = load(repo / '.zoo-agent' / 'runs' / run_id / 'follow-up-backlog.json')
     assert backlog['items'][0]['leaf_id'] == 'leaf-001'
-    assert load(repo / '.zoo-agent' / 'runs' / run_id / 'leaf-convergence-report.json')['resolutions'][0]['final_resolution'] == 'defer'
+    assert (
+        load(repo / '.zoo-agent' / 'runs' / run_id / 'leaf-convergence-report.json')['resolutions'][0][
+            'final_resolution'
+        ]
+        == 'defer'
+    )
 
 
 def test_merge_scenario() -> None:
@@ -282,4 +312,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-

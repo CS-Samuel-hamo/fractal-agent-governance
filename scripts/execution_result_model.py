@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 TRANSIENT_STATUSES = {'timeout', 'no_output_timeout', 'spawn_failed', 'exception'}
 
 
@@ -96,7 +95,9 @@ def build_execution_result_model(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Classify backend execution evidence into a stable execution result model.')
+    parser = argparse.ArgumentParser(
+        description='Classify backend execution evidence into a stable execution result model.'
+    )
     parser.add_argument('--task-id', required=True)
     parser.add_argument('--backend-returncode', type=int, default=None)
     parser.add_argument('--worker-status', default='')

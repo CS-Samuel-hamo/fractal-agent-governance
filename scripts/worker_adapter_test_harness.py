@@ -10,9 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, write_json  # noqa: E402
-from worker_adapter_contract import validate_contract  # noqa: E402
-from worker_registry import write_worker_registry  # noqa: E402
+from runtime_common import project_root, write_json
+from worker_adapter_contract import validate_contract
+from worker_registry import write_worker_registry
 
 
 def run_contract_checks(project: Path) -> dict[str, Any]:
@@ -23,7 +23,7 @@ def run_contract_checks(project: Path) -> dict[str, Any]:
             continue
         contract = worker.get('contract') if isinstance(worker.get('contract'), dict) else {}
         if not contract:
-            failures.append(f"missing_contract:{worker.get('name')}")
+            failures.append(f'missing_contract:{worker.get("name")}')
             continue
         errors = validate_contract(
             contract,
@@ -33,12 +33,17 @@ def run_contract_checks(project: Path) -> dict[str, Any]:
                 'capabilities': worker.get('capabilities') or [],
             },
         )
-        failures.extend([f"{worker.get('name')}:{item}" for item in errors])
+        failures.extend([f'{worker.get("name")}:{item}' for item in errors])
         if contract.get('supports_actual_execution') is False and worker.get('supports_actual_execution'):
-            failures.append(f"{worker.get('name')}:actual_not_allowed_by_contract")
+            failures.append(f'{worker.get("name")}:actual_not_allowed_by_contract')
         if contract.get('reads_secrets') is not False:
-            failures.append(f"{worker.get('name')}:reads_secrets_not_allowed")
-    payload = {'schema_version': '1.0', 'generated_by': 'worker_adapter_test_harness.py', 'passed': not failures, 'failures': failures}
+            failures.append(f'{worker.get("name")}:reads_secrets_not_allowed')
+    payload = {
+        'schema_version': '1.0',
+        'generated_by': 'worker_adapter_test_harness.py',
+        'passed': not failures,
+        'failures': failures,
+    }
     write_json(project / '.zoo-agent' / 'workers' / 'worker_adapter_contract_check.json', payload)
     return payload
 

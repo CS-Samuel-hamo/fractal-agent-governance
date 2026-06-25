@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
+from runtime_common import load_json, project_root, write_json
 
 
 def fallback_trace(
@@ -39,7 +39,9 @@ def write_fallback_trace(project: Path, payload: dict[str, Any]) -> dict[str, An
     return payload
 
 
-def fallback_for_result(project: Path, *, routing_decision: dict[str, Any], worker_result: dict[str, Any]) -> dict[str, Any]:
+def fallback_for_result(
+    project: Path, *, routing_decision: dict[str, Any], worker_result: dict[str, Any]
+) -> dict[str, Any]:
     status = str(worker_result.get('status') or '')
     if status in {'success', 'skipped'}:
         payload = fallback_trace(
@@ -55,7 +57,9 @@ def fallback_for_result(project: Path, *, routing_decision: dict[str, Any], work
             original_worker=str(routing_decision.get('selected_worker') or ''),
             fallback_chain=[str(item) for item in routing_decision.get('fallback_workers') or []],
             final_worker='dry_run_worker' if 'dry_run_worker' in routing_decision.get('fallback_workers', []) else '',
-            final_mode='preview' if 'dry_run_worker' in routing_decision.get('fallback_workers', []) else 'needs_attention',
+            final_mode='preview'
+            if 'dry_run_worker' in routing_decision.get('fallback_workers', [])
+            else 'needs_attention',
             reason=status or 'worker_failed',
             safe=True,
         )

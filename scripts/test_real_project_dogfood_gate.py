@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -11,18 +10,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from autopilot_dogfood_runner import run_dogfood  # noqa: E402
-from autopilot_trace_replayer import render_replay  # noqa: E402
-from dogfood_report_generator import generate_report  # noqa: E402
-from map_quality_evaluator import evaluate_map  # noqa: E402
-from map_task_selector import select_next_action  # noqa: E402
-from project_map_builder import build_project_map, render_markdown  # noqa: E402
-from project_map_schema import map_dir  # noqa: E402
-from runtime_common import load_json, write_json  # noqa: E402
+from autopilot_dogfood_runner import run_dogfood
+from autopilot_trace_replayer import render_replay
+from dogfood_report_generator import generate_report
+from map_quality_evaluator import evaluate_map
+from map_task_selector import select_next_action
+from project_map_builder import build_project_map, render_markdown
+from project_map_schema import map_dir
+from runtime_common import load_json, write_json
 
 
 def run(cmd: list[str], cwd: Path) -> None:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=os.environ.copy())
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=os.environ.copy(),
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if proc.returncode:
@@ -53,10 +61,29 @@ def install_map(repo: Path, project_map: dict, evidence: dict | None = None) -> 
 def test_bad_map_detected() -> None:
     report = evaluate_map(
         {
-            'modules': [{'module_id': 'fake-module', 'name': 'Fake', 'status': 'mapped', 'confidence': 0.95, 'evidence': [], 'key_files': ['missing.py']}],
-            'capabilities': [{'capability_id': 'fake-cap', 'name': 'Fake capability', 'status': 'implemented', 'evidence': []}],
+            'modules': [
+                {
+                    'module_id': 'fake-module',
+                    'name': 'Fake',
+                    'status': 'mapped',
+                    'confidence': 0.95,
+                    'evidence': [],
+                    'key_files': ['missing.py'],
+                }
+            ],
+            'capabilities': [
+                {'capability_id': 'fake-cap', 'name': 'Fake capability', 'status': 'implemented', 'evidence': []}
+            ],
             'risks': [],
-            'next_actions': [{'action_id': 'vague', 'title': 'Improve stuff', 'why_now': '', 'expected_impact': '', 'target_files': []}],
+            'next_actions': [
+                {
+                    'action_id': 'vague',
+                    'title': 'Improve stuff',
+                    'why_now': '',
+                    'expected_impact': '',
+                    'target_files': [],
+                }
+            ],
         },
         {'evidence': []},
     )
@@ -76,7 +103,16 @@ def test_vague_action_not_selected() -> None:
             'modules': [],
             'capabilities': [],
             'risks': [],
-            'next_actions': [{'action_id': 'vague', 'title': 'Improve stuff', 'why_now': '', 'expected_impact': '', 'target_files': [], 'autopilot_eligible': True}],
+            'next_actions': [
+                {
+                    'action_id': 'vague',
+                    'title': 'Improve stuff',
+                    'why_now': '',
+                    'expected_impact': '',
+                    'target_files': [],
+                    'autopilot_eligible': True,
+                }
+            ],
         },
     )
     selected = select_next_action(repo, mode='standard')
@@ -86,7 +122,7 @@ def test_vague_action_not_selected() -> None:
 
 def test_selected_action_from_map() -> None:
     repo = init_repo('dogfood-select-')
-    project_map, state, evidence = build_project_map(repo, main_goal='prepare release')
+    project_map, _state, evidence = build_project_map(repo, main_goal='prepare release')
     install_map(repo, project_map, evidence)
     selected = select_next_action(repo, mode='standard')
     action_ids = {item['action_id'] for item in project_map['next_actions']}
@@ -96,7 +132,14 @@ def test_selected_action_from_map() -> None:
 
 def test_dogfood_trace_and_report() -> None:
     repo = init_repo('dogfood-run-')
-    trace = run_dogfood(repo, goal='prepare this project for GitHub release', mode='standard', backend='mock', max_steps=1, include_continue=False)
+    trace = run_dogfood(
+        repo,
+        goal='prepare this project for GitHub release',
+        mode='standard',
+        backend='mock',
+        max_steps=1,
+        include_continue=False,
+    )
     assert trace['runs'], 'expected at least one dogfood run'
     step = trace['runs'][0]
     assert step['source'] == 'project_map.next_actions'
@@ -106,7 +149,11 @@ def test_dogfood_trace_and_report() -> None:
     assert step['outcome'] == 'delivered'
     assert (repo / '.zoo-agent' / 'dogfood' / 'autopilot_trace.json').exists()
 
-    replay = render_replay(trace, load_json(repo / '.zoo-agent' / 'map' / 'project_map.json'), load_json(repo / '.zoo-agent' / 'map' / 'project_state.json'))
+    replay = render_replay(
+        trace,
+        load_json(repo / '.zoo-agent' / 'map' / 'project_map.json'),
+        load_json(repo / '.zoo-agent' / 'map' / 'project_state.json'),
+    )
     assert 'why selected' in replay
     (repo / '.zoo-agent' / 'dogfood' / 'autopilot_replay.md').write_text(replay, encoding='utf-8')
 
@@ -120,7 +167,14 @@ def test_dogfood_trace_and_report() -> None:
 
 def test_no_delivery_pauses() -> None:
     repo = init_repo('dogfood-nodelivery-')
-    trace = run_dogfood(repo, goal='prepare this project for GitHub release', mode='standard', backend='dry_run', max_steps=1, include_continue=False)
+    trace = run_dogfood(
+        repo,
+        goal='prepare this project for GitHub release',
+        mode='standard',
+        backend='dry_run',
+        max_steps=1,
+        include_continue=False,
+    )
     assert trace['runs']
     assert trace['runs'][0]['outcome'] == 'no_delivery'
     attention = load_json(repo / '.zoo-agent' / 'autopilot' / 'attention_required.json')
@@ -146,13 +200,17 @@ def test_blocked_zone_attention() -> None:
                     'risk_level': 'low',
                     'target_files': ['.env'],
                     'autopilot_eligible': True,
-                    'evidence': [{'kind': 'fixture', 'path': '<hidden>', 'summary': 'blocked test fixture', 'confidence': 1.0}],
+                    'evidence': [
+                        {'kind': 'fixture', 'path': '<hidden>', 'summary': 'blocked test fixture', 'confidence': 1.0}
+                    ],
                 }
             ],
         },
         {'evidence': [{'kind': 'fixture', 'path': '<hidden>', 'summary': 'blocked test fixture', 'confidence': 1.0}]},
     )
-    trace = run_dogfood(repo, goal='prepare release', mode='standard', backend='mock', max_steps=1, include_continue=False)
+    trace = run_dogfood(
+        repo, goal='prepare release', mode='standard', backend='mock', max_steps=1, include_continue=False
+    )
     assert trace['runs'] == []
     attention = load_json(repo / '.zoo-agent' / 'autopilot' / 'attention_required.json')
     assert attention['status'] == 'needs_attention'

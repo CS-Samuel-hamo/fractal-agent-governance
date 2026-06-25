@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from check_codex_worker_concurrency import build_contract, git_root, write_json  # noqa: E402
+from check_codex_worker_concurrency import build_contract, git_root, write_json
 
 
 def main() -> int:

@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 EXPECTED_RELEASE_BRANCH = 'release/v1.0.0-alpha.1'
 POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
@@ -34,12 +33,16 @@ DOCS_AND_RELEASE_SCRIPTS = [
 
 FORCE_PUSH_RE = re.compile(r'\bgit\s+push\b[^\n`]*(?:--force|-f)\b')
 MAIN_PUSH_RE = re.compile(r'\bgit\s+push\s+origin\s+main\b')
-GH_WRITE_RE = re.compile(r'\bgh\s+(?:release\s+create|pr\s+create|api\b[^\n`]*(?:--method\s+(?:POST|PATCH|PUT|DELETE)|-X\s*(?:POST|PATCH|PUT|DELETE)))')
+GH_WRITE_RE = re.compile(
+    r'\bgh\s+(?:release\s+create|pr\s+create|api\b[^\n`]*(?:--method\s+(?:POST|PATCH|PUT|DELETE)|-X\s*(?:POST|PATCH|PUT|DELETE)))'
+)
 
 
 def _allowed_negative_example(line: str) -> bool:
     lowered = line.lower()
-    return any(marker in lowered for marker in ['do not run', 'never run', 'wrong example', 'do not use', 'avoid running'])
+    return any(
+        marker in lowered for marker in ['do not run', 'never run', 'wrong example', 'do not use', 'avoid running']
+    )
 
 
 def lint_texts(texts: dict[str, str]) -> dict[str, Any]:
@@ -53,14 +56,31 @@ def lint_texts(texts: dict[str, str]) -> dict[str, Any]:
         for lineno, line in enumerate(text.splitlines(), start=1):
             if MAIN_PUSH_RE.search(line) and not _allowed_negative_example(line):
                 hardcoded_main = True
-                bad_commands.append({'file': rel, 'line': lineno, 'command': 'git push origin main', 'reason': 'hardcoded main publish command'})
-                rewrites.append({'file': rel, 'line': str(lineno), 'rewrite': f'git push origin HEAD:refs/heads/{EXPECTED_RELEASE_BRANCH}'})
+                bad_commands.append(
+                    {
+                        'file': rel,
+                        'line': lineno,
+                        'command': 'git push origin main',
+                        'reason': 'hardcoded main publish command',
+                    }
+                )
+                rewrites.append(
+                    {
+                        'file': rel,
+                        'line': str(lineno),
+                        'rewrite': f'git push origin HEAD:refs/heads/{EXPECTED_RELEASE_BRANCH}',
+                    }
+                )
             if FORCE_PUSH_RE.search(line) and not _allowed_negative_example(line):
                 force_push = True
-                bad_commands.append({'file': rel, 'line': lineno, 'command': line.strip(), 'reason': 'force push command'})
+                bad_commands.append(
+                    {'file': rel, 'line': lineno, 'command': line.strip(), 'reason': 'force push command'}
+                )
             if GH_WRITE_RE.search(line) and not _allowed_negative_example(line):
                 unsafe_github_write = True
-                bad_commands.append({'file': rel, 'line': lineno, 'command': line.strip(), 'reason': 'automated GitHub write command'})
+                bad_commands.append(
+                    {'file': rel, 'line': lineno, 'command': line.strip(), 'reason': 'automated GitHub write command'}
+                )
     passed = not hardcoded_main and not force_push and not unsafe_github_write and not bad_commands
     return {
         'generated_at': utc_now(),

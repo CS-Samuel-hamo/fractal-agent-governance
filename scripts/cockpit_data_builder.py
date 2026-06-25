@@ -11,10 +11,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cockpit_schema import cockpit_dir, default_cockpit_data  # noqa: E402
-from project_logic_rules_check import build_project_logic_rules_check  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from cockpit_schema import cockpit_dir, default_cockpit_data
+from project_logic_rules_check import build_project_logic_rules_check
+from runtime_common import load_json, project_root, utc_now, write_json
 
 RESTRICTED_RE = re.compile(r'(\.env\b|\.env\.|secret|api\s*key|apikey|token|credential)', re.IGNORECASE)
 
@@ -43,7 +42,9 @@ def evidence_count(row: dict[str, Any]) -> int:
     return len([item for item in row.get('evidence') or [] if isinstance(item, dict)])
 
 
-def project_state_from(session: dict[str, Any], project_map: dict[str, Any], attention: dict[str, Any], readiness: dict[str, Any]) -> str:
+def project_state_from(
+    session: dict[str, Any], project_map: dict[str, Any], attention: dict[str, Any], readiness: dict[str, Any]
+) -> str:
     if attention:
         return 'needs_attention'
     status = str(session.get('status') or '').lower()
@@ -53,7 +54,10 @@ def project_state_from(session: dict[str, Any], project_map: dict[str, Any], att
         return 'needs_attention'
     if status in {'stopped', 'paused'}:
         return 'paused'
-    if readiness.get('for_094') == 'READY_FOR_094_COCKPIT' or readiness.get('final_recommendation') == 'READY_FOR_094_COCKPIT':
+    if (
+        readiness.get('for_094') == 'READY_FOR_094_COCKPIT'
+        or readiness.get('final_recommendation') == 'READY_FOR_094_COCKPIT'
+    ):
         return 'ready'
     if project_map:
         return 'mapped'
@@ -181,7 +185,9 @@ def build_attention(attention: dict[str, Any]) -> dict[str, Any]:
         'items': [
             {
                 'reason': clean_text(attention.get('reason') or 'Review required'),
-                'suggested_next_step': clean_text(attention.get('suggested_next_step') or 'Review and continue when ready.'),
+                'suggested_next_step': clean_text(
+                    attention.get('suggested_next_step') or 'Review and continue when ready.'
+                ),
                 'action': clean_text(action.get('title') or action.get('selected_action_id') or ''),
             }
         ],
@@ -215,7 +221,9 @@ def build_worker_summary(project: Path) -> dict[str, Any]:
     selected = str(routing.get('selected_worker') or '')
     selected_row = next((item for item in workers if item.get('name') == selected), {})
     role = clean_text(routing.get('worker_role') or selected_row.get('worker_type') or 'not available')
-    status = clean_text(selected_row.get('health') or ('available' if selected_row.get('available') else 'not available'))
+    status = clean_text(
+        selected_row.get('health') or ('available' if selected_row.get('available') else 'not available')
+    )
     return {
         'role': role,
         'status': status,
@@ -273,7 +281,12 @@ def build_worker_readiness(project: Path) -> dict[str, Any]:
         )
     return {
         'workers': rows,
-        'actual_execution': 'available' if any(item.get('available') and item.get('supports_actual_execution') and item.get('provider') != 'mock' for item in workers) else 'unavailable',
+        'actual_execution': 'available'
+        if any(
+            item.get('available') and item.get('supports_actual_execution') and item.get('provider') != 'mock'
+            for item in workers
+        )
+        else 'unavailable',
     }
 
 
@@ -289,7 +302,9 @@ def product_learning_type(value: str) -> str:
 
 def build_learning_summary(project: Path) -> dict[str, Any]:
     insights_payload = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_insights.json')
-    feedback_payload = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_feedback_applied.json')
+    feedback_payload = load_json(
+        project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_feedback_applied.json'
+    )
     rows = []
     for item in insights_payload.get('insights') or []:
         if not isinstance(item, dict):
@@ -343,9 +358,13 @@ def build_release_summary(project: Path) -> dict[str, Any]:
         'release_score': release_ready.get('readiness_score'),
         'pr_title': clean_text(pr_plan.get('pr_title') or 'not available'),
         'pr_draft_path': '.zoo-agent/release/pr_draft.md' if (base / 'pr_draft.md').exists() else '',
-        'release_notes_path': '.zoo-agent/release/release_notes_draft.md' if (base / 'release_notes_draft.md').exists() else '',
+        'release_notes_path': '.zoo-agent/release/release_notes_draft.md'
+        if (base / 'release_notes_draft.md').exists()
+        else '',
         'changelog_path': '.zoo-agent/release/changelog_draft.md' if (base / 'changelog_draft.md').exists() else '',
-        'report_path': '.zoo-agent/release/release_workflow_report.md' if (base / 'release_workflow_report.md').exists() else '',
+        'report_path': '.zoo-agent/release/release_workflow_report.md'
+        if (base / 'release_workflow_report.md').exists()
+        else '',
         'blockers': blockers,
         'suggested_next_command': 'agent start "prepare this project for public release"',
         'learning_informed_path': next_actions,
@@ -396,7 +415,13 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['project'] = {
         'name': clean_text(project_map.get('project_name') or project_state.get('project_name') or project.name),
         'type': clean_text(project_map.get('project_type') or 'not available'),
-        'main_goal': clean_text(project_map.get('main_goal') or project_state.get('main_goal') or session_state.get('goal') or session.get('goal') or 'not available'),
+        'main_goal': clean_text(
+            project_map.get('main_goal')
+            or project_state.get('main_goal')
+            or session_state.get('goal')
+            or session.get('goal')
+            or 'not available'
+        ),
         'state': project_state_from(combined_session, project_map, attention, readiness),
         'last_updated': clean_text(project_map.get('last_updated') or project_state.get('last_updated') or ''),
     }
@@ -418,7 +443,9 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
         'completed_actions': [item for item in history if item.get('status') in {'done', 'completed', 'preview_ready'}],
         'in_progress_actions': [item for item in history if item.get('status') in {'doing', 'active'}],
         'blocked_actions': [item for item in history if item.get('status') in {'needs_attention', 'blocked', 'failed'}],
-        'recent_changes': clean_list([path for item in history[-5:] for path in item.get('changed_files') or []], limit=20),
+        'recent_changes': clean_list(
+            [path for item in history[-5:] for path in item.get('changed_files') or []], limit=20
+        ),
     }
     data['attention'] = build_attention(attention)
     data['safety'] = build_safety(checkpoints)

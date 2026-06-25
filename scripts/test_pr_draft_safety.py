@@ -12,9 +12,9 @@ SCRIPTS = ROOT / 'scripts'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if check and proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -35,7 +35,15 @@ def make_clean_repo(root: Path) -> None:
         'project_type': 'agent_runtime',
         'main_goal': 'public release',
         'modules': [],
-        'capabilities': [{'capability_id': 'docs', 'name': 'Docs ready', 'status': 'verified', 'evidence': [{'source': 'README.md'}], 'related_modules': []}],
+        'capabilities': [
+            {
+                'capability_id': 'docs',
+                'name': 'Docs ready',
+                'status': 'verified',
+                'evidence': [{'source': 'README.md'}],
+                'related_modules': [],
+            }
+        ],
         'risks': [],
         'next_actions': [],
     }
@@ -43,7 +51,19 @@ def make_clean_repo(root: Path) -> None:
     run(['git', 'init'], root)
     run(['git', 'config', 'user.email', 'pr@example.local'], root)
     run(['git', 'config', 'user.name', 'PR Test'], root)
-    run(['git', 'add', 'README.md', 'INSTALL.md', 'QUICKSTART.md', 'LICENSE', 'tests/test_basic.py', '.zoo-agent/map/project_map.json'], root)
+    run(
+        [
+            'git',
+            'add',
+            'README.md',
+            'INSTALL.md',
+            'QUICKSTART.md',
+            'LICENSE',
+            'tests/test_basic.py',
+            '.zoo-agent/map/project_map.json',
+        ],
+        root,
+    )
     run(['git', 'commit', '-m', 'init'], root)
 
 
@@ -82,7 +102,11 @@ def main() -> int:
             f'PUSH_EXECUTED\nNETWORK_CALL\nhttps://user:secret@github.com/example/repo.git\n{fake_abs_path}\nRAW_BACKEND_LOG\n',
             encoding='utf-8',
         )
-        proc = run([sys.executable, str(SCRIPTS / 'github_workflow_safety_gate.py'), '--workspace', str(root)], root, check=False)
+        proc = run(
+            [sys.executable, str(SCRIPTS / 'github_workflow_safety_gate.py'), '--workspace', str(root)],
+            root,
+            check=False,
+        )
         assert proc.returncode != 0
         safety = load(release_dir / 'github_workflow_safety_report.json')
         assert safety['safe'] is False

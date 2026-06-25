@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-
 WORKER_RESULT_SCHEMA_VERSION = '1.0'
 
 
@@ -43,14 +42,11 @@ class Worker(Protocol):
     provider: str
     capabilities: list[str]
 
-    def health(self) -> dict[str, Any]:
-        ...
+    def health(self) -> dict[str, Any]: ...
 
-    def can_handle(self, task_profile: dict[str, Any]) -> bool:
-        ...
+    def can_handle(self, task_profile: dict[str, Any]) -> bool: ...
 
-    def execute(self, task: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-        ...
+    def execute(self, task: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]: ...
 
 
 def worker_result(

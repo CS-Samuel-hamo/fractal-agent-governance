@@ -8,14 +8,22 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 
 def run(cmd: list[str], cwd: Path, *, env: dict[str, str], check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -66,8 +74,14 @@ def test_stale_lock_and_missing_map(test_env: dict[str, str]) -> None:
         'cockpit_path': '.zoo-agent/cockpit/index.html',
     }
     write_json(repo / '.zoo-agent' / 'session' / 'session_state.json', state)
-    write_json(repo / '.zoo-agent' / 'session' / 'session_lock.json', {'session_id': 'session-stale', 'created_monotonic': 1.0})
-    run([sys.executable, str(ROOT / 'scripts' / 'session_resume_engine.py'), '--workspace', str(repo)], repo, env=test_env)
+    write_json(
+        repo / '.zoo-agent' / 'session' / 'session_lock.json', {'session_id': 'session-stale', 'created_monotonic': 1.0}
+    )
+    run(
+        [sys.executable, str(ROOT / 'scripts' / 'session_resume_engine.py'), '--workspace', str(repo)],
+        repo,
+        env=test_env,
+    )
     report = load(repo / '.zoo-agent' / 'session' / 'recovery_report.json')
     assert report['safe_to_continue'] is True
     assert report['recovery_status'] == 'recovered'
@@ -80,7 +94,11 @@ def test_corrupted_state(test_env: dict[str, str]) -> None:
     path = repo / '.zoo-agent' / 'session' / 'session_state.json'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('{not json', encoding='utf-8')
-    run([sys.executable, str(ROOT / 'scripts' / 'session_resume_engine.py'), '--workspace', str(repo)], repo, env=test_env)
+    run(
+        [sys.executable, str(ROOT / 'scripts' / 'session_resume_engine.py'), '--workspace', str(repo)],
+        repo,
+        env=test_env,
+    )
     report = load(repo / '.zoo-agent' / 'session' / 'recovery_report.json')
     assert report['recovery_status'] == 'needs_attention'
     assert report['safe_to_continue'] is False
@@ -129,7 +147,11 @@ def test_no_delivery_and_blocked_zone(test_env: dict[str, str]) -> None:
 def test_budget_decision() -> None:
     from session_budget_manager import budget_decision
 
-    decision = budget_decision({'current_step': 3}, {'steps': [{'outcome': 'no_delivery'}, {'outcome': 'no_delivery'}]}, {'max_steps': 5, 'max_no_delivery': 1})
+    decision = budget_decision(
+        {'current_step': 3},
+        {'steps': [{'outcome': 'no_delivery'}, {'outcome': 'no_delivery'}]},
+        {'max_steps': 5, 'max_no_delivery': 1},
+    )
     assert decision['status'] == 'needs_attention'
     assert 'no_delivery_budget_exceeded' in decision['reasons']
 

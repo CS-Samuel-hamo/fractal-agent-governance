@@ -12,13 +12,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-from bounded_docs_writer import apply_docs_patch, is_safe_docs_target  # noqa: E402
-from worker_fallback_engine import fallback_for_result  # noqa: E402
-from worker_interface import worker_result  # noqa: E402
-from codex_worker_adapter_hardened import codex_health  # noqa: E402
-from local_scanner_worker import execute as execute_local_scan  # noqa: E402
-from remote_ai_worker_adapter import execute_docs_patch as execute_remote_docs_patch  # noqa: E402
+from bounded_docs_writer import apply_docs_patch, is_safe_docs_target
+from codex_worker_adapter_hardened import codex_health
+from local_scanner_worker import execute as execute_local_scan
+from remote_ai_worker_adapter import execute_docs_patch as execute_remote_docs_patch
+from runtime_common import load_json, project_root, write_json
+from worker_fallback_engine import fallback_for_result
+from worker_interface import worker_result
 
 TRUSTED_STARTER_DOCS = {'README.md', 'docs/project_plan.md', 'docs/research_workflow.md'}
 
@@ -36,7 +36,7 @@ def backend_from_worker(routing_decision: dict[str, Any]) -> str:
 
 
 def run_command(command: list[str]) -> dict[str, Any]:
-    proc = subprocess.run(command, cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(command, cwd=ROOT, text=True, encoding='utf-8', errors='replace', capture_output=True)
     return {
         'returncode': proc.returncode,
         'stdout_tail': proc.stdout[-4000:],
@@ -67,7 +67,7 @@ def status_from_final(final_result: dict[str, Any], command_result: dict[str, An
         return 'no_delivery'
     if verdict in {'BLOCKED', 'PARTIAL', 'NEEDS_DELIVERY_VERIFICATION'}:
         return 'blocked'
-    return 'failed' if verdict else 'failed'
+    return 'failed'
 
 
 def is_starter_docs_action(action: dict[str, Any], routing_decision: dict[str, Any]) -> bool:
@@ -137,7 +137,9 @@ def starter_doc_content(action: dict[str, Any], target: str) -> str:
     )
 
 
-def execute_starter_docs(project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int) -> dict[str, Any]:
+def execute_starter_docs(
+    project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int
+) -> dict[str, Any]:
     run_id = f'starter-docs-{time.strftime("%Y%m%d%H%M%S", time.gmtime())}-{step_number:02d}'
     plan_path, execution_path, final_path = pipeline_paths(project, run_id)
     targets = [str(item).replace('\\', '/') for item in action.get('target_files') or []]
@@ -156,7 +158,11 @@ def execute_starter_docs(project: Path, *, action: dict[str, Any], routing_decis
 
     verdict = 'BLOCKED' if invalid_targets else ('COMPLETED' if changed_files else 'DRY_RUN_COMPLETE')
     status = 'blocked' if invalid_targets else ('succeeded' if changed_files else 'dry_run')
-    reason = 'invalid_starter_doc_target' if invalid_targets else ('trusted_starter_docs_created' if changed_files else 'target file already exists; no overwrite')
+    reason = (
+        'invalid_starter_doc_target'
+        if invalid_targets
+        else ('trusted_starter_docs_created' if changed_files else 'target file already exists; no overwrite')
+    )
     plan = {
         'schema_version': '1.0',
         'generated_by': 'worker_execution_adapter.py',
@@ -241,20 +247,35 @@ def execute_starter_docs(project: Path, *, action: dict[str, Any], routing_decis
     }
 
 
-def execute_routed_worker(project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int) -> dict[str, Any]:
+def execute_routed_worker(
+    project: Path, *, action: dict[str, Any], routing_decision: dict[str, Any], step_number: int
+) -> dict[str, Any]:
     if is_starter_docs_action(action, routing_decision):
         return execute_starter_docs(project, action=action, routing_decision=routing_decision, step_number=step_number)
     provider = routing_decision.get('selected_provider')
     targets = [str(item).replace('\\', '/') for item in action.get('target_files') or []]
     if provider in {'local_docs', 'openai_api'} and targets and all(is_safe_docs_target(target) for target in targets):
         payload = (
-            execute_remote_docs_patch(project, objective=str(action.get('title') or action.get('objective') or ''), target_files=targets)
+            execute_remote_docs_patch(
+                project, objective=str(action.get('title') or action.get('objective') or ''), target_files=targets
+            )
             if provider == 'openai_api'
-            else apply_docs_patch(project, objective=str(action.get('title') or action.get('objective') or ''), target_files=targets)
+            else apply_docs_patch(
+                project, objective=str(action.get('title') or action.get('objective') or ''), target_files=targets
+            )
         )
         changed = [str(item) for item in payload.get('changed_files') or []]
-        final_result = {'final_verdict': 'COMPLETED' if changed else 'DRY_RUN_COMPLETE', 'changed_files': changed, 'worker_result': payload}
-        execution = {'leaf_results': [{'delivery_outcome': 'delivered' if changed else 'preview', 'business_changed_files': changed}], 'worker_result': payload}
+        final_result = {
+            'final_verdict': 'COMPLETED' if changed else 'DRY_RUN_COMPLETE',
+            'changed_files': changed,
+            'worker_result': payload,
+        }
+        execution = {
+            'leaf_results': [
+                {'delivery_outcome': 'delivered' if changed else 'preview', 'business_changed_files': changed}
+            ],
+            'worker_result': payload,
+        }
         worker_payload = worker_result(
             worker_name=str(routing_decision.get('selected_worker') or provider),
             worker_type='docs',
@@ -277,7 +298,9 @@ def execute_routed_worker(project: Path, *, action: dict[str, Any], routing_deci
             'command_result': {'returncode': 0, 'stdout_tail': worker_payload['summary'], 'stderr_tail': ''},
         }
     if routing_decision.get('selected_provider') == 'local_scanner':
-        worker_payload = execute_local_scan(project, task=action, context={'routing_decision': routing_decision, 'step_number': step_number})
+        worker_payload = execute_local_scan(
+            project, task=action, context={'routing_decision': routing_decision, 'step_number': step_number}
+        )
         final_result = {'final_verdict': 'DRY_RUN_COMPLETE', 'worker_result': worker_payload}
         execution = {'leaf_results': [], 'worker_result': worker_payload}
         fallback_for_result(project, routing_decision=routing_decision, worker_result=worker_payload)

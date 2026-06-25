@@ -7,7 +7,6 @@ import json
 import subprocess
 from pathlib import Path
 
-
 OPEN_STATUSES = {'open', 'blocked', 'needs_review', 'carried'}
 
 
@@ -22,8 +21,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -145,11 +143,7 @@ def seed_from_quality_gate(register: dict, run_dir: Path) -> dict:
 
 
 def summarize(register: dict) -> dict:
-    open_risks = [
-        risk
-        for risk in register['risks']
-        if str(risk.get('status') or 'open').lower() in OPEN_STATUSES
-    ]
+    open_risks = [risk for risk in register['risks'] if str(risk.get('status') or 'open').lower() in OPEN_STATUSES]
     register['open_risk_count'] = len(open_risks)
     register['risk_count'] = len(register['risks'])
     return register
@@ -157,12 +151,12 @@ def summarize(register: dict) -> dict:
 
 def write_markdown(path: Path, register: dict, action_result: dict) -> None:
     lines = [
-        f"# Risk Register: {register['run_id']}",
+        f'# Risk Register: {register["run_id"]}',
         '',
-        f"- updated_at: {register['updated_at']}",
-        f"- risk_count: {register.get('risk_count', 0)}",
-        f"- open_risk_count: {register.get('open_risk_count', 0)}",
-        f"- last_action: {action_result.get('status', 'unknown')}",
+        f'- updated_at: {register["updated_at"]}',
+        f'- risk_count: {register.get("risk_count", 0)}',
+        f'- open_risk_count: {register.get("open_risk_count", 0)}',
+        f'- last_action: {action_result.get("status", "unknown")}',
         '',
         '## Risks',
         '',
@@ -171,7 +165,7 @@ def write_markdown(path: Path, register: dict, action_result: dict) -> None:
         lines.append('- none')
     for risk in register['risks']:
         lines.append(
-            f"- {risk.get('risk_id')}: {risk.get('severity', '')} / {risk.get('status', '')} / {risk.get('title', '')}"
+            f'- {risk.get("risk_id")}: {risk.get("severity", "")} / {risk.get("status", "")} / {risk.get("title", "")}'
         )
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

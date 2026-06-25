@@ -12,7 +12,7 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if check and proc.returncode != 0:
         raise AssertionError(f'command failed: {args}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc

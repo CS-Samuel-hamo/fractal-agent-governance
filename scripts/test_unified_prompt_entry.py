@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from job_state_store import default_job, load_current_job, save_current_job  # noqa: E402
-from runtime_common import write_json  # noqa: E402
-from prompt_intent_router import classify_prompt  # noqa: E402
+from job_state_store import default_job, load_current_job, save_current_job
+from prompt_intent_router import classify_prompt
+from runtime_common import write_json
 
 
 def repo(name: str) -> Path:
@@ -32,8 +32,7 @@ def run_agent(project: Path, *args: str) -> subprocess.CompletedProcess[str]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=90,
     )
 
@@ -64,7 +63,11 @@ def assert_summary_sections(text: str) -> None:
 
 def test_router_classifies_seed_prompt_execution() -> None:
     project = repo('unified-router-seed')
-    write(project, 'project_beginning_prompt.md', 'Build a research paper workflow with literature and evidence validation.')
+    write(
+        project,
+        'project_beginning_prompt.md',
+        'Build a research paper workflow with literature and evidence validation.',
+    )
     payload = classify_prompt(project, 'read and execute project_beginning_prompt.md')
     assert_true(payload['intent'] == 'seed_prompt_execution', 'seed prompt execution was not detected')
     assert_true(payload['execution_mode'] == 'project_safe_step', 'seed prompt should map to a safe project step')
@@ -96,9 +99,15 @@ def test_router_classifies_preview_artifact() -> None:
 
 def test_default_docs_prompt_applies_without_apply_flag() -> None:
     project = repo('unified-docs-apply')
-    write(project, 'project_beginning_prompt.md', 'Research workflow prompt. Keep facts, assumptions, literature, evidence, and validation separate.')
+    write(
+        project,
+        'project_beginning_prompt.md',
+        'Research workflow prompt. Keep facts, assumptions, literature, evidence, and validation separate.',
+    )
     write(project, 'docs/research_workflow.md', '# Research Workflow\n')
-    proc = run_agent(project, '根据 project_beginning_prompt.md 扩展 docs/research_workflow.md，加入文献、证据和验证流程')
+    proc = run_agent(
+        project, '根据 project_beginning_prompt.md 扩展 docs/research_workflow.md，加入文献、证据和验证流程'
+    )
     assert_true(proc.returncode == 0, proc.stderr or proc.stdout)
     assert_summary_sections(proc.stdout)
     assert_true('- Done' in proc.stdout, f'unexpected output: {proc.stdout}')
@@ -121,7 +130,11 @@ def test_default_docs_prompt_applies_without_apply_flag() -> None:
 
 def test_default_seed_prompt_executes_first_safe_step() -> None:
     project = repo('unified-seed-exec')
-    write(project, 'project_beginning_prompt.md', 'Build a research paper workflow with literature map, evidence plan, and validation checkpoints.')
+    write(
+        project,
+        'project_beginning_prompt.md',
+        'Build a research paper workflow with literature map, evidence plan, and validation checkpoints.',
+    )
     proc = run_agent(project, 'read and execute project_beginning_prompt.md')
     assert_true(proc.returncode == 0, proc.stderr or proc.stdout)
     assert_summary_sections(proc.stdout)
@@ -133,14 +146,23 @@ def test_default_seed_prompt_executes_first_safe_step() -> None:
     assert_true('Logic Check:' in proc.stdout, 'logic check missing from seed prompt result')
     assert_true((project / 'README.md').exists(), 'README was not created from seed prompt')
     assert_true((project / 'docs' / 'project_plan.md').exists(), 'project plan was not created from seed prompt')
-    assert_true((project / 'docs' / 'research_workflow.md').exists(), 'research workflow was not created from seed prompt')
-    assert_true((project / 'docs' / 'literature_matrix_template.md').exists(), 'literature matrix was not created in first batch')
+    assert_true(
+        (project / 'docs' / 'research_workflow.md').exists(), 'research workflow was not created from seed prompt'
+    )
+    assert_true(
+        (project / 'docs' / 'literature_matrix_template.md').exists(),
+        'literature matrix was not created in first batch',
+    )
     assert_true((project / 'docs' / 'evidence_plan.md').exists(), 'evidence plan was not created in first batch')
 
 
 def test_continue_consumes_seed_prompt_queue() -> None:
     project = repo('unified-seed-continue')
-    write(project, 'project_beginning_prompt.md', 'Build a research paper workflow with literature map, evidence plan, and validation checkpoints.')
+    write(
+        project,
+        'project_beginning_prompt.md',
+        'Build a research paper workflow with literature map, evidence plan, and validation checkpoints.',
+    )
     first = run_agent(project, '执行 project_beginning_prompt.md')
     assert_true(first.returncode == 0, first.stderr or first.stdout)
     second = run_agent(project, 'continue')
@@ -153,7 +175,9 @@ def test_continue_consumes_seed_prompt_queue() -> None:
     assert_true('Project Rules:' in second.stdout, 'project rules missing from continue result')
     assert_true('Preview recommended' not in second.stdout, 'continue should not repeat starter preview')
     assert_true((project / 'docs' / 'validation_checklist.md').exists(), 'continue did not create validation checklist')
-    assert_true((project / 'docs' / 'red_team_review_template.md').exists(), 'continue did not create red-team review template')
+    assert_true(
+        (project / 'docs' / 'red_team_review_template.md').exists(), 'continue did not create red-team review template'
+    )
     queue = (project / '.zoo-agent' / 'jobs' / 'seed_action_queue.json').read_text(encoding='utf-8')
     assert_true('seed-red-team-review' in queue and 'completed' in queue, 'queue did not record completed batch action')
     inbox = subprocess.run(
@@ -162,8 +186,7 @@ def test_continue_consumes_seed_prompt_queue() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=90,
     )
     assert_true(inbox.returncode == 0, inbox.stderr or inbox.stdout)
@@ -176,18 +199,32 @@ def test_continue_consumes_seed_prompt_queue() -> None:
     assert_true('Logic Check:' in inbox.stdout, 'logic check missing')
     assert_true('Phase 0 complete' in inbox.stdout, 'current phase position missing')
     assert_true('Reusable toolkit' in inbox.stdout, 'next non-paper-specific stage missing')
-    assert_true('Recommended: agent continue' not in inbox.stdout, 'completed batch should not recommend blind continue')
-    assert_true('Continue: not needed right now because the current batch is complete.' in inbox.stdout, 'completed batch should explain continue is not needed')
+    assert_true(
+        'Recommended: agent continue' not in inbox.stdout, 'completed batch should not recommend blind continue'
+    )
+    assert_true(
+        'Continue: not needed right now because the current batch is complete.' in inbox.stdout,
+        'completed batch should explain continue is not needed',
+    )
 
 
 def test_continue_migrates_legacy_seed_preview_state() -> None:
     project = repo('unified-legacy-seed-preview')
-    write(project, 'project_beginning_prompt.md', 'Build a research paper workflow with literature map and evidence plan.')
+    write(
+        project, 'project_beginning_prompt.md', 'Build a research paper workflow with literature map and evidence plan.'
+    )
     write(project, 'README.md', '# Existing README\n')
     write(project, 'docs/project_plan.md', '# Existing Plan\n')
     write(project, 'docs/research_workflow.md', '# Existing Workflow\n')
     job = default_job(project, goal='执行project_beginning_prompt.md')
-    job.update({'status': 'needs_attention', 'attention_required': True, 'attention_reason': 'preview completed; apply requires user intent', 'last_action': 'action-seed-docs-bootstrap'})
+    job.update(
+        {
+            'status': 'needs_attention',
+            'attention_required': True,
+            'attention_reason': 'preview completed; apply requires user intent',
+            'last_action': 'action-seed-docs-bootstrap',
+        }
+    )
     save_current_job(project, job)
     write_json(
         project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json',
@@ -209,26 +246,44 @@ def test_continue_migrates_legacy_seed_preview_state() -> None:
     assert_summary_sections(proc.stdout)
     assert_true('- Done' in proc.stdout, f'unexpected output: {proc.stdout}')
     assert_true('Preview recommended' not in proc.stdout, 'legacy preview should migrate before continue')
-    assert_true((project / 'docs' / 'literature_matrix_template.md').exists(), 'legacy migration did not create next queued document')
+    assert_true(
+        (project / 'docs' / 'literature_matrix_template.md').exists(),
+        'legacy migration did not create next queued document',
+    )
 
 
 def test_preview_only_job_does_not_block_new_prompt() -> None:
     project = repo('unified-supersede-preview')
     job = default_job(project, goal='old preview job')
-    job.update({'status': 'needs_attention', 'attention_required': True, 'attention_reason': 'preview completed; apply requires user intent'})
+    job.update(
+        {
+            'status': 'needs_attention',
+            'attention_required': True,
+            'attention_reason': 'preview completed; apply requires user intent',
+        }
+    )
     save_current_job(project, job)
     write(project, 'docs/research_workflow.md', '# Research Workflow\n')
     proc = run_agent(project, '扩展 docs/research_workflow.md，加入证据流程')
     assert_true(proc.returncode == 0, proc.stderr or proc.stdout)
     assert_true('Existing job found' not in proc.stdout, 'preview job should not block a new prompt')
-    assert_true((project / 'docs' / 'research_workflow.md').read_text(encoding='utf-8').count('证据') >= 1, 'new prompt did not apply')
+    assert_true(
+        (project / 'docs' / 'research_workflow.md').read_text(encoding='utf-8').count('证据') >= 1,
+        'new prompt did not apply',
+    )
 
 
 def test_needs_attention_project_job_does_not_block_new_project_goal() -> None:
     project = repo('unified-needs-attention-supersede')
     write(project, 'project_beginning_prompt.md', 'Build a research workflow toolkit.')
     job = default_job(project, goal='old reviewable job')
-    job.update({'status': 'needs_attention', 'attention_required': True, 'attention_reason': 'preview completed; apply requires user intent'})
+    job.update(
+        {
+            'status': 'needs_attention',
+            'attention_required': True,
+            'attention_reason': 'preview completed; apply requires user intent',
+        }
+    )
     save_current_job(project, job)
     write_json(
         project / '.zoo-agent' / 'session' / 'session_state.json',
@@ -242,8 +297,12 @@ def test_needs_attention_project_job_does_not_block_new_project_goal() -> None:
     )
     proc = run_agent(project, 'prepare a temporary project overview for review')
     assert_true(proc.returncode == 0, proc.stderr or proc.stdout)
-    assert_true('existing running job' not in proc.stdout.lower(), 'needs_attention job should not be described as running')
-    assert_true('Current job: old reviewable job' not in proc.stdout, 'old reviewable job should not block new project goal')
+    assert_true(
+        'existing running job' not in proc.stdout.lower(), 'needs_attention job should not be described as running'
+    )
+    assert_true(
+        'Current job: old reviewable job' not in proc.stdout, 'old reviewable job should not block new project goal'
+    )
 
 
 def test_preview_artifact_does_not_modify_project_docs() -> None:
@@ -254,8 +313,13 @@ def test_preview_artifact_does_not_modify_project_docs() -> None:
     proc = run_agent(project, '跑一个临时文档，生成结果给我看后就删掉，说明论文生成工作流怎么运行')
     assert_true(proc.returncode == 0, proc.stderr or proc.stdout)
     assert_true('Preview artifact:' in proc.stdout, 'preview artifact path missing')
-    result = json.loads((project / '.zoo-agent' / 'previews' / 'preview_artifact_result.json').read_text(encoding='utf-8'))
-    assert_true(str(result.get('preview_path', '')).startswith('.zoo-agent/previews/preview-'), 'preview artifact should use a dynamic preview name')
+    result = json.loads(
+        (project / '.zoo-agent' / 'previews' / 'preview_artifact_result.json').read_text(encoding='utf-8')
+    )
+    assert_true(
+        str(result.get('preview_path', '')).startswith('.zoo-agent/previews/preview-'),
+        'preview artifact should use a dynamic preview name',
+    )
     assert_true((project / str(result.get('preview_path', ''))).exists(), 'preview artifact was not written')
     after = (project / 'docs' / 'research_workflow.md').read_text(encoding='utf-8')
     assert_true(before == after, 'preview artifact mode should not modify project docs')
@@ -276,7 +340,9 @@ def test_agent_do_preview_does_not_replace_current_job() -> None:
     assert_true('current project goal unchanged' in proc.stdout, 'project goal unchanged message missing')
     current = load_current_job(project)
     assert_true(current.get('goal') == 'main project goal', 'agent do should not replace current job')
-    result = json.loads((project / '.zoo-agent' / 'previews' / 'preview_artifact_result.json').read_text(encoding='utf-8'))
+    result = json.loads(
+        (project / '.zoo-agent' / 'previews' / 'preview_artifact_result.json').read_text(encoding='utf-8')
+    )
     assert_true((project / str(result.get('preview_path', ''))).exists(), 'one-off preview artifact missing')
 
 
@@ -317,7 +383,9 @@ def test_unsafe_prompt_output_is_specific() -> None:
     assert_true(proc.returncode != 0, 'unsafe prompt should not succeed')
     assert_summary_sections(proc.stdout)
     assert_true('- Needs attention' in proc.stdout, f'unexpected output: {proc.stdout}')
-    assert_true('secret' in proc.stdout.lower() or 'credential' in proc.stdout.lower(), 'specific unsafe reason missing')
+    assert_true(
+        'secret' in proc.stdout.lower() or 'credential' in proc.stdout.lower(), 'specific unsafe reason missing'
+    )
 
 
 def test_help_promotes_unified_entry() -> None:
@@ -327,15 +395,16 @@ def test_help_promotes_unified_entry() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=30,
     )
     assert_true(proc.returncode == 0, proc.stderr or proc.stdout)
     assert_true('usage: agent "<prompt>"' in proc.stdout, 'unified prompt usage missing')
     assert_true('agent do "<one-off task>"' in proc.stdout, 'one-off task usage missing')
     first_block = proc.stdout.split('Advanced:')[0]
-    assert_true('--apply' not in first_block and '--preview' not in first_block, 'preview/apply should not be primary help')
+    assert_true(
+        '--apply' not in first_block and '--preview' not in first_block, 'preview/apply should not be primary help'
+    )
 
 
 def main() -> int:

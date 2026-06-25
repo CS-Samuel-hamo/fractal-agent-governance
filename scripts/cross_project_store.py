@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 STORE_FILES = {
     'project_index': 'project_index.json',
@@ -56,7 +55,12 @@ def initialize_store(project: Path) -> dict[str, Any]:
         if not path.exists():
             write_json(path, {**default_payload(name), 'generated_at': utc_now()})
             created.append(filename)
-    return {'schema_version': '1.0', 'generated_by': 'cross_project_store.py', 'store': '.zoo-agent/learning/cross_project', 'created': created}
+    return {
+        'schema_version': '1.0',
+        'generated_by': 'cross_project_store.py',
+        'store': '.zoo-agent/learning/cross_project',
+        'created': created,
+    }
 
 
 def load_store(project: Path, name: str) -> dict[str, Any]:

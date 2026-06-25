@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, utc_now, write_json
 
 FORBIDDEN_RESPONSIBILITIES = [
     'planning',
@@ -33,7 +32,11 @@ def verdict_from_execution(execution: dict[str, Any]) -> tuple[str, str, bool]:
     if all(item in {'delivered', 'no_op_with_evidence'} for item in outcomes):
         return 'COMPLETED', 'all_leaf_results_delivered_or_no_op_with_evidence', True
     if all(item == 'dry_run_only' for item in outcomes):
-        if any(item.get('backend_invoked') or item.get('fallback_used') == 'dry_run_mode' for item in leaves if isinstance(item, dict)):
+        if any(
+            item.get('backend_invoked') or item.get('fallback_used') == 'dry_run_mode'
+            for item in leaves
+            if isinstance(item, dict)
+        ):
             return 'BLOCKED', 'actual_execution_failed_and_fell_back_to_dry_run', False
         return 'DRY_RUN_COMPLETE', 'dry_run_plan_verified_without_actual_execution', False
     if any(item == 'executed_pending_verification' for item in outcomes):
@@ -104,14 +107,26 @@ def main() -> int:
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
     result = verify_execution(args)
-    output = Path(args.output).resolve() if args.output else Path(args.execution_result).resolve().parent / 'final_result.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else Path(args.execution_result).resolve().parent / 'final_result.json'
+    )
     write_json(output, result)
     if args.debug:
-        payload = {'status': 'ok', 'final_result_json': str(output), 'run_id': result.get('run_id'), 'stage': 'verifier', 'final_verdict': result['final_verdict']}
+        payload = {
+            'status': 'ok',
+            'final_result_json': str(output),
+            'run_id': result.get('run_id'),
+            'stage': 'verifier',
+            'final_verdict': result['final_verdict'],
+        }
     else:
         payload = {
             'goal': result.get('run_id') or 'current run',
-            'progress': 'complete' if result.get('final_verdict') in {'COMPLETED', 'DRY_RUN_COMPLETE'} else 'in_progress',
+            'progress': 'complete'
+            if result.get('final_verdict') in {'COMPLETED', 'DRY_RUN_COMPLETE'}
+            else 'in_progress',
             'result': result.get('final_verdict') or 'unknown',
         }
     print(json.dumps(payload, ensure_ascii=False, indent=2))

@@ -10,8 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-from worker_registry import write_worker_registry  # noqa: E402
+from runtime_common import project_root, utc_now, write_json
+from worker_registry import write_worker_registry
 
 
 def health_report(project: Path) -> dict[str, Any]:

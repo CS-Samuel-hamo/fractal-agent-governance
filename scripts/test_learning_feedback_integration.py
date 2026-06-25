@@ -10,10 +10,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cockpit_renderer import render_cockpit  # noqa: E402
-from learning_feedback_applier import apply_feedback  # noqa: E402
-from map_task_selector import select_next_action  # noqa: E402
-from worker_router import route_worker  # noqa: E402
+from cockpit_renderer import render_cockpit
+from learning_feedback_applier import apply_feedback
+from map_task_selector import select_next_action
+from worker_router import route_worker
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -34,7 +34,14 @@ def seed_project_map(project: Path) -> None:
             'project_type': 'python_cli',
             'main_goal': 'prepare for public release',
             'modules': [
-                {'module_id': 'module-docs', 'name': 'Docs', 'status': 'mapped', 'confidence': 0.8, 'key_files': ['README.md'], 'evidence': [{'path': 'README.md'}]},
+                {
+                    'module_id': 'module-docs',
+                    'name': 'Docs',
+                    'status': 'mapped',
+                    'confidence': 0.8,
+                    'key_files': ['README.md'],
+                    'evidence': [{'path': 'README.md'}],
+                },
             ],
             'capabilities': [],
             'risks': [],
@@ -63,7 +70,9 @@ def seed_project_map(project: Path) -> None:
             'last_updated': '2026-06-21T00:00:00Z',
         },
     )
-    write_json(project / '.zoo-agent' / 'map' / 'project_state.json', {'project_name': 'feedback-fixture', 'status': 'mapped'})
+    write_json(
+        project / '.zoo-agent' / 'map' / 'project_state.json', {'project_name': 'feedback-fixture', 'status': 'mapped'}
+    )
 
 
 def seed_learning(project: Path) -> None:
@@ -111,12 +120,23 @@ def main() -> int:
         seed_learning(project)
 
         feedback = apply_feedback(project)
-        assert_true(any(item.get('target') == 'map_task_selector' for item in feedback.get('applied') or []), 'map selector feedback not applied')
-        assert_true(any(item.get('target') == 'worker_router' for item in feedback.get('applied') or []), 'worker router feedback not applied')
-        assert_true(any(item.get('reason') == 'unsafe_effect_rejected' for item in feedback.get('skipped') or []), 'unsafe effect was not rejected')
+        assert_true(
+            any(item.get('target') == 'map_task_selector' for item in feedback.get('applied') or []),
+            'map selector feedback not applied',
+        )
+        assert_true(
+            any(item.get('target') == 'worker_router' for item in feedback.get('applied') or []),
+            'worker router feedback not applied',
+        )
+        assert_true(
+            any(item.get('reason') == 'unsafe_effect_rejected' for item in feedback.get('skipped') or []),
+            'unsafe effect was not rejected',
+        )
 
         selected = select_next_action(project, mode='standard')
-        assert_true(selected.get('selected_action_id') == 'action-docs', 'learning boost did not affect next action ranking')
+        assert_true(
+            selected.get('selected_action_id') == 'action-docs', 'learning boost did not affect next action ranking'
+        )
         assert_true(selected.get('learning_feedback_ref'), 'selector did not record learning feedback reference')
 
         blocked_decision = route_worker(
@@ -133,7 +153,9 @@ def main() -> int:
             execution_mode='auto',
         )
         assert_true(blocked_decision.get('execution_allowed') is False, 'learning bypassed blocked zone')
-        assert_true(blocked_decision.get('execution_mode') == 'needs_attention', 'blocked zone did not require attention')
+        assert_true(
+            blocked_decision.get('execution_mode') == 'needs_attention', 'blocked zone did not require attention'
+        )
 
         code_decision = route_worker(
             project,
@@ -148,7 +170,10 @@ def main() -> int:
             },
             execution_mode='auto',
         )
-        assert_true(code_decision.get('selected_provider') != 'claude', 'unverified Claude stub was selected for actual execution')
+        assert_true(
+            code_decision.get('selected_provider') != 'claude',
+            'unverified Claude stub was selected for actual execution',
+        )
         assert_true(code_decision.get('learning_feedback_ref'), 'router did not record learning feedback reference')
 
         render_cockpit(project)
@@ -157,8 +182,17 @@ def main() -> int:
         assert_true('README docs release readiness' in cockpit, 'cockpit did not show product-level learning insight')
         assert_true('learning_insights.json' not in cockpit, 'cockpit leaked raw learning artifact path')
 
-        help_text = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'], cwd=ROOT, text=True, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
-        assert_true('learning --build' not in help_text and 'learning --import' not in help_text, 'ordinary help exposed learning commands')
+        help_text = subprocess.run(
+            [sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'],
+            cwd=ROOT,
+            text=True,
+            encoding='utf-8',
+            capture_output=True,
+        ).stdout
+        assert_true(
+            'learning --build' not in help_text and 'learning --import' not in help_text,
+            'ordinary help exposed learning commands',
+        )
 
     print('learning feedback integration tests passed')
     return 0

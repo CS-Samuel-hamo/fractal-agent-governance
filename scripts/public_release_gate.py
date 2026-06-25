@@ -11,14 +11,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from demo_fixture_packager import ensure_demo_fixture  # noqa: E402
-from public_alpha_audit import run_audit  # noqa: E402
-from public_alpha_packager import public_alpha_dir  # noqa: E402
-from public_docs_leakage_scanner import scan_project  # noqa: E402
-from public_positioning_linter import lint_project  # noqa: E402
-from public_release_packager import VERSION, public_release_dir, write_release_manifest  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from demo_fixture_packager import ensure_demo_fixture
+from public_alpha_audit import run_audit
+from public_docs_leakage_scanner import scan_project
+from public_positioning_linter import lint_project
+from public_release_packager import VERSION, public_release_dir, write_release_manifest
+from runtime_common import project_root, utc_now, write_json
 
 PUBLIC_HELP_FORBIDDEN = [
     'worker dogfood',
@@ -76,7 +74,15 @@ def version_text(project: Path) -> str:
 
 def git_dirty_files(project: Path) -> list[str]:
     try:
-        proc = subprocess.run(['git', 'status', '--porcelain'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=8)
+        proc = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=project,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+            timeout=8,
+        )
     except Exception:
         return []
     files = []
@@ -89,11 +95,20 @@ def git_dirty_files(project: Path) -> list[str]:
 
 
 def release_allowed_dirty(files: list[str]) -> bool:
-    return all(any(path == allowed or path.startswith(allowed) for allowed in ALLOWED_RELEASE_CHANGES) for path in files)
+    return all(
+        any(path == allowed or path.startswith(allowed) for allowed in ALLOWED_RELEASE_CHANGES) for path in files
+    )
 
 
 def cli_surface(project: Path) -> dict[str, Any]:
-    proc = subprocess.run([sys.executable, str(project / 'scripts' / 'agent.py'), '--help'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        [sys.executable, str(project / 'scripts' / 'agent.py'), '--help'],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     text = proc.stdout.lower()
     forbidden = [item for item in PUBLIC_HELP_FORBIDDEN if item in text]
     required = [
@@ -113,7 +128,14 @@ def cli_surface(project: Path) -> dict[str, Any]:
 
 
 def tracked_runtime_artifacts(project: Path) -> list[str]:
-    proc = subprocess.run(['git', 'ls-files', '.zoo-agent'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        ['git', 'ls-files', '.zoo-agent'],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
@@ -126,9 +148,20 @@ def evaluate_gate(project: Path) -> dict[str, Any]:
     cli = cli_surface(project)
     dirty = git_dirty_files(project)
     version = version_text(project)
-    release_notes = (project / 'RELEASE_NOTES.md').read_text(encoding='utf-8-sig', errors='replace') if (project / 'RELEASE_NOTES.md').exists() else ''
-    readme = (project / 'README.md').read_text(encoding='utf-8-sig', errors='replace') if (project / 'README.md').exists() else ''
-    demo_safe = bool((project / 'examples' / 'demo_project' / 'README.md').exists()) and not (project / 'examples' / 'demo_project' / '.env').exists()
+    release_notes = (
+        (project / 'RELEASE_NOTES.md').read_text(encoding='utf-8-sig', errors='replace')
+        if (project / 'RELEASE_NOTES.md').exists()
+        else ''
+    )
+    readme = (
+        (project / 'README.md').read_text(encoding='utf-8-sig', errors='replace')
+        if (project / 'README.md').exists()
+        else ''
+    )
+    demo_safe = (
+        bool((project / 'examples' / 'demo_project' / 'README.md').exists())
+        and not (project / 'examples' / 'demo_project' / '.env').exists()
+    )
     runtime_tracked = tracked_runtime_artifacts(project)
 
     must_fix: list[str] = []
@@ -161,8 +194,26 @@ def evaluate_gate(project: Path) -> dict[str, Any]:
     docs_safety_score = 1.0 if docs_safety.get('safe') else 0.0
     cli_surface_score = float(cli['score'])
     demo_score = 1.0 if demo_safe else 0.0
-    test_score = 1.0 if all((project / path).exists() for path in ['scripts/test_public_release_gate.py', 'scripts/test_fresh_clone_public_alpha.py', 'scripts/test_github_release_draft.py']) else 0.0
-    component_scores = [positioning_score, docs_safety_score, cli_surface_score, demo_score, test_score, 1.0 if package.get('safe_to_package') else 0.0]
+    test_score = (
+        1.0
+        if all(
+            (project / path).exists()
+            for path in [
+                'scripts/test_public_release_gate.py',
+                'scripts/test_fresh_clone_public_alpha.py',
+                'scripts/test_github_release_draft.py',
+            ]
+        )
+        else 0.0
+    )
+    component_scores = [
+        positioning_score,
+        docs_safety_score,
+        cli_surface_score,
+        demo_score,
+        test_score,
+        1.0 if package.get('safe_to_package') else 0.0,
+    ]
     release_gate_score = round(sum(component_scores) / len(component_scores), 3)
     safe_to_release = (
         release_gate_score >= 0.95

@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from runtime_common import load_json, project_root, utc_now
 
 
 def final_recommendation(quality: dict[str, Any]) -> str:
@@ -68,28 +68,61 @@ def generate_report(
         '',
         '## Can User Understand Project State?',
         '',
-        '- ' + status_line(bool(project_info.get('name') and project_info.get('state')), 'Yes. The header exposes project name, goal, state, and updated time.', 'Not fully. Project identity or state is missing.'),
+        '- '
+        + status_line(
+            bool(project_info.get('name') and project_info.get('state')),
+            'Yes. The header exposes project name, goal, state, and updated time.',
+            'Not fully. Project identity or state is missing.',
+        ),
         '',
         '## Can User Understand AI Progress?',
         '',
-        '- ' + status_line(bool((data.get('progress') or {}).get('completed_actions') or (data.get('progress') or {}).get('recent_changes')), 'Yes. Progress timeline and recent changes are visible.', 'Partially. No completed actions or recent changes are visible yet.'),
+        '- '
+        + status_line(
+            bool(
+                (data.get('progress') or {}).get('completed_actions')
+                or (data.get('progress') or {}).get('recent_changes')
+            ),
+            'Yes. Progress timeline and recent changes are visible.',
+            'Partially. No completed actions or recent changes are visible yet.',
+        ),
         '',
         '## Can User Understand Next Action?',
         '',
-        '- ' + status_line(bool(session.get('next_action') or project_map.get('next_actions')), 'Yes. The next action and action cards are visible.', 'No. No next action is visible.'),
+        '- '
+        + status_line(
+            bool(session.get('next_action') or project_map.get('next_actions')),
+            'Yes. The next action and action cards are visible.',
+            'No. No next action is visible.',
+        ),
         '',
         '## Can User See Attention Required?',
         '',
-        '- ' + status_line(bool(attention.get('requires_attention') or attention.get('items') is not None), 'Yes. Attention state has a dedicated section.', 'No. Attention state is not represented.'),
+        '- '
+        + status_line(
+            bool(attention.get('requires_attention') or attention.get('items') is not None),
+            'Yes. Attention state has a dedicated section.',
+            'No. Attention state is not represented.',
+        ),
         '',
         '## Can User Recover / Undo?',
         '',
-        '- ' + status_line(bool(safety.get('checkpoints_available') or safety.get('undo_available')), 'Yes. Checkpoint and undo availability are visible.', 'Partially. No checkpoint is available in the current artifacts.'),
+        '- '
+        + status_line(
+            bool(safety.get('checkpoints_available') or safety.get('undo_available')),
+            'Yes. Checkpoint and undo availability are visible.',
+            'Partially. No checkpoint is available in the current artifacts.',
+        ),
         '',
         '## Does This Feel Like AI Project Operator?',
         '',
         f'- Operator positioning score: {quality.get("operator_positioning_score")}',
-        '- ' + status_line(float(quality.get('operator_positioning_score') or 0) >= 0.85, 'Yes. The Cockpit emphasizes project state, map, next actions, progress, attention, and recovery.', 'Not yet. It still needs stronger project-operation framing.'),
+        '- '
+        + status_line(
+            float(quality.get('operator_positioning_score') or 0) >= 0.85,
+            'Yes. The Cockpit emphasizes project state, map, next actions, progress, attention, and recovery.',
+            'Not yet. It still needs stronger project-operation framing.',
+        ),
         '',
         '## What Is Still Too Technical?',
         '',
@@ -122,7 +155,11 @@ def generate_report(
         'report': str(output),
         'recommendation': recommendation,
         'must_fix_before_095': must_fix,
-        'recommended_next_steps': ['Enter 0.95 Session Runtime design.' if recommendation == 'READY_FOR_095_SESSION_RUNTIME' else 'Fix Cockpit UX blockers before 0.95.'],
+        'recommended_next_steps': [
+            'Enter 0.95 Session Runtime design.'
+            if recommendation == 'READY_FOR_095_SESSION_RUNTIME'
+            else 'Fix Cockpit UX blockers before 0.95.'
+        ],
     }
 
 

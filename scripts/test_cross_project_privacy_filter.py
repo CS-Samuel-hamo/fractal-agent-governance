@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_privacy_filter import filter_artifact, write_privacy_report  # noqa: E402
+from cross_project_privacy_filter import filter_artifact, write_privacy_report
 
 
 def assert_true(value: bool, message: str) -> None:

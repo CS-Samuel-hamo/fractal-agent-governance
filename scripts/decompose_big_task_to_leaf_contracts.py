@@ -8,9 +8,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import build_leaf_contracts, decomposition_gate, generate_resource_map, load_backend_profile, load_big_task_contract, project_root, write_leaf_contracts, write_resource_map  # noqa: E402
-from leaf_convergence_controller import run_leaf_convergence  # noqa: E402
-from runtime_common import write_json  # noqa: E402
+from big_task_common import (
+    build_leaf_contracts,
+    decomposition_gate,
+    generate_resource_map,
+    load_backend_profile,
+    load_big_task_contract,
+    project_root,
+    write_leaf_contracts,
+    write_resource_map,
+)
+from leaf_convergence_controller import run_leaf_convergence
+from runtime_common import write_json
 
 
 def main() -> int:
@@ -48,7 +57,7 @@ def main() -> int:
     for leaf in leaves:
         gate = leaf_readiness(leaf, backend)
         leaf['task_readiness'] = gate
-        leaf['task_readiness_ref'] = f".zoo-agent/runs/{args.run_id}/leaf-tasks/{leaf['leaf_id']}-readiness.json"
+        leaf['task_readiness_ref'] = f'.zoo-agent/runs/{args.run_id}/leaf-tasks/{leaf["leaf_id"]}-readiness.json'
         leaf['execution_allowed'] = bool(gate.get('execution_allowed'))
         if not leaf['execution_allowed'] and leaf.get('execution_mode') == 'actual_allowed':
             leaf['execution_mode'] = 'blocked'

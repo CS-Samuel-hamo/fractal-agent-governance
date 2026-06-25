@@ -12,8 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 GENERATED_PATH_PATTERNS = [
     '.zoo-agent/runs/**',
@@ -147,7 +146,7 @@ def file_inventory(project: Path, roots: list[str]) -> list[dict[str, Any]]:
 def inventory_digest(rows: list[dict[str, Any]]) -> str:
     h = hashlib.sha256()
     for row in rows:
-        h.update(f"{row['path']}\0{row['size']}\0{row['mtime_ns']}\n".encode('utf-8'))
+        h.update(f'{row["path"]}\0{row["size"]}\0{row["mtime_ns"]}\n'.encode())
     return h.hexdigest()
 
 
@@ -173,9 +172,9 @@ def build_project_map(project: Path) -> tuple[dict[str, Any], str]:
     lines = [
         '# Project Map',
         '',
-        f"- generated_at: {payload['generated_at']}",
-        f"- filesystem_digest: {digest}",
-        f"- inventory_file_count: {len(inventory)}",
+        f'- generated_at: {payload["generated_at"]}',
+        f'- filesystem_digest: {digest}',
+        f'- inventory_file_count: {len(inventory)}',
         '',
         '## Source Roots',
         '',
@@ -186,14 +185,14 @@ def build_project_map(project: Path) -> tuple[dict[str, Any], str]:
     lines.extend(['', '## Manifests', ''])
     lines.extend([f'- {item}' for item in manifests] or ['- none detected'])
     lines.extend(['', '## Sample Files', ''])
-    lines.extend([f"- {item['path']}" for item in inventory[:100]] or ['- none detected'])
+    lines.extend([f'- {item["path"]}' for item in inventory[:100]] or ['- none detected'])
     lines.append('')
     return payload, '\n'.join(lines)
 
 
 def check_alignment(project: Path) -> dict[str, Any]:
     active_json = project / '.zoo-agent' / 'project-map.json'
-    active_md = project / '.zoo-agent' / 'project-map.md'
+    project / '.zoo-agent' / 'project-map.md'
     active = load_json(active_json)
     current_map, _ = build_project_map(project)
     blockers: list[dict[str, Any]] = []
@@ -213,14 +212,27 @@ def check_alignment(project: Path) -> dict[str, Any]:
                 }
             )
 
-        missing_roots = [item for item in active.get('source_roots') or [] if not (project / normalize(str(item))).exists()]
+        missing_roots = [
+            item for item in active.get('source_roots') or [] if not (project / normalize(str(item))).exists()
+        ]
         if missing_roots:
-            blockers.append({'id': 'project_map_missing_source_roots', 'message': 'Project map source roots do not exist.', 'paths': missing_roots})
+            blockers.append(
+                {
+                    'id': 'project_map_missing_source_roots',
+                    'message': 'Project map source roots do not exist.',
+                    'paths': missing_roots,
+                }
+            )
 
         active_digest = str(active.get('filesystem_digest') or '')
         current_digest = current_map.get('filesystem_digest')
         if not active_digest:
-            warnings.append({'id': 'project_map_digest_missing', 'message': 'Active project map has no filesystem_digest; refresh is recommended.'})
+            warnings.append(
+                {
+                    'id': 'project_map_digest_missing',
+                    'message': 'Active project map has no filesystem_digest; refresh is recommended.',
+                }
+            )
         elif active_digest != current_digest:
             warnings.append(
                 {
@@ -258,7 +270,13 @@ def promote(project: Path, *, dry_run: bool) -> dict[str, Any]:
         blockers.append({'id': 'missing_project_map_proposal', 'message': 'Missing .zoo-agent/project-map.json.new.'})
     contaminated = [item for item in map_owned_paths(proposal) if matches_any(item, GENERATED_PATH_PATTERNS)]
     if contaminated:
-        blockers.append({'id': 'proposal_generated_path_contamination', 'message': 'Project map proposal contains generated/runtime paths.', 'paths': contaminated})
+        blockers.append(
+            {
+                'id': 'proposal_generated_path_contamination',
+                'message': 'Project map proposal contains generated/runtime paths.',
+                'paths': contaminated,
+            }
+        )
 
     actions: list[dict[str, str]] = []
     if not blockers:
@@ -272,15 +290,19 @@ def promote(project: Path, *, dry_run: bool) -> dict[str, Any]:
             proposal_json.unlink(missing_ok=True)
             proposal_md.unlink(missing_ok=True)
 
-    report = check_alignment(project) if not blockers and not dry_run else {
-        'schema_version': '1.0',
-        'generated_by': 'check_project_map_alignment.py',
-        'generated_at': utc_now(),
-        'workspace': str(project),
-        'status': 'blocked' if blockers else 'dry_run',
-        'blockers': blockers,
-        'warnings': [],
-    }
+    report = (
+        check_alignment(project)
+        if not blockers and not dry_run
+        else {
+            'schema_version': '1.0',
+            'generated_by': 'check_project_map_alignment.py',
+            'generated_at': utc_now(),
+            'workspace': str(project),
+            'status': 'blocked' if blockers else 'dry_run',
+            'blockers': blockers,
+            'warnings': [],
+        }
+    )
     report['promotion'] = {'dry_run': dry_run, 'actions': actions, 'blockers': blockers}
     if not dry_run:
         write_json(project / '.zoo-agent' / 'project-map-alignment.json', report)

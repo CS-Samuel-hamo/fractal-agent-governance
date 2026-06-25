@@ -11,14 +11,21 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from map_quality_evaluator import evaluate_map  # noqa: E402
-from project_map_builder import build_project_map, render_markdown  # noqa: E402
-from project_map_schema import map_dir  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
+from map_quality_evaluator import evaluate_map
+from project_map_builder import build_project_map, render_markdown
+from project_map_schema import map_dir
+from runtime_common import load_json, project_root, write_json
 
 
 def run_agent(args: list[str], project: Path) -> dict[str, Any]:
-    proc = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), *args], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / 'scripts' / 'agent.py'), *args],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return {
         'args': args,
         'returncode': proc.returncode,
@@ -48,11 +55,17 @@ def outcome_from_result(result: str, execution_mode: str) -> str:
 
 
 def build_trace(project: Path, commands: list[dict[str, Any]]) -> dict[str, Any]:
-    history = [item for item in (load_json(project / '.zoo-agent' / 'autopilot' / 'action_history.json').get('actions') or []) if isinstance(item, dict)]
+    history = [
+        item
+        for item in (load_json(project / '.zoo-agent' / 'autopilot' / 'action_history.json').get('actions') or [])
+        if isinstance(item, dict)
+    ]
     checkpoints = load_json(project / '.zoo-agent' / 'autopilot' / 'checkpoints.json').get('checkpoints') or []
     checkpoint_ids = {str(item.get('checkpoint_id') or '') for item in checkpoints if isinstance(item, dict)}
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
-    action_ids = {str(item.get('action_id') or '') for item in project_map.get('next_actions') or [] if isinstance(item, dict)}
+    action_ids = {
+        str(item.get('action_id') or '') for item in project_map.get('next_actions') or [] if isinstance(item, dict)
+    }
     progress_exists = (project / '.zoo-agent' / 'autopilot' / 'progress.json').exists()
     attention = load_json(project / '.zoo-agent' / 'autopilot' / 'attention_required.json')
     runs: list[dict[str, Any]] = []
@@ -65,7 +78,9 @@ def build_trace(project: Path, commands: list[dict[str, Any]]) -> dict[str, Any]
                 'selected_action': row.get('title') or action_id,
                 'selected_action_id': action_id,
                 'source': 'project_map.next_actions' if action_id in action_ids else 'unknown',
-                'execution_mode': execution_mode if execution_mode in {'auto', 'preview', 'needs_attention'} else ('auto' if execution_mode else 'preview'),
+                'execution_mode': execution_mode
+                if execution_mode in {'auto', 'preview', 'needs_attention'}
+                else ('auto' if execution_mode else 'preview'),
                 'changed_files': row.get('changed_files') or [],
                 'checkpoint_created': str(row.get('checkpoint_id') or '') in checkpoint_ids,
                 'map_updated': bool(project_map.get('last_updated')),
@@ -82,9 +97,13 @@ def build_trace(project: Path, commands: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-def run_dogfood(project: Path, *, goal: str, mode: str, backend: str, max_steps: int, include_continue: bool) -> dict[str, Any]:
+def run_dogfood(
+    project: Path, *, goal: str, mode: str, backend: str, max_steps: int, include_continue: bool
+) -> dict[str, Any]:
     ensure_map(project, goal)
-    quality = evaluate_map(load_json(map_dir(project) / 'project_map.json'), load_json(map_dir(project) / 'map_evidence.json'))
+    quality = evaluate_map(
+        load_json(map_dir(project) / 'project_map.json'), load_json(map_dir(project) / 'map_evidence.json')
+    )
     write_json(project / '.zoo-agent' / 'dogfood' / 'map_quality_report.json', quality)
     commands: list[dict[str, Any]] = []
     start_args = ['start', goal, '--workspace', str(project), '--mode', mode, '--max-steps', str(max_steps)]
@@ -114,8 +133,25 @@ def main() -> int:
     parser.add_argument('--include-continue', action='store_true')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    trace = run_dogfood(project, goal=args.goal, mode=args.mode, backend=args.backend, max_steps=args.max_steps, include_continue=args.include_continue)
-    print(json.dumps({'status': 'ok', 'autopilot_trace': str(project / '.zoo-agent' / 'dogfood' / 'autopilot_trace.json'), 'run_count': len(trace.get('runs') or [])}, ensure_ascii=False, indent=2))
+    trace = run_dogfood(
+        project,
+        goal=args.goal,
+        mode=args.mode,
+        backend=args.backend,
+        max_steps=args.max_steps,
+        include_continue=args.include_continue,
+    )
+    print(
+        json.dumps(
+            {
+                'status': 'ok',
+                'autopilot_trace': str(project / '.zoo-agent' / 'dogfood' / 'autopilot_trace.json'),
+                'run_count': len(trace.get('runs') or []),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

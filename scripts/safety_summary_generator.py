@@ -27,7 +27,9 @@ def _recommendation(risk: str, trust: dict[str, Any], final_result: dict[str, An
     return 'proceed'
 
 
-def build_safety_summary(explanation: dict[str, Any], impact: dict[str, Any], trust: dict[str, Any], final_result: dict[str, Any]) -> dict[str, Any]:
+def build_safety_summary(
+    explanation: dict[str, Any], impact: dict[str, Any], trust: dict[str, Any], final_result: dict[str, Any]
+) -> dict[str, Any]:
     risk = _risk_level(impact, trust)
     affected = impact.get('affected_files') or []
     recommendation = _recommendation(risk, trust, final_result)
@@ -37,19 +39,19 @@ def build_safety_summary(explanation: dict[str, Any], impact: dict[str, Any], tr
     else:
         changed = 'No business files changed.'
     reasoning = (
-        f"Recommendation is {recommendation}. Risk is {risk}, confidence is "
-        f"{trust.get('confidence_level', 'unknown')}, and the result is "
-        f"{final_result.get('final_verdict', 'unknown')}. This is guidance only; "
-        "the user must decide before applying changes."
+        f'Recommendation is {recommendation}. Risk is {risk}, confidence is '
+        f'{trust.get("confidence_level", "unknown")}, and the result is '
+        f'{final_result.get("final_verdict", "unknown")}. This is guidance only; '
+        'the user must decide before applying changes.'
     )
     summary_lines = [
-        f"What changed: {changed}",
-        f"Risk level: {risk}",
-        f"Impact scope: {impact.get('cross_module_risk', 'unknown')}",
-        f"Recommendation: {recommendation}",
+        f'What changed: {changed}',
+        f'Risk level: {risk}',
+        f'Impact scope: {impact.get("cross_module_risk", "unknown")}',
+        f'Recommendation: {recommendation}',
         'Requires confirmation: yes',
         'Safe to apply: suggested_only',
-        f"Rollback available: {'yes' if rollback_available else 'no'}",
+        f'Rollback available: {"yes" if rollback_available else "no"}',
     ]
     return {
         'schema_version': '1.0',
@@ -89,7 +91,11 @@ def main() -> int:
     )
     output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'explain' / 'safety_summary.json'
     write_json(output, payload)
-    md_output = Path(args.markdown_output).resolve() if args.markdown_output else project / '.zoo-agent' / 'explain' / 'safety_summary.md'
+    md_output = (
+        Path(args.markdown_output).resolve()
+        if args.markdown_output
+        else project / '.zoo-agent' / 'explain' / 'safety_summary.md'
+    )
     md_output.parent.mkdir(parents=True, exist_ok=True)
     md_output.write_text(payload['summary'] + '\n', encoding='utf-8')
     print(json.dumps(payload, ensure_ascii=False, indent=2))

@@ -9,7 +9,6 @@ from typing import Any
 
 from runtime_common import load_json, project_root, utc_now, write_json
 
-
 JOB_SCHEMA_VERSION = '1.0'
 JOB_ACTIVE_STATUSES = {'active', 'paused', 'needs_attention'}
 JOB_BLOCKING_STATUSES = {'active', 'running', 'executing'}
@@ -64,7 +63,12 @@ def load_current_job(project: Path) -> dict[str, Any]:
 
 
 def save_current_job(project: Path, job: dict[str, Any]) -> dict[str, Any]:
-    payload = {**job, 'schema_version': JOB_SCHEMA_VERSION, 'generated_by': 'job_state_store.py', 'updated_at': utc_now()}
+    payload = {
+        **job,
+        'schema_version': JOB_SCHEMA_VERSION,
+        'generated_by': 'job_state_store.py',
+        'updated_at': utc_now(),
+    }
     write_json(current_job_path(project), payload)
     append_job_history(project, payload)
     return payload
@@ -92,7 +96,14 @@ def append_job_history(project: Path, job: dict[str, Any]) -> dict[str, Any]:
     }
     jobs = [item for item in jobs if item.get('job_id') != compact['job_id']]
     jobs.append(compact)
-    history.update({'schema_version': JOB_SCHEMA_VERSION, 'generated_by': 'job_state_store.py', 'updated_at': utc_now(), 'jobs': jobs[-50:]})
+    history.update(
+        {
+            'schema_version': JOB_SCHEMA_VERSION,
+            'generated_by': 'job_state_store.py',
+            'updated_at': utc_now(),
+            'jobs': jobs[-50:],
+        }
+    )
     write_json(job_history_path(project), history)
     return history
 
@@ -118,7 +129,9 @@ def sync_job_from_session(project: Path, *, goal: str = '') -> dict[str, Any]:
     selected = _read_selected_action(project)
     existing = load_current_job(project)
     linked_session_id = str(session.get('session_id') or existing.get('linked_session_id') or '')
-    job = existing or default_job(project, goal=goal or str(session.get('goal') or ''), linked_session_id=linked_session_id)
+    job = existing or default_job(
+        project, goal=goal or str(session.get('goal') or ''), linked_session_id=linked_session_id
+    )
     if not job.get('job_id'):
         job['job_id'] = default_job(project).get('job_id')
     job.update(

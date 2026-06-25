@@ -10,17 +10,18 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from branch_hygiene_audit import audit as branch_audit  # noqa: E402
-from default_branch_advisor import RECOMMENDED_DEFAULT_BRANCH, advise  # noqa: E402
-from post_publish_remote_verifier import EXPECTED_TAG, verify  # noqa: E402
-from publishing_command_linter import lint_project  # noqa: E402
-from runtime_common import project_root, utc_now  # noqa: E402
-
+from branch_hygiene_audit import audit as branch_audit
+from default_branch_advisor import RECOMMENDED_DEFAULT_BRANCH, advise
+from post_publish_remote_verifier import EXPECTED_TAG, verify
+from publishing_command_linter import lint_project
+from runtime_common import project_root, utc_now
 
 POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
 
 
-def build_markdown(remote: dict[str, Any], branch: dict[str, Any], lint: dict[str, Any], default: dict[str, Any]) -> str:
+def build_markdown(
+    remote: dict[str, Any], branch: dict[str, Any], lint: dict[str, Any], default: dict[str, Any]
+) -> str:
     lines = [
         '# Post Launch Status',
         '',
@@ -36,13 +37,13 @@ def build_markdown(remote: dict[str, Any], branch: dict[str, Any], lint: dict[st
         '',
         '## Verification',
         '',
-        f"- Remote branch exists: {remote.get('remote_branch_exists')}",
-        f"- Remote tag exists: {remote.get('remote_tag_exists')}",
-        f"- Local tree: `{remote.get('local_tree') or 'unknown'}`",
-        f"- Remote tree: `{remote.get('remote_tree') or 'unknown'}`",
-        f"- Tree equality: {remote.get('tree_equal')}",
-        f"- File diff empty: {remote.get('local_remote_diff_empty')}",
-        f"- Commit SHA differs but tree is equal: {remote.get('commit_sha_differs_but_tree_equal')}",
+        f'- Remote branch exists: {remote.get("remote_branch_exists")}',
+        f'- Remote tag exists: {remote.get("remote_tag_exists")}',
+        f'- Local tree: `{remote.get("local_tree") or "unknown"}`',
+        f'- Remote tree: `{remote.get("remote_tree") or "unknown"}`',
+        f'- Tree equality: {remote.get("tree_equal")}',
+        f'- File diff empty: {remote.get("local_remote_diff_empty")}',
+        f'- Commit SHA differs but tree is equal: {remote.get("commit_sha_differs_but_tree_equal")}',
         '',
         '## Publish Method',
         '',
@@ -56,8 +57,8 @@ def build_markdown(remote: dict[str, Any], branch: dict[str, Any], lint: dict[st
         '',
         '- There is no `main` branch assumption for publishing.',
         '- Local `master` and remote `origin/master` are not treated as safely pushable.',
-        f"- Current default branch: `{default.get('current_default_branch')}`",
-        f"- Recommended default branch: `{RECOMMENDED_DEFAULT_BRANCH}`",
+        f'- Current default branch: `{default.get("current_default_branch")}`',
+        f'- Recommended default branch: `{RECOMMENDED_DEFAULT_BRANCH}`',
         '- Default branch changes must be done manually in GitHub Settings -> Branches.',
         '',
         '## What Was Not Done',
@@ -70,9 +71,9 @@ def build_markdown(remote: dict[str, Any], branch: dict[str, Any], lint: dict[st
         '',
         '## Publishing Command Hygiene',
         '',
-        f"- Hardcoded main-branch push command detected: {lint.get('hardcoded_main_push_detected')}",
-        f"- Force push command detected: {lint.get('force_push_detected')}",
-        f"- Unsafe GitHub write command detected: {lint.get('unsafe_github_write_detected')}",
+        f'- Hardcoded main-branch push command detected: {lint.get("hardcoded_main_push_detected")}',
+        f'- Force push command detected: {lint.get("force_push_detected")}',
+        f'- Unsafe GitHub write command detected: {lint.get("unsafe_github_write_detected")}',
         '',
         '## Next Operational Steps',
         '',

@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import initialize_loop, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import initialize_loop, project_root, utc_now, write_json
 
 BACKEND_FAILURE_OUTCOMES = {'blocked'}
 
@@ -122,7 +121,11 @@ def main() -> int:
     parser.add_argument('--failure-type', default='')
     parser.add_argument('--doc-only', action='store_true')
     parser.add_argument('--local-optimization', action='store_true')
-    parser.add_argument('--phase', choices=['', 'readiness', 'decomposition', 'leaf_dry_run', 'leaf_actual', 'aggregation', 'integration_check'], default='')
+    parser.add_argument(
+        '--phase',
+        choices=['', 'readiness', 'decomposition', 'leaf_dry_run', 'leaf_actual', 'aggregation', 'integration_check'],
+        default='',
+    )
     parser.add_argument('--decomposition-round', action='store_true')
     parser.add_argument('--leaf-redo', action='store_true')
     parser.add_argument('--max-iterations', type=int, default=5)

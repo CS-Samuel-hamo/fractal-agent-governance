@@ -6,7 +6,6 @@ from typing import Any
 
 from runtime_common import utc_now
 
-
 COCKPIT_SCHEMA_VERSION = '1.0'
 
 

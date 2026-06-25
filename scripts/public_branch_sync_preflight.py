@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 PUBLIC_BRANCH = 'release/v1.0.0-alpha.1'
 LOCAL_BRANCH = 'master'
@@ -22,8 +21,21 @@ POSTLAUNCH_DOCS = ['POST_LAUNCH_STATUS.md', 'PUBLISHING.md', 'BRANCHING.md']
 
 def run_git(project: Path, args: list[str], timeout: int = 45) -> dict[str, Any]:
     try:
-        proc = subprocess.run(['git', *args], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
-        return {'ok': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout.strip(), 'stderr': proc.stderr.strip()}
+        proc = subprocess.run(
+            ['git', *args],
+            cwd=project,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+            timeout=timeout,
+        )
+        return {
+            'ok': proc.returncode == 0,
+            'returncode': proc.returncode,
+            'stdout': proc.stdout.strip(),
+            'stderr': proc.stderr.strip(),
+        }
     except Exception as exc:
         return {'ok': False, 'returncode': 1, 'stdout': '', 'stderr': str(exc)}
 
@@ -41,7 +53,11 @@ def file_exists_at_ref(project: Path, ref: str, path: str) -> bool:
 def preflight(project: Path, *, public_branch: str = PUBLIC_BRANCH, local_branch: str = LOCAL_BRANCH) -> dict[str, Any]:
     notes: list[str] = []
     remote_reachable = True
-    fetch = run_git(project, ['fetch', 'origin', f'refs/heads/{public_branch}:refs/remotes/origin/{public_branch}', '--no-tags'], timeout=90)
+    fetch = run_git(
+        project,
+        ['fetch', 'origin', f'refs/heads/{public_branch}:refs/remotes/origin/{public_branch}', '--no-tags'],
+        timeout=90,
+    )
     if not fetch.get('ok'):
         remote_reachable = False
         notes.append(f'read-only fetch inconclusive: {fetch.get("stderr")}')
@@ -54,9 +70,17 @@ def preflight(project: Path, *, public_branch: str = PUBLIC_BRANCH, local_branch
     remote_ref = f'origin/{public_branch}'
     remote_commit = rev(project, remote_ref)
     remote_branch_exists = bool(remote_commit or (ls_remote.get('ok') and ls_remote.get('stdout')))
-    diff = run_git(project, ['diff', '--quiet', local_branch if rev(project, local_branch) else 'HEAD', remote_ref], timeout=20) if remote_commit else {'ok': False}
+    diff = (
+        run_git(
+            project, ['diff', '--quiet', local_branch if rev(project, local_branch) else 'HEAD', remote_ref], timeout=20
+        )
+        if remote_commit
+        else {'ok': False}
+    )
     diff_empty = bool(remote_commit and diff.get('ok'))
-    remote_has_docs = bool(remote_commit and all(file_exists_at_ref(project, remote_ref, doc) for doc in POSTLAUNCH_DOCS))
+    remote_has_docs = bool(
+        remote_commit and all(file_exists_at_ref(project, remote_ref, doc) for doc in POSTLAUNCH_DOCS)
+    )
     local_has_docs = all((project / doc).exists() for doc in POSTLAUNCH_DOCS)
     manual_sync = bool(local_has_docs and (not remote_has_docs or not diff_empty))
     suggested: list[str] = []

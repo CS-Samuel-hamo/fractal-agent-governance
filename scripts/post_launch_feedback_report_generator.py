@@ -10,17 +10,19 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import feedback_dir, write_schema  # noqa: E402
-from feedback_iteration_planner import plan  # noqa: E402
-from feedback_priority_ranker import rank  # noqa: E402
-from feedback_signal_classifier import classify  # noqa: E402
-from feedback_triage_engine import triage  # noqa: E402
-from positioning_feedback_analyzer import analyze  # noqa: E402
-from public_branch_sync_preflight import preflight  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from feedback_intake_schema import feedback_dir, write_schema
+from feedback_iteration_planner import plan
+from feedback_priority_ranker import rank
+from feedback_signal_classifier import classify
+from feedback_triage_engine import triage
+from positioning_feedback_analyzer import analyze
+from public_branch_sync_preflight import preflight
+from runtime_common import project_root, utc_now, write_json
 
 
-def readiness(sync: dict[str, Any], triage_report: dict[str, Any], positioning: dict[str, Any], iteration: dict[str, Any]) -> str:
+def readiness(
+    sync: dict[str, Any], triage_report: dict[str, Any], positioning: dict[str, Any], iteration: dict[str, Any]
+) -> str:
     if not triage_report.get('triage_summary') or positioning.get('positioning_risk') == 'high':
         return 'FIX_FEEDBACK_PIPELINE'
     if iteration.get('patch_candidates'):
@@ -39,7 +41,9 @@ def generate(project: Path) -> dict[str, Any]:
     status = readiness(sync, triage_report, positioning, iteration)
     manual_actions = []
     if sync.get('manual_sync_recommended'):
-        manual_actions.append('Manually sync the public release branch with branch-aware no-force commands if maintainers want latest local docs public.')
+        manual_actions.append(
+            'Manually sync the public release branch with branch-aware no-force commands if maintainers want latest local docs public.'
+        )
     if status == 'COLLECT_MORE_FEEDBACK_FIRST':
         manual_actions.append('Collect first real user feedback before patch planning.')
 
@@ -55,28 +59,28 @@ def generate(project: Path) -> dict[str, Any]:
             '',
             '## Public Branch Sync Status',
             '',
-            f"- public branch: `{sync.get('public_branch')}`",
-            f"- remote branch exists: {sync.get('remote_branch_exists')}",
-            f"- remote contains post-launch docs: {sync.get('remote_contains_postlaunch_docs')}",
-            f"- local/remote diff empty: {sync.get('local_remote_diff_empty')}",
-            f"- manual sync recommended: {sync.get('manual_sync_recommended')}",
+            f'- public branch: `{sync.get("public_branch")}`',
+            f'- remote branch exists: {sync.get("remote_branch_exists")}',
+            f'- remote contains post-launch docs: {sync.get("remote_contains_postlaunch_docs")}',
+            f'- local/remote diff empty: {sync.get("local_remote_diff_empty")}',
+            f'- manual sync recommended: {sync.get("manual_sync_recommended")}',
             '',
             '## Feedback Intake Readiness',
             '',
-            f"- schema path: `{schema.get('path')}`",
-            f"- total feedback items: {triage_report.get('triage_summary', {}).get('total')}",
+            f'- schema path: `{schema.get("path")}`',
+            f'- total feedback items: {triage_report.get("triage_summary", {}).get("total")}',
             '',
             '## Positioning Clarity',
             '',
-            f"- positioning risk: {positioning.get('positioning_risk')}",
-            f"- Codex wrapper confusion rate: {positioning.get('codex_wrapper_confusion_rate')}",
+            f'- positioning risk: {positioning.get("positioning_risk")}',
+            f'- Codex wrapper confusion rate: {positioning.get("codex_wrapper_confusion_rate")}',
             '',
             '## Product Signals',
             '',
         ]
     )
     for signal in signals.get('signals') or []:
-        report += f"- {signal.get('type')}: {signal.get('strength')} ({signal.get('recommended_response')})\n"
+        report += f'- {signal.get("type")}: {signal.get("strength")} ({signal.get("recommended_response")})\n'
     report += '\n## Top Patch Candidates\n\n'
     for item in priority.get('top_patch_items') or []:
         report += f'- `{item}`\n'
@@ -84,7 +88,9 @@ def generate(project: Path) -> dict[str, Any]:
     for item in priority.get('top_roadmap_items') or []:
         report += f'- `{item}`\n'
     report += '\n## Product Risks\n\n'
-    for risk in signals.get('top_product_risks') or ['No critical product risk detected in current sanitized sample set.']:
+    for risk in signals.get('top_product_risks') or [
+        'No critical product risk detected in current sanitized sample set.'
+    ]:
         report += f'- {risk}\n'
     report += '\n## Manual Remaining Actions\n\n'
     for action in manual_actions or ['Collect real first-user feedback and continue weekly triage.']:
@@ -93,7 +99,13 @@ def generate(project: Path) -> dict[str, Any]:
     out = feedback_dir(project)
     out.mkdir(parents=True, exist_ok=True)
     (out / 'post_launch_feedback_report.md').write_text(report, encoding='utf-8')
-    sync_status = 'synced' if sync.get('local_remote_diff_empty') else 'local_ahead' if sync.get('manual_sync_recommended') else 'inconclusive'
+    sync_status = (
+        'synced'
+        if sync.get('local_remote_diff_empty')
+        else 'local_ahead'
+        if sync.get('manual_sync_recommended')
+        else 'inconclusive'
+    )
     readiness_payload = {
         'generated_at': utc_now(),
         'readiness': status,

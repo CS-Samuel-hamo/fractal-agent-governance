@@ -13,8 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from session_reliability_gate import evaluate_trace  # noqa: E402
-
+from session_reliability_gate import evaluate_trace
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -29,8 +28,7 @@ def run(command: list[str], cwd: Path, *, allow_fail: bool = False) -> subproces
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode != 0 and not allow_fail:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
@@ -65,7 +63,10 @@ def require_complete_dogfood(root: Path) -> dict[str, Any]:
 def first_actual_step(trace: dict[str, Any]) -> dict[str, Any]:
     for run_row in trace.get('runs') or []:
         for step in run_row.get('steps') or []:
-            if step.get('execution_outcome') in {'delivered', 'no_delivery', 'paused'} and run_row.get('scenario') != 'budget':
+            if (
+                step.get('execution_outcome') in {'delivered', 'no_delivery', 'paused'}
+                and run_row.get('scenario') != 'budget'
+            ):
                 return step
     raise AssertionError('no actual-like step found')
 

@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_release_packager import VERSION, public_release_dir  # noqa: E402
-from runtime_common import project_root, utc_now  # noqa: E402
+from public_release_packager import VERSION, public_release_dir
+from runtime_common import project_root, utc_now
 
 
 def draft_text() -> str:
@@ -112,7 +112,12 @@ def generate(project: Path) -> dict:
     out = public_release_dir(project)
     out.mkdir(parents=True, exist_ok=True)
     (out / 'github_release_draft.md').write_text(text, encoding='utf-8')
-    payload = {'generated_at': utc_now(), 'version': VERSION, 'draft_path': 'GITHUB_RELEASE_DRAFT.md', 'artifact_path': '.zoo-agent/public_release/github_release_draft.md'}
+    payload = {
+        'generated_at': utc_now(),
+        'version': VERSION,
+        'draft_path': 'GITHUB_RELEASE_DRAFT.md',
+        'artifact_path': '.zoo-agent/public_release/github_release_draft.md',
+    }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return payload
 

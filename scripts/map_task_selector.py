@@ -9,9 +9,13 @@ from typing import Any
 from project_map_builder import build_project_map
 from project_map_schema import map_dir
 from runtime_common import load_json, project_root, utc_now, write_json
-from seed_prompt_discovery import discover_seed_prompt, intent_first_bootstrap_enabled, is_research_seed, seed_evidence_item
+from seed_prompt_discovery import (
+    discover_seed_prompt,
+    intent_first_bootstrap_enabled,
+    is_research_seed,
+    seed_evidence_item,
+)
 from trust_zone_classifier import classify_trust_zone
-
 
 DANGEROUS_GOAL_TERMS = [
     'delete',
@@ -62,7 +66,10 @@ def _score(action: dict[str, Any], seen: set[str], seen_files: set[str]) -> floa
 
 
 def learning_score(project: Path, action: dict[str, Any]) -> float:
-    insights = load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_insights.json').get('insights') or []
+    insights = (
+        load_json(project / '.zoo-agent' / 'learning' / 'cross_project' / 'learning_insights.json').get('insights')
+        or []
+    )
     title = str(action.get('title') or '').lower()
     boost = 0.0
     for item in insights:
@@ -72,7 +79,14 @@ def learning_score(project: Path, action: dict[str, Any]) -> float:
         confidence = float(item.get('confidence') or 0.0)
         applies_to = str(item.get('applies_to') or '').lower()
         message = str(item.get('message') or '').lower()
-        if effect == 'boost' and confidence >= 0.5 and (applies_to in title or any(word in title for word in ['docs', 'readme', 'test', 'scan', 'release'] if word in message)):
+        if (
+            effect == 'boost'
+            and confidence >= 0.5
+            and (
+                applies_to in title
+                or any(word in title for word in ['docs', 'readme', 'test', 'scan', 'release'] if word in message)
+            )
+        ):
             boost += min(1.5, confidence)
         if effect in {'warn', 'deprioritize'} and applies_to and applies_to in title:
             boost -= min(1.0, max(0.2, confidence))
@@ -123,10 +137,16 @@ def _starter_action_from_evidence(project: Path, *, evidence: dict[str, Any], go
         'schema_version': '1.0',
         'generated_by': 'map_task_selector.py',
         'generated_at': utc_now(),
-        'selected_action_id': 'action-seed-docs-bootstrap' if source == 'seed_prompt' else 'action-intent-docs-bootstrap',
+        'selected_action_id': 'action-seed-docs-bootstrap'
+        if source == 'seed_prompt'
+        else 'action-intent-docs-bootstrap',
         'action_id': 'action-seed-docs-bootstrap' if source == 'seed_prompt' else 'action-intent-docs-bootstrap',
-        'title': 'Create starter project documents from seed prompt' if source == 'seed_prompt' else 'Create starter project plan from goal',
-        'reason': 'Fallback activated from seed prompt.' if source == 'seed_prompt' else 'Fallback activated from user goal because no map-backed action was available.',
+        'title': 'Create starter project documents from seed prompt'
+        if source == 'seed_prompt'
+        else 'Create starter project plan from goal',
+        'reason': 'Fallback activated from seed prompt.'
+        if source == 'seed_prompt'
+        else 'Fallback activated from user goal because no map-backed action was available.',
         'expected_project_progress': 'Creates a trusted documentation starting point without running scripts.',
         'risk_level': 'low',
         'target_files': targets,
@@ -144,8 +164,19 @@ def _starter_action_from_evidence(project: Path, *, evidence: dict[str, Any], go
         'existing_targets': existing,
         'missing_targets': missing,
         'constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_overwrite'],
-        'safety_constraints': ['trusted_docs_only', 'no_script_execution', 'no_secret_access', 'no_external_network', 'no_fake_citations', 'no_final_paper_generation'],
-        'fallback_behavior': {'if_target_exists': 'skip_existing_create_missing', 'if_all_targets_exist': 'preview_only', 'if_ambiguous_intent': 'present_options'},
+        'safety_constraints': [
+            'trusted_docs_only',
+            'no_script_execution',
+            'no_secret_access',
+            'no_external_network',
+            'no_fake_citations',
+            'no_final_paper_generation',
+        ],
+        'fallback_behavior': {
+            'if_target_exists': 'skip_existing_create_missing',
+            'if_all_targets_exist': 'preview_only',
+            'if_ambiguous_intent': 'present_options',
+        },
         'learning_feedback_ref': '.zoo-agent/learning/cross_project/learning_insights.json',
     }
 
@@ -181,12 +212,16 @@ def _intent_first_fallback(project: Path, *, goal: str) -> dict[str, Any]:
     seed_report = discover_seed_prompt(project, goal=goal)
     selected_seed = seed_report.get('selected') if isinstance(seed_report.get('selected'), dict) else None
     if selected_seed:
-        payload = _starter_action_from_evidence(project, evidence=seed_evidence_item(selected_seed), goal=goal, source='seed_prompt')
+        payload = _starter_action_from_evidence(
+            project, evidence=seed_evidence_item(selected_seed), goal=goal, source='seed_prompt'
+        )
         write_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json', payload)
         return payload
 
     if goal.strip():
-        payload = _starter_action_from_evidence(project, evidence=_goal_intent_evidence(goal), goal=goal, source='user_goal')
+        payload = _starter_action_from_evidence(
+            project, evidence=_goal_intent_evidence(goal), goal=goal, source='user_goal'
+        )
         write_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json', payload)
         return payload
 
@@ -242,8 +277,14 @@ def select_next_action(project: Path, *, mode: str = 'standard') -> dict[str, An
         write_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json', payload)
         return payload
 
-    selected = sorted(ready_actions, key=lambda item: _score(item, seen, seen_files) + learning_score(project, item), reverse=True)[0]
-    trust = classify_trust_zone(title=str(selected.get('title') or ''), target_files=[str(item) for item in selected.get('target_files') or []], risk_level=str(selected.get('risk_level') or 'unknown'))
+    selected = sorted(
+        ready_actions, key=lambda item: _score(item, seen, seen_files) + learning_score(project, item), reverse=True
+    )[0]
+    trust = classify_trust_zone(
+        title=str(selected.get('title') or ''),
+        target_files=[str(item) for item in selected.get('target_files') or []],
+        risk_level=str(selected.get('risk_level') or 'unknown'),
+    )
     if mode == 'preview':
         execution_mode = 'preview'
     elif selected.get('preview_only'):

@@ -13,17 +13,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, utc_now, write_json  # noqa: E402
-from backend_registry import default_registry  # noqa: E402
-from bounded_docs_writer import apply_docs_patch, is_safe_docs_target  # noqa: E402
-from execution_fallback_router import fallback_decision  # noqa: E402
-from execution_health_scoring import score_execution_health  # noqa: E402
-from execution_interface import ExecutionContext, ExecutionTask  # noqa: E402
-from execution_level_splitter import split_leaf_execution  # noqa: E402
-from execution_result_model import build_execution_result_model, delivery_outcome_from_execution_status  # noqa: E402
-from execution_retry_controller import retry_decision  # noqa: E402
-from remote_ai_worker_adapter import execute_docs_patch as execute_remote_docs_patch  # noqa: E402
-
+from backend_registry import default_registry
+from bounded_docs_writer import apply_docs_patch, is_safe_docs_target
+from execution_fallback_router import fallback_decision
+from execution_health_scoring import score_execution_health
+from execution_interface import ExecutionContext, ExecutionTask
+from execution_level_splitter import split_leaf_execution
+from execution_result_model import build_execution_result_model, delivery_outcome_from_execution_status
+from execution_retry_controller import retry_decision
+from remote_ai_worker_adapter import execute_docs_patch as execute_remote_docs_patch
+from runtime_common import load_json, utc_now, write_json
 
 FORBIDDEN_RESPONSIBILITIES = [
     'goal_selection',
@@ -43,8 +42,7 @@ def git_name_only(workspace: Path) -> set[str]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     files: set[str] = set()
     for line in proc.stdout.splitlines():
@@ -143,8 +141,14 @@ def worker_status_from_backend_result(backend_result: dict[str, Any]) -> dict[st
     status = str(worker_status.get('status') or '')
     return {
         'status': status,
-        'returncode': int(worker_status.get('returncode') if worker_status.get('returncode') is not None else backend_result.get('returncode') or 0),
-        'transient_failure_suspected': bool(worker_status.get('transient_failure_suspected') or parsed.get('timed_out')),
+        'returncode': int(
+            worker_status.get('returncode')
+            if worker_status.get('returncode') is not None
+            else backend_result.get('returncode') or 0
+        ),
+        'transient_failure_suspected': bool(
+            worker_status.get('transient_failure_suspected') or parsed.get('timed_out')
+        ),
         'worker_status': worker_status,
         'parsed_stdout': parsed,
     }
@@ -176,10 +180,7 @@ def is_low_risk_docs_leaf(leaf: dict[str, Any]) -> bool:
     targets = expected_files_for_leaf(leaf)
     risk = normalize_risk_level(leaf.get('risk_level'))
     return bool(
-        risk == 'low'
-        and targets
-        and len(targets) <= 3
-        and all(is_safe_docs_target(target) for target in targets)
+        risk == 'low' and targets and len(targets) <= 3 and all(is_safe_docs_target(target) for target in targets)
     )
 
 
@@ -189,7 +190,9 @@ def apply_docs_failover(workspace: Path, leaf: dict[str, Any], *, reason: str) -
     remote_result = execute_remote_docs_patch(workspace, objective=objective, target_files=targets)
     if remote_result.get('status') in {'success', 'blocked'}:
         result = remote_result
-        provider = 'remote_openai_worker' if remote_result.get('status') == 'success' else 'remote_openai_worker_blocked'
+        provider = (
+            'remote_openai_worker' if remote_result.get('status') == 'success' else 'remote_openai_worker_blocked'
+        )
     else:
         result = apply_docs_patch(workspace, objective=objective, target_files=targets)
         provider = 'bounded_docs_writer'
@@ -238,7 +241,9 @@ def create_task_pack(task_dir: Path, workspace: Path, leaf: dict[str, Any], plan
         f'Denied files: {json.dumps(denied, ensure_ascii=False)}\n'
     )
     (task_dir / 'CODEX_TASK_PROMPT.md').write_text(prompt, encoding='utf-8')
-    (task_dir / 'AGENTS.md').write_text('The selected execution backend may only execute this leaf task.\n', encoding='utf-8')
+    (task_dir / 'AGENTS.md').write_text(
+        'The selected execution backend may only execute this leaf task.\n', encoding='utf-8'
+    )
     (task_dir / 'TASKS.yaml').write_text(
         'tasks:\n'
         f'  - id: {leaf.get("leaf_id", "leaf")}\n'
@@ -247,7 +252,9 @@ def create_task_pack(task_dir: Path, workspace: Path, leaf: dict[str, Any], plan
         f'    denied_files: {json.dumps(denied, ensure_ascii=False)}\n',
         encoding='utf-8',
     )
-    (task_dir / 'ACCEPTANCE.md').write_text('\n'.join(str(item) for item in leaf.get('acceptance') or []), encoding='utf-8')
+    (task_dir / 'ACCEPTANCE.md').write_text(
+        '\n'.join(str(item) for item in leaf.get('acceptance') or []), encoding='utf-8'
+    )
     (task_dir / 'PROGRESS.md').write_text('', encoding='utf-8')
     (task_dir / 'BLOCKERS.md').write_text('', encoding='utf-8')
     (task_dir / 'plan-ref.json').write_text(json.dumps({'plan_run_id': plan.get('run_id')}, indent=2), encoding='utf-8')
@@ -313,12 +320,7 @@ def decision_control_payload(*, risk_level: str, allow_actual: bool, action: str
 
 def confirmation_prompt(risk_level: str) -> str:
     impact = 'module-level change' if risk_level in {'medium', 'high', 'unknown'} else 'limited local change'
-    return (
-        '[CONFIRM REQUIRED]\n'
-        'Do you want to proceed?\n'
-        f'- risk: {risk_level}\n'
-        f'- impact: {impact}'
-    )
+    return f'[CONFIRM REQUIRED]\nDo you want to proceed?\n- risk: {risk_level}\n- impact: {impact}'
 
 
 def execute_leaf_once(
@@ -462,7 +464,11 @@ def resilient_execute_leaf(
 
     if final_model.get('execution_status') != 'success' and final_delivery.get('delivery_outcome') != 'unsafe':
         if docs_failover_enabled and is_low_risk_docs_leaf(leaf):
-            docs = apply_docs_failover(workspace, leaf, reason=str(final_model.get('reason') or final_delivery.get('reason') or 'backend_failed'))
+            docs = apply_docs_failover(
+                workspace,
+                leaf,
+                reason=str(final_model.get('reason') or final_delivery.get('reason') or 'backend_failed'),
+            )
             fallback_used = str(docs.get('provider') or 'bounded_docs_writer')
             fallback_history.append(fallback_used)
             final_model = docs.get('model') or {}
@@ -477,7 +483,12 @@ def resilient_execute_leaf(
             }
         retryable = bool((final_attempt.get('retry_decision') or {}).get('retryable'))
         split_available = True
-        decision = fallback_decision(final_model, retry_available=False if attempts else retryable, split_available=split_available, fallback_history=fallback_history)
+        decision = fallback_decision(
+            final_model,
+            retry_available=False if attempts else retryable,
+            split_available=split_available,
+            fallback_history=fallback_history,
+        )
         action = str(decision.get('action') or '')
         fallback_history.append(action)
         if action in {'split_execution', 'reduce_scope_execution'}:
@@ -489,7 +500,9 @@ def resilient_execute_leaf(
                     leaf=chunk,
                     plan=plan,
                     sandbox=sandbox,
-                    timeout_seconds=max(60, min(timeout_seconds, timeout_seconds // 2 if timeout_seconds > 120 else timeout_seconds)),
+                    timeout_seconds=max(
+                        60, min(timeout_seconds, timeout_seconds // 2 if timeout_seconds > 120 else timeout_seconds)
+                    ),
                     max_retries=0,
                     fallback_used=action,
                     backend_name=backend_name,
@@ -497,7 +510,9 @@ def resilient_execute_leaf(
                 )
                 split_results.append(result)
             split_attempts = [item.get('final_attempt') or {} for item in split_results]
-            if split_attempts and all((item.get('execution_model') or {}).get('execution_status') == 'success' for item in split_attempts):
+            if split_attempts and all(
+                (item.get('execution_model') or {}).get('execution_status') == 'success' for item in split_attempts
+            ):
                 business_files = sorted(
                     {
                         path
@@ -598,7 +613,12 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
             'requires_user_confirmation': bool(args.allow_actual),
             'decision_control': decision_control_payload(risk_level=risk_level, allow_actual=bool(args.allow_actual)),
         }
-        if actual_requested and execution_mode == 'actual_allowed' and leaf.get('resolution') == 'execute' and risk_level != 'low':
+        if (
+            actual_requested
+            and execution_mode == 'actual_allowed'
+            and leaf.get('resolution') == 'execute'
+            and risk_level != 'low'
+        ):
             leaf_result.update(
                 {
                     'execution_mode': 'confirmation_required',
@@ -618,9 +638,15 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                 }
             )
         elif actual_requested and execution_mode == 'actual_allowed' and leaf.get('resolution') == 'execute':
-            docs_failover_enabled = env_truthy('AGENT_ENABLE_BOUNDED_DOCS_FALLBACK', 'true') and is_low_risk_docs_leaf(leaf)
+            docs_failover_enabled = env_truthy('AGENT_ENABLE_BOUNDED_DOCS_FALLBACK', 'true') and is_low_risk_docs_leaf(
+                leaf
+            )
             effective_max_retries = 0 if docs_failover_enabled and backend_name == 'codex' else args.max_retries
-            effective_timeout = min(args.timeout_seconds, max(30, env_int('AGENT_DOCS_CODEX_TIMEOUT_SECONDS', 90))) if docs_failover_enabled and backend_name == 'codex' else args.timeout_seconds
+            effective_timeout = (
+                min(args.timeout_seconds, max(30, env_int('AGENT_DOCS_CODEX_TIMEOUT_SECONDS', 90)))
+                if docs_failover_enabled and backend_name == 'codex'
+                else args.timeout_seconds
+            )
             resilient = resilient_execute_leaf(
                 workspace=workspace,
                 task_dir=task_dir,
@@ -643,13 +669,23 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
                     'execution_mode': 'actual',
                     'backend_type': backend_name,
                     'backend': backend_name,
-                    'backend_status': final_backend_result.get('status') or final_model.get('execution_status') or 'unknown',
-                    'backend_returncode': final_model.get('backend_returncode', final_backend_result.get('returncode', '')),
+                    'backend_status': final_backend_result.get('status')
+                    or final_model.get('execution_status')
+                    or 'unknown',
+                    'backend_returncode': final_model.get(
+                        'backend_returncode', final_backend_result.get('returncode', '')
+                    ),
                     'backend_invoked': True,
                     'backend_result': final_backend_result,
                     'retry_history': resilient.get('attempts') or [],
                     'split_results': resilient.get('split_results') or [],
-                    'fallback_chain': ['retry_backend', 'split_execution', 'reduce_scope_execution', 'dry_run_mode', 'escalate_to_planner'],
+                    'fallback_chain': [
+                        'retry_backend',
+                        'split_execution',
+                        'reduce_scope_execution',
+                        'dry_run_mode',
+                        'escalate_to_planner',
+                    ],
                     'fallback_history': resilient.get('fallback_history') or [],
                     'fallback_used': resilient.get('fallback_used') or '',
                     'execution_model': final_model,
@@ -676,7 +712,9 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
             leaf_result['retry_count'] = max(0, attempt_count - 1)
         leaf_results.append(leaf_result)
 
-    execution_models = [item.get('execution_model') for item in leaf_results if isinstance(item.get('execution_model'), dict)]
+    execution_models = [
+        item.get('execution_model') for item in leaf_results if isinstance(item.get('execution_model'), dict)
+    ]
     health = score_execution_health(execution_models)
 
     return {
@@ -723,7 +761,13 @@ def execute_plan(args: argparse.Namespace) -> dict[str, Any]:
         'execution_resilience': {
             'enabled': True,
             'max_retries': args.max_retries,
-            'fallback_chain': ['retry_backend', 'split_execution', 'reduce_scope_execution', 'dry_run_mode', 'escalate_to_planner'],
+            'fallback_chain': [
+                'retry_backend',
+                'split_execution',
+                'reduce_scope_execution',
+                'dry_run_mode',
+                'escalate_to_planner',
+            ],
             'health_score': health,
         },
         'leaf_results': leaf_results,
@@ -738,7 +782,9 @@ def main() -> int:
     parser.add_argument('--output', default='')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--allow-actual', action='store_true')
-    parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
+    parser.add_argument(
+        '--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write'
+    )
     parser.add_argument('--backend', default='codex')
     parser.add_argument('--backend-option', action='append', default=[])
     parser.add_argument('--timeout-seconds', type=int, default=360)
@@ -747,7 +793,13 @@ def main() -> int:
     result = execute_plan(args)
     output = Path(args.output).resolve() if args.output else Path(args.plan).resolve().parent / 'execution_result.json'
     write_json(output, result)
-    print(json.dumps({'status': 'ok', 'execution_result_json': str(output), 'run_id': result['run_id'], 'stage': 'executor'}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'execution_result_json': str(output), 'run_id': result['run_id'], 'stage': 'executor'},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

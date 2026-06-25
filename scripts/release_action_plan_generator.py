@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 BLOCKED_WORDS = {'secret', 'auth', 'payment', 'deploy', 'database', 'migration', '.env'}
 
@@ -21,7 +20,7 @@ def release_dir(project: Path) -> Path:
 
 
 def blocked_action(action: str, risk: str, files: list[str]) -> bool:
-    text = f"{action} {risk} {' '.join(files)}".lower()
+    text = f'{action} {risk} {" ".join(files)}'.lower()
     return risk == 'high' or any(word in text for word in BLOCKED_WORDS)
 
 

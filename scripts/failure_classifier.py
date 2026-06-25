@@ -8,7 +8,6 @@ from typing import Any
 
 from runtime_common import load_json
 
-
 FAILURE_TYPES = {'none', 'timeout', 'partial', 'no_delivery', 'wrong_output'}
 
 

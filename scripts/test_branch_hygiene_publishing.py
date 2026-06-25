@@ -9,13 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from branch_hygiene_audit import audit  # noqa: E402
-from default_branch_advisor import advise  # noqa: E402
-from publishing_command_linter import lint_texts  # noqa: E402
+from branch_hygiene_audit import audit
+from default_branch_advisor import advise
+from publishing_command_linter import lint_texts
 
 
 def run(args: list[str], cwd: Path) -> str:
-    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
         raise AssertionError(f'command failed {args}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc.stdout.strip()

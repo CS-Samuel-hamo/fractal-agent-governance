@@ -12,8 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 WINDOWS_ABS_RE = re.compile(r'^[A-Za-z]:[\\/]')
 CREDENTIAL_REMOTE_RE = re.compile(r'^(https?://)([^/@\s]+@)(.+)$', re.IGNORECASE)
@@ -32,8 +31,7 @@ def run_git(project: Path, args: list[str]) -> tuple[int, str, str]:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=8,
         )
         return proc.returncode, proc.stdout.rstrip('\r\n'), proc.stderr.rstrip('\r\n')

@@ -11,10 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from pr_draft_quality_gate import evaluate_pr_draft  # noqa: E402
-from release_artifact_quality_gate import evaluate_release_artifacts  # noqa: E402
-from release_workflow_dogfood_runner import base_fixture, run_release_flow, run_dogfood  # noqa: E402
-
+from pr_draft_quality_gate import evaluate_pr_draft
+from release_artifact_quality_gate import evaluate_release_artifacts
+from release_workflow_dogfood_runner import base_fixture, run_dogfood, run_release_flow
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -22,9 +21,17 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='release-dogfood-test-codex-home-')).resolve()))
-    proc = subprocess.run(cmd, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     if check and proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -61,7 +68,9 @@ def assert_negative_gates() -> None:
         base_fixture(root)
         run_release_flow(root)
         notes = root / '.zoo-agent' / 'release' / 'release_notes_draft.md'
-        notes.write_text(notes.read_text(encoding='utf-8') + '\nAll tests passed. Production ready.\n', encoding='utf-8')
+        notes.write_text(
+            notes.read_text(encoding='utf-8') + '\nAll tests passed. Production ready.\n', encoding='utf-8'
+        )
         overclaim = evaluate_release_artifacts(root)
         assert overclaim['overclaim_detected'] is True
         assert overclaim['recommendation'] == 'fail'
@@ -71,7 +80,9 @@ def assert_negative_gates() -> None:
         base_fixture(root)
         run_release_flow(root)
         fake_token = 'ghp_' + ('3' * 36)
-        (root / '.zoo-agent' / 'release' / 'release_notes_draft.md').write_text(f'token {fake_token}\n', encoding='utf-8')
+        (root / '.zoo-agent' / 'release' / 'release_notes_draft.md').write_text(
+            f'token {fake_token}\n', encoding='utf-8'
+        )
         leak = evaluate_release_artifacts(root)
         assert leak['secret_leak_detected'] is True
         assert leak['recommendation'] == 'fail'

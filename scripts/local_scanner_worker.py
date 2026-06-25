@@ -10,13 +10,23 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-from worker_adapter_contract import worker_contract  # noqa: E402
-from worker_interface import worker_result  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
+from worker_adapter_contract import worker_contract
+from worker_interface import worker_result
 
 SKIP_DIRS = {'.git', '.zoo-agent', '.tmp', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'venv'}
-SECRET_MARKERS = ('.env', 'secret', 'secrets', 'credential', 'credentials', 'token', 'apikey', 'api_key', '.pem', '.key')
+SECRET_MARKERS = (
+    '.env',
+    'secret',
+    'secrets',
+    'credential',
+    'credentials',
+    'token',
+    'apikey',
+    'api_key',
+    '.pem',
+    '.key',
+)
 MANIFEST_NAMES = {'package.json', 'pyproject.toml', 'requirements.txt', 'setup.py', 'Cargo.toml', 'go.mod', 'pom.xml'}
 DOC_SUFFIXES = {'.md', '.mdx', '.rst'}
 TEST_MARKERS = ('test', 'tests', '_test.', '.test.', '.spec.')
@@ -115,7 +125,14 @@ def scan_repo(project: Path, *, max_files: int = 2000) -> dict[str, Any]:
 
     risks = []
     if skipped:
-        risks.append({'description': 'Restricted files were detected and skipped.', 'severity': 'medium', 'affected_files': [item['path'] for item in skipped[:8]], 'evidence': ['metadata only']})
+        risks.append(
+            {
+                'description': 'Restricted files were detected and skipped.',
+                'severity': 'medium',
+                'affected_files': [item['path'] for item in skipped[:8]],
+                'evidence': ['metadata only'],
+            }
+        )
 
     payload = {
         'schema_version': '1.0',
@@ -150,7 +167,7 @@ def execute(project: Path, task: dict[str, Any] | None = None, context: dict[str
         provider='local_scanner',
         status='success',
         changed_files=[],
-        summary=f"Scanned {report.get('files_scanned', 0)} files for project map support.",
+        summary=f'Scanned {report.get("files_scanned", 0)} files for project map support.',
         confidence=0.95,
         raw_log_path='.zoo-agent/workers/local_scanner_report.json',
         safe_for_user_output=True,
@@ -165,7 +182,17 @@ def main() -> int:
     args = parser.parse_args()
     project = project_root(args.workspace)
     payload = scan_repo(project)
-    print(json.dumps({'status': 'ok', 'report': '.zoo-agent/workers/local_scanner_report.json', 'files_scanned': payload.get('files_scanned', 0)}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                'status': 'ok',
+                'report': '.zoo-agent/workers/local_scanner_report.json',
+                'files_scanned': payload.get('files_scanned', 0),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

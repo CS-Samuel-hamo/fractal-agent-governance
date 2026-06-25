@@ -12,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
-def run(cmd: list[str], cwd: Path, *, env: dict[str, str] | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path, *, env: dict[str, str] | None = None, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         cmd,
         cwd=cwd,
@@ -60,10 +62,20 @@ def main() -> int:
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='product-alpha-codex-home-')).resolve()))
     Path(env['CODEX_HOME']).mkdir(parents=True, exist_ok=True)
 
-    for required in ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'ARCHITECTURE.md', 'CLI_REFERENCE.md', 'docs/product-mind-model.md']:
+    for required in [
+        'README.md',
+        'INSTALL.md',
+        'QUICKSTART.md',
+        'EXAMPLES.md',
+        'ARCHITECTURE.md',
+        'CLI_REFERENCE.md',
+        'docs/product-mind-model.md',
+    ]:
         assert (ROOT / required).exists(), f'missing product document: {required}'
 
-    expected_version = (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip() if (ROOT / 'VERSION').exists() else '0.9.'
+    expected_version = (
+        (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip() if (ROOT / 'VERSION').exists() else '0.9.'
+    )
     version = run([sys.executable, str(AGENT), '--version'], ROOT, env=env).stdout
     assert expected_version in version
 
@@ -130,10 +142,14 @@ def main() -> int:
     )
     assert applied['mode'] == 'apply'
 
-    status = assert_public_payload(run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo, env=env).stdout)
+    status = assert_public_payload(
+        run([sys.executable, str(AGENT), 'status', '--workspace', str(repo), '--no-write'], repo, env=env).stdout
+    )
     assert status['mode'] == 'status'
 
-    undo = assert_public_payload(run([sys.executable, str(AGENT), 'undo', '--workspace', str(repo)], repo, env=env).stdout)
+    undo = assert_public_payload(
+        run([sys.executable, str(AGENT), 'undo', '--workspace', str(repo)], repo, env=env).stdout
+    )
     assert undo['mode'] == 'preview'
 
     debug = run([sys.executable, str(AGENT), 'debug', 'status', '--workspace', str(repo)], repo, env=env)

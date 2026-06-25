@@ -10,10 +10,23 @@ from typing import Any
 
 from runtime_common import project_root, utc_now, write_json
 
-
-DOCS = ['README.md', 'QUICKSTART.md', 'CLI_REFERENCE.md', 'FAQ.md', 'DEMO.md', 'NEW_PROJECT_GUIDE.md', 'FIRST_USER_TEST_PLAN.md']
+DOCS = [
+    'README.md',
+    'QUICKSTART.md',
+    'CLI_REFERENCE.md',
+    'FAQ.md',
+    'DEMO.md',
+    'NEW_PROJECT_GUIDE.md',
+    'FIRST_USER_TEST_PLAN.md',
+]
 HIDDEN_TERMS = ['workers --doctor', 'learning --build', 'feedback --report', 'postlaunch', 'publish --']
-OVERCLAIMS = ['fully autonomous 24h', '24h fully autonomous', 'full autonomous', 'runs forever in the background', 'always-on daemon']
+OVERCLAIMS = [
+    'fully autonomous 24h',
+    '24h fully autonomous',
+    'full autonomous',
+    'runs forever in the background',
+    'always-on daemon',
+]
 
 
 def _read(project: Path, name: str) -> str:
@@ -31,8 +44,7 @@ def lint(project: Path) -> dict[str, Any]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     help_text = help_proc.stdout
     if 'agent "<goal>"' not in texts.get('README.md', '') or '\nagent\n' not in texts.get('README.md', ''):
@@ -52,7 +64,9 @@ def lint(project: Path) -> dict[str, Any]:
     if any(term.lower() in combined.lower() for term in OVERCLAIMS):
         failed.append('overclaims_background_daemon')
     score = round(max(0.0, 1.0 - (len(failed) * 0.12)), 3)
-    two_command = 1.0 if not any(item.startswith(('readme', 'quickstart', 'cli_reference', 'help')) for item in failed) else 0.7
+    two_command = (
+        1.0 if not any(item.startswith(('readme', 'quickstart', 'cli_reference', 'help')) for item in failed) else 0.7
+    )
     hidden = 0.0 if 'help_exposes_hidden_commands' in failed else 1.0
     overclaim = any(item == 'overclaims_background_daemon' for item in failed)
     recommendation = 'pass' if score >= 0.85 and not overclaim and hidden == 1.0 else 'fix_before_user_test'

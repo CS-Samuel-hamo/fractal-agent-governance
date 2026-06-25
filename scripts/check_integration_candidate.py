@@ -3,6 +3,5 @@ from __future__ import annotations
 
 from create_integration_worktree import main
 
-
 if __name__ == '__main__':
     raise SystemExit(main())

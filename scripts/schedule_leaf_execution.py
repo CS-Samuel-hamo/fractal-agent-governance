@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import detect_independence, load_backend_profile, load_leaf_contracts, project_root  # noqa: E402
-from runtime_common import load_json, write_json  # noqa: E402
+from big_task_common import detect_independence, load_backend_profile, load_leaf_contracts, project_root
+from runtime_common import load_json, write_json
 
 
 def main() -> int:
@@ -26,7 +26,9 @@ def main() -> int:
     actual = args.allow_parallel_actual
     schedule = detect_independence(load_leaf_contracts(project, args.run_id), resource_map, backend, actual=actual)
     schedule['run_id'] = args.run_id
-    schedule['actual_parallel_allowed'] = actual and str(backend.get('health_status')) == 'healthy' and not schedule.get('parallel_denials')
+    schedule['actual_parallel_allowed'] = (
+        actual and str(backend.get('health_status')) == 'healthy' and not schedule.get('parallel_denials')
+    )
     path = project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-schedule.json'
     write_json(path, schedule)
     print(json.dumps({'status': 'ok', 'path': str(path), 'schedule': schedule}, ensure_ascii=True, indent=2))

@@ -13,7 +13,13 @@ def readiness_verdict(map_quality: dict[str, Any], trace: dict[str, Any]) -> str
     runs = [item for item in trace.get('runs') or [] if isinstance(item, dict)]
     if not runs or map_quality.get('recommendation') == 'fail':
         return 'NOT_READY_FOR_PRODUCT_UI'
-    structural_ok = all(run.get('source') == 'project_map.next_actions' and run.get('checkpoint_created') and run.get('map_updated') and run.get('progress_summary_created') for run in runs)
+    structural_ok = all(
+        run.get('source') == 'project_map.next_actions'
+        and run.get('checkpoint_created')
+        and run.get('map_updated')
+        and run.get('progress_summary_created')
+        for run in runs
+    )
     bad_outcomes = [run for run in runs if run.get('outcome') in {'failed', 'blocked'}]
     if map_quality.get('recommendation') == 'pass' and structural_ok and not bad_outcomes:
         return 'READY_FOR_094_COCKPIT'
@@ -33,40 +39,40 @@ def render_report(map_quality: dict[str, Any], trace: dict[str, Any], readiness:
         '# Dogfood Report',
         '',
         '## Project Map Accuracy',
-        f"- score: {map_quality.get('map_quality_score')}",
-        f"- recommendation: {map_quality.get('recommendation')}",
-        f"- hallucination_risk: {map_quality.get('hallucination_risk')}",
+        f'- score: {map_quality.get("map_quality_score")}',
+        f'- recommendation: {map_quality.get("recommendation")}',
+        f'- hallucination_risk: {map_quality.get("hallucination_risk")}',
         '',
         '## Evidence Coverage',
-        f"- evidence_coverage: {map_quality.get('evidence_coverage')}",
-        f"- unsupported_module_count: {map_quality.get('unsupported_module_count')}",
-        f"- unsupported_capability_count: {map_quality.get('unsupported_capability_count')}",
+        f'- evidence_coverage: {map_quality.get("evidence_coverage")}',
+        f'- unsupported_module_count: {map_quality.get("unsupported_module_count")}',
+        f'- unsupported_capability_count: {map_quality.get("unsupported_capability_count")}',
         '',
         '## Autopilot Usefulness',
-        f"- run_count: {len(runs)}",
-        f"- delivered: {delivered}",
-        f"- no_delivery: {no_delivery}",
-        f"- blocked: {blocked}",
-        f"- failed: {failed}",
+        f'- run_count: {len(runs)}',
+        f'- delivered: {delivered}',
+        f'- no_delivery: {no_delivery}',
+        f'- blocked: {blocked}',
+        f'- failed: {failed}',
         '',
         '## Next Action Quality',
-        f"- vague_action_count: {map_quality.get('vague_action_count')}",
-        f"- unsupported_action_count: {map_quality.get('unsupported_action_count')}",
+        f'- vague_action_count: {map_quality.get("vague_action_count")}',
+        f'- unsupported_action_count: {map_quality.get("unsupported_action_count")}',
         '',
         '## Progress Summary Quality',
-        f"- progress_summary_created: {progress_ok}/{len(runs)}",
+        f'- progress_summary_created: {progress_ok}/{len(runs)}',
         '',
         '## Undo/Checkpoint Reliability',
-        f"- checkpoint_created: {checkpoint_ok}/{len(runs)}",
+        f'- checkpoint_created: {checkpoint_ok}/{len(runs)}',
         '- undo_command_available: yes',
         '',
         '## Blocked-zone Behavior',
-        f"- attention_required_count: {sum(1 for item in runs if item.get('attention_required'))}",
+        f'- attention_required_count: {sum(1 for item in runs if item.get("attention_required"))}',
         '',
         '## Top Failure Modes',
-        f"- map_quality: {map_quality.get('recommendation')}",
-        f"- no_delivery_count: {no_delivery}",
-        f"- failed_count: {failed}",
+        f'- map_quality: {map_quality.get("recommendation")}',
+        f'- no_delivery_count: {no_delivery}',
+        f'- failed_count: {failed}',
         '',
         '## Fixes Required Before 0.94',
     ]
@@ -80,7 +86,7 @@ def render_report(map_quality: dict[str, Any], trace: dict[str, Any], readiness:
     if not fixes:
         fixes.append('No blocking fixes identified.')
     lines.extend(f'- {item}' for item in fixes)
-    lines += ['', '## Final Recommendation', f"- {readiness.get('final_recommendation')}", '']
+    lines += ['', '## Final Recommendation', f'- {readiness.get("final_recommendation")}', '']
     return '\n'.join(lines)
 
 
@@ -110,7 +116,17 @@ def main() -> int:
     readiness, report = generate_report(project)
     write_json(dogfood_dir / 'readiness_for_094.json', readiness)
     (dogfood_dir / 'dogfood_report.md').write_text(report, encoding='utf-8')
-    print(json.dumps({'status': 'ok', 'dogfood_report': str(dogfood_dir / 'dogfood_report.md'), 'final_recommendation': readiness['final_recommendation']}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                'status': 'ok',
+                'dogfood_report': str(dogfood_dir / 'dogfood_report.md'),
+                'final_recommendation': readiness['final_recommendation'],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

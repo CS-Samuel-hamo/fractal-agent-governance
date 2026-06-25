@@ -28,11 +28,17 @@ def assert_true(value: bool, message: str) -> None:
 
 
 def make_toolkit(project: Path, *, explicit_links: bool = True) -> None:
-    write(project / 'project_beginning_prompt.md', 'Build a research workflow through docs/project_plan.md. Do not invent citations or fake data.')
+    write(
+        project / 'project_beginning_prompt.md',
+        'Build a research workflow through docs/project_plan.md. Do not invent citations or fake data.',
+    )
     write(project / 'docs/project_plan.md', 'Use docs/research_workflow.md as the main workflow.')
     write(project / 'docs/research_workflow.md', 'Use docs/prompt_templates.md and docs/workflow_checklist.md.')
     write(project / 'docs/usage_guide.md', 'Run the workflow.')
-    write(project / 'docs/prompt_templates.md', 'Templates produce docs/output_schema.md.' if explicit_links else 'Templates for paper workflow.')
+    write(
+        project / 'docs/prompt_templates.md',
+        'Templates produce docs/output_schema.md.' if explicit_links else 'Templates for paper workflow.',
+    )
     write(project / 'docs/workflow_checklist.md', 'Checklist for the workflow.')
     write(project / 'docs/output_schema.md', 'Output schema.')
     write(project / 'docs/literature_search_protocol.md', 'Feed docs/literature_matrix_template.md.')
@@ -48,7 +54,9 @@ def make_toolkit(project: Path, *, explicit_links: bool = True) -> None:
 def test_logic_rules_ready_when_rules_and_links_exist() -> None:
     project = repo('logic-rules-ready')
     make_toolkit(project)
-    write(project / 'AGENTS.md', 'Do not read .env. Do not invent citations. Separate facts, assumptions, and evidence.')
+    write(
+        project / 'AGENTS.md', 'Do not read .env. Do not invent citations. Separate facts, assumptions, and evidence.'
+    )
     write_json(
         project / '.zoo-agent' / 'code-standards.json',
         {
@@ -58,7 +66,10 @@ def test_logic_rules_ready_when_rules_and_links_exist() -> None:
     )
     payload = build_project_logic_rules_check(project)
     assert_true(payload['rules']['status'] == 'complete', 'rules should be complete')
-    assert_true(payload['logic']['workflow_chain'] == 'connected', f"unexpected workflow status: {payload['logic']['workflow_chain']}")
+    assert_true(
+        payload['logic']['workflow_chain'] == 'connected',
+        f'unexpected workflow status: {payload["logic"]["workflow_chain"]}',
+    )
     assert_true(payload['logic']['risk_coverage'] == 'complete', 'quality gates should be complete')
     assert_true(payload['overall_status'] == 'ready', 'overall status should be ready')
     lines = '\n'.join(render_logic_rules_check(project))
@@ -72,7 +83,9 @@ def test_logic_rules_flags_partial_rules_and_weak_links() -> None:
     assert_true(payload['rules']['status'] in {'missing', 'partial'}, 'rules should not be complete')
     assert_true(payload['logic']['workflow_chain'] in {'partial', 'connected'}, 'workflow should be known')
     assert_true(payload['logic']['recommendations'], 'recommendations should be present')
-    assert_true((project / '.zoo-agent' / 'map' / 'project_logic_rules_check.json').exists(), 'artifact was not written')
+    assert_true(
+        (project / '.zoo-agent' / 'map' / 'project_logic_rules_check.json').exists(), 'artifact was not written'
+    )
 
 
 def main() -> int:

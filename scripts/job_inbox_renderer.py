@@ -6,9 +6,8 @@ from pathlib import Path
 
 from first_run_guidance_engine import render_guidance
 from job_state_store import load_current_job, sync_job_from_session, write_job_digest
-from runtime_common import load_json
-from runtime_common import project_root
 from project_progress_overview import render_interaction_summary
+from runtime_common import load_json, project_root
 from seed_action_queue import progress_summary as seed_progress_summary
 
 
@@ -23,7 +22,10 @@ def _action_status(status: str, action: dict, attention: str) -> str:
         return 'Blocked with reason'
     if action.get('preview_only') or action.get('execution_mode') == 'preview':
         return 'Preview recommended'
-    if action.get('source') in {'seed_prompt', 'user_goal'} or action.get('action_source') in {'seed_prompt', 'user_goal'}:
+    if action.get('source') in {'seed_prompt', 'user_goal'} or action.get('action_source') in {
+        'seed_prompt',
+        'user_goal',
+    }:
         return 'Ready for starter action'
     return status
 
@@ -87,11 +89,19 @@ def _progress_lines(project: Path) -> list[str]:
 
 
 def render_job_inbox(project: Path, *, refresh: bool = True) -> str:
-    if refresh and not load_current_job(project) and not load_json(project / '.zoo-agent' / 'session' / 'session_state.json'):
+    if (
+        refresh
+        and not load_current_job(project)
+        and not load_json(project / '.zoo-agent' / 'session' / 'session_state.json')
+    ):
         return render_guidance(project)
     progress = seed_progress_summary(project)
     has_seed_progress = bool(progress.get('total_actions'))
-    job = load_current_job(project) if has_seed_progress else (sync_job_from_session(project) if refresh else load_current_job(project))
+    job = (
+        load_current_job(project)
+        if has_seed_progress
+        else (sync_job_from_session(project) if refresh else load_current_job(project))
+    )
     if not job or not job.get('goal'):
         return render_guidance(project)
     write_job_digest(project, job)
@@ -105,7 +115,7 @@ def render_job_inbox(project: Path, *, refresh: bool = True) -> str:
         attention = job.get('attention_reason') or ('review required' if job.get('attention_required') else 'none')
     reason = action.get('reason') or action.get('blocked_reason') or attention
     pending = int(progress.get('pending_actions') or 0) > 0
-    recommended = f'agent continue' if pending else 'agent "<next project goal>"'
+    recommended = 'agent continue' if pending else 'agent "<next project goal>"'
     why = reason if reason and reason != 'none' else f'Last action: {job.get("last_action") or "not recorded yet"}'
     lines = render_interaction_summary(
         project,
@@ -115,7 +125,9 @@ def render_job_inbox(project: Path, *, refresh: bool = True) -> str:
         why=why,
         next_action=recommended,
         attention='' if attention == 'none' else str(attention),
-        stop_reason='needs_attention' if attention != 'none' and display_status != 'Completed' else 'reviewable_batch_complete',
+        stop_reason='needs_attention'
+        if attention != 'none' and display_status != 'Completed'
+        else 'reviewable_batch_complete',
     )
     lines.extend(
         [

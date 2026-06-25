@@ -14,19 +14,17 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from claude_code_worker_detector import claude_health  # noqa: E402
-from codex_worker_adapter_hardened import codex_health  # noqa: E402
-from local_scanner_worker import scan_repo  # noqa: E402
-from project_map_builder import build_project_map, render_markdown  # noqa: E402
-from project_operator_value_report_generator import generate_report  # noqa: E402
-from real_worker_trace_replayer import run_replay  # noqa: E402
-from real_worker_value_gate import run_value_gate  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-from task_profile_classifier import classify_task_profile  # noqa: E402
-from worker_doctor import doctor_payload  # noqa: E402
-from worker_registry import write_worker_registry  # noqa: E402
-from worker_router import route_worker  # noqa: E402
-
+from claude_code_worker_detector import claude_health
+from codex_worker_adapter_hardened import codex_health
+from local_scanner_worker import scan_repo
+from project_map_builder import build_project_map, render_markdown
+from project_operator_value_report_generator import generate_report
+from real_worker_trace_replayer import run_replay
+from real_worker_value_gate import run_value_gate
+from runtime_common import load_json, project_root, utc_now, write_json
+from task_profile_classifier import classify_task_profile
+from worker_doctor import doctor_payload
+from worker_router import route_worker
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -38,7 +36,15 @@ def dogfood_dir(project: Path) -> Path:
 def run_proc(command: list[str], cwd: Path, *, allow_fail: bool = False) -> dict[str, Any]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='real-worker-dogfood-codex-home-')).resolve()))
-    proc = subprocess.run(command, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     if proc.returncode != 0 and not allow_fail:
         raise RuntimeError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return {'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
@@ -146,8 +152,21 @@ def scenario_worker_doctor(fixture: Path) -> dict[str, Any]:
 def scenario_local_scanner(fixture: Path) -> dict[str, Any]:
     report = scan_repo(fixture)
     skipped = json.dumps(report.get('files_skipped') or [], ensure_ascii=False).lower()
-    ok = bool(report.get('files_scanned')) and bool((report.get('map_support') or {}).get('evidence')) and '.env' in skipped and 'should-not-be-read' not in json.dumps(report, ensure_ascii=False)
-    return row(fixture, 'local_scanner_repo_scan', selected_worker='local_scanner_worker', worker_role='Analysis Worker', execution_mode='preview', project_map_supported=bool((report.get('map_support') or {}).get('evidence')), outcome='pass' if ok else 'fail')
+    ok = (
+        bool(report.get('files_scanned'))
+        and bool((report.get('map_support') or {}).get('evidence'))
+        and '.env' in skipped
+        and 'should-not-be-read' not in json.dumps(report, ensure_ascii=False)
+    )
+    return row(
+        fixture,
+        'local_scanner_repo_scan',
+        selected_worker='local_scanner_worker',
+        worker_role='Analysis Worker',
+        execution_mode='preview',
+        project_map_supported=bool((report.get('map_support') or {}).get('evidence')),
+        outcome='pass' if ok else 'fail',
+    )
 
 
 def scenario_project_map_support(fixture: Path) -> dict[str, Any]:
@@ -161,24 +180,52 @@ def scenario_project_map_support(fixture: Path) -> dict[str, Any]:
         for module in scanner.get('candidate_modules') or []:
             name = str(module.get('name') or '')
             if name and name not in known:
-                project_map.setdefault('modules', []).append({'module_id': name, 'name': name, 'purpose': 'Detected by local scanner metadata.', 'key_files': module.get('evidence') or [], 'status': 'mapped', 'confidence': 0.65, 'evidence': [{'source': 'local_scanner_worker', 'summary': 'metadata-backed candidate module'}]})
+                project_map.setdefault('modules', []).append(
+                    {
+                        'module_id': name,
+                        'name': name,
+                        'purpose': 'Detected by local scanner metadata.',
+                        'key_files': module.get('evidence') or [],
+                        'status': 'mapped',
+                        'confidence': 0.65,
+                        'evidence': [{'source': 'local_scanner_worker', 'summary': 'metadata-backed candidate module'}],
+                    }
+                )
     write_json(fixture / '.zoo-agent' / 'map' / 'project_map.json', project_map)
     write_json(fixture / '.zoo-agent' / 'map' / 'project_state.json', state)
     write_json(fixture / '.zoo-agent' / 'map' / 'map_evidence.json', evidence)
     (fixture / '.zoo-agent' / 'map' / 'project_map.md').write_text(render_markdown(project_map), encoding='utf-8')
     ok = bool(project_map.get('modules')) and bool(evidence.get('evidence'))
-    return row(fixture, 'project_map_support', selected_worker='local_scanner_worker', worker_role='Analysis Worker', execution_mode='preview', project_map_supported=ok, outcome='pass' if ok else 'fail')
+    return row(
+        fixture,
+        'project_map_support',
+        selected_worker='local_scanner_worker',
+        worker_role='Analysis Worker',
+        execution_mode='preview',
+        project_map_supported=ok,
+        outcome='pass' if ok else 'fail',
+    )
 
 
 def scenario_session(fixture: Path) -> dict[str, Any]:
     run_proc([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(fixture)], fixture)
-    proc = run_proc([sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(fixture)], fixture, allow_fail=True)
+    proc = run_proc(
+        [sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(fixture)],
+        fixture,
+        allow_fail=True,
+    )
     routing = load_json(fixture / '.zoo-agent' / 'workers' / 'routing_decision.json')
     state = load_json(fixture / '.zoo-agent' / 'session' / 'session_state.json')
     checkpoints = load_json(fixture / '.zoo-agent' / 'autopilot' / 'checkpoints.json')
     cockpit = fixture / '.zoo-agent' / 'cockpit' / 'index.html'
     selected_worker = str(routing.get('selected_worker') or '')
-    ok = proc['returncode'] == 0 and bool(state) and bool(checkpoints.get('checkpoints')) and bool(selected_worker) and cockpit.exists()
+    ok = (
+        proc['returncode'] == 0
+        and bool(state)
+        and bool(checkpoints.get('checkpoints'))
+        and bool(selected_worker)
+        and cockpit.exists()
+    )
     return row(
         fixture,
         'session_with_real_worker_availability',
@@ -194,7 +241,15 @@ def scenario_session(fixture: Path) -> dict[str, Any]:
 
 def scenario_codex_degrade(fixture: Path) -> dict[str, Any]:
     health = codex_health(fixture)
-    profile = classify_task_profile({'title': 'Adjust small source constant', 'risk_level': 'low', 'trust_zone': 'trusted', 'execution_mode': 'auto', 'target_files': ['src/app.py']})
+    profile = classify_task_profile(
+        {
+            'title': 'Adjust small source constant',
+            'risk_level': 'low',
+            'trust_zone': 'trusted',
+            'execution_mode': 'auto',
+            'target_files': ['src/app.py'],
+        }
+    )
     decision = route_worker(fixture, task_profile=profile, requested_worker='codex', execution_mode='auto')
     selected = str(decision.get('selected_worker') or '')
     codex_unavailable = health.get('available') is False or health.get('health') in {'unavailable', 'degraded'}
@@ -221,7 +276,15 @@ def scenario_codex_degrade(fixture: Path) -> dict[str, Any]:
 
 def scenario_claude_no_fake(fixture: Path) -> dict[str, Any]:
     detection = claude_health(fixture)
-    profile = classify_task_profile({'title': 'Adjust small source constant', 'risk_level': 'low', 'trust_zone': 'trusted', 'execution_mode': 'auto', 'target_files': ['src/app.py']})
+    profile = classify_task_profile(
+        {
+            'title': 'Adjust small source constant',
+            'risk_level': 'low',
+            'trust_zone': 'trusted',
+            'execution_mode': 'auto',
+            'target_files': ['src/app.py'],
+        }
+    )
     decision = route_worker(fixture, task_profile=profile, requested_worker='claude', execution_mode='auto')
     selected = str(decision.get('selected_worker') or '')
     ok = detection.get('supports_actual_execution') is False and selected != 'claude_worker_stub'
@@ -244,7 +307,17 @@ def scenario_cockpit(fixture: Path) -> dict[str, Any]:
     cockpit = fixture / '.zoo-agent' / 'cockpit' / 'index.html'
     html = cockpit.read_text(encoding='utf-8', errors='replace') if cockpit.exists() else ''
     ok = 'Worker Readiness' in html and 'raw backend' not in html.lower()
-    return row(fixture, 'cockpit_worker_readiness', selected_worker='local_scanner_worker', worker_role='Analysis Worker', execution_mode='preview', project_map_supported=True, session_updated=True, cockpit_synced=cockpit.exists(), outcome='pass' if ok else 'fail')
+    return row(
+        fixture,
+        'cockpit_worker_readiness',
+        selected_worker='local_scanner_worker',
+        worker_role='Analysis Worker',
+        execution_mode='preview',
+        project_map_supported=True,
+        session_updated=True,
+        cockpit_synced=cockpit.exists(),
+        outcome='pass' if ok else 'fail',
+    )
 
 
 def run_dogfood(project: Path) -> dict[str, Any]:
@@ -263,7 +336,10 @@ def run_dogfood(project: Path) -> dict[str, Any]:
     sync_worker_artifacts(fixture, project)
     sync_map_artifacts(fixture, project)
     copy_artifact(fixture / '.zoo-agent' / 'cockpit' / 'index.html', project / '.zoo-agent' / 'cockpit' / 'index.html')
-    copy_artifact(fixture / '.zoo-agent' / 'cockpit' / 'cockpit_data.json', project / '.zoo-agent' / 'cockpit' / 'cockpit_data.json')
+    copy_artifact(
+        fixture / '.zoo-agent' / 'cockpit' / 'cockpit_data.json',
+        project / '.zoo-agent' / 'cockpit' / 'cockpit_data.json',
+    )
     trace = {
         'schema_version': '1.0',
         'generated_by': 'real_worker_dogfood_runner.py',

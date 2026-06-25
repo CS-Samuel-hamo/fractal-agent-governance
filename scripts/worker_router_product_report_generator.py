@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 READY = 'READY_FOR_0962_REAL_WORKER_ADAPTER_HARDENING'
 FIX = 'FIX_BEFORE_0962'
@@ -23,7 +22,11 @@ def dogfood_dir(project: Path) -> Path:
 
 
 def readiness_from_report(report: dict[str, Any]) -> str:
-    if report.get('unsafe_behavior_detected') or report.get('fake_capability_detected') or report.get('internal_leakage_detected'):
+    if (
+        report.get('unsafe_behavior_detected')
+        or report.get('fake_capability_detected')
+        or report.get('internal_leakage_detected')
+    ):
         return NOT_READY
     if (
         float(report.get('router_value_score') or 0.0) >= 0.90
@@ -59,7 +62,10 @@ def build_readiness(report: dict[str, Any]) -> dict[str, Any]:
 
 def build_report(trace: dict[str, Any], value_report: dict[str, Any], readiness: dict[str, Any]) -> str:
     runs = [item for item in trace.get('runs') or [] if isinstance(item, dict)]
-    scenario_lines = [f"- {str(item.get('scenario') or 'unknown').replace('_', ' ')}: {item.get('outcome', 'unknown')}" for item in runs]
+    scenario_lines = [
+        f'- {str(item.get("scenario") or "unknown").replace("_", " ")}: {item.get("outcome", "unknown")}'
+        for item in runs
+    ]
     failed = [str(item) for item in value_report.get('failed_checks') or []]
     stub_lines = [
         '- Claude worker is a stub and remains unavailable.',
@@ -72,19 +78,19 @@ def build_report(trace: dict[str, Any], value_report: dict[str, Any], readiness:
         'The router adds product value when project actions are matched to worker roles without making users configure providers first.',
         '',
         '## Does Router Make The Product Less Like A Codex Wrapper?',
-        f"- provider decoupling score: {readiness.get('provider_decoupling_score')}",
+        f'- provider decoupling score: {readiness.get("provider_decoupling_score")}',
         '- Codex is one worker adapter, not the product control plane.',
         '',
         '## Does Routing Improve Reliability?',
-        f"- router value score: {readiness.get('router_value_score')}",
-        f"- capability routing score: {readiness.get('capability_routing_score')}",
+        f'- router value score: {readiness.get("router_value_score")}',
+        f'- capability routing score: {readiness.get("capability_routing_score")}',
         '',
         '## Does Fallback Feel Safe?',
-        f"- fallback safety score: {readiness.get('fallback_safety_score')}",
+        f'- fallback safety score: {readiness.get("fallback_safety_score")}',
         '- Fallback downgrades to safe preview or needs attention instead of escalating blocked work.',
         '',
         '## Does Cockpit Explain Worker Role Clearly?',
-        f"- cockpit worker visibility score: {readiness.get('cockpit_worker_visibility_score')}",
+        f'- cockpit worker visibility score: {readiness.get("cockpit_worker_visibility_score")}',
         '- Cockpit shows product-level worker role and hides raw provider logs.',
         '',
         '## Does User Still See Project Operator, Not Backend Config?',

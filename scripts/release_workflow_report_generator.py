@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 READY = 'GITHUB_PR_RELEASE_WORKFLOW_098_READY'
 FIX = 'FIX_BEFORE_0981'
@@ -57,7 +56,7 @@ def write_report(project: Path) -> dict[str, Any]:
     safety = load_json(release_dir(project) / 'github_workflow_safety_report.json')
     status, failures = final_status(project)
     blocker_rows = (
-        [f"- {item}" for item in github_ready.get('blockers') or []]
+        [f'- {item}' for item in github_ready.get('blockers') or []]
         if github_ready.get('blockers')
         else ['- No hard blocker reported by GitHub readiness.']
     )
@@ -69,19 +68,19 @@ def write_report(project: Path) -> dict[str, Any]:
         '- The workflow generated a local release pack for review and handoff.',
         '',
         '## Git / GitHub context',
-        f"- Git repo: {git_context.get('is_git_repo', False)}",
-        f"- Branch: {git_context.get('current_branch') or 'unknown'}",
-        f"- Working tree: {git_context.get('working_tree_status') or 'unknown'}",
-        f"- GitHub remote: {git_context.get('remote', {}).get('provider') == 'github'}",
+        f'- Git repo: {git_context.get("is_git_repo", False)}',
+        f'- Branch: {git_context.get("current_branch") or "unknown"}',
+        f'- Working tree: {git_context.get("working_tree_status") or "unknown"}',
+        f'- GitHub remote: {git_context.get("remote", {}).get("provider") == "github"}',
         '',
         '## Release readiness',
-        f"- Stage: {readiness.get('stage') or 'unknown'}",
-        f"- Score: {readiness.get('readiness_score')}",
-        f"- Blockers: {len(readiness.get('must_fix') or [])}",
+        f'- Stage: {readiness.get("stage") or "unknown"}',
+        f'- Score: {readiness.get("readiness_score")}',
+        f'- Blockers: {len(readiness.get("must_fix") or [])}',
         '',
         '## PR plan',
-        f"- Draft title: {pr_plan.get('pr_title') or 'not available'}",
-        f"- Risk level: {pr_plan.get('risk_level') or 'unknown'}",
+        f'- Draft title: {pr_plan.get("pr_title") or "not available"}',
+        f'- Risk level: {pr_plan.get("risk_level") or "unknown"}',
         '- PR draft path: .zoo-agent/release/pr_draft.md',
         '',
         '## Release notes status',
@@ -94,14 +93,14 @@ def write_report(project: Path) -> dict[str, Any]:
         *blocker_rows,
         '',
         '## Suggested next action',
-        f"- {action_plan.get('suggested_session_goal') or 'prepare this project for public release'}",
+        f'- {action_plan.get("suggested_session_goal") or "prepare this project for public release"}',
         '- Suggested command: `agent start "prepare this project for public release"`',
         '',
         '## Cockpit integration',
         '- Release / PR artifacts are available for the local Project Cockpit.',
         '',
         '## Safety confirmation',
-        f"- Local-only safety gate: {'passed' if safety.get('safe') else 'not passed'}",
+        f'- Local-only safety gate: {"passed" if safety.get("safe") else "not passed"}',
         '- No remote publishing action is included in this workflow.',
         '- No token or secret material is required.',
         '',
@@ -119,7 +118,11 @@ def write_report(project: Path) -> dict[str, Any]:
         'generated_at': utc_now(),
         'readiness': status,
         'must_fix_before_0981': failures,
-        'recommended_next_steps': ['agent cockpit', 'agent pr', 'agent start "prepare this project for public release"'],
+        'recommended_next_steps': [
+            'agent cockpit',
+            'agent pr',
+            'agent start "prepare this project for public release"',
+        ],
     }
     write_json(release_dir(project) / 'readiness_for_0981.json', readiness_payload)
     return {

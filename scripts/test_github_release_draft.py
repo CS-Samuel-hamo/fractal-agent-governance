@@ -8,10 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from github_release_draft_generator import generate  # noqa: E402
-from public_docs_leakage_scanner import scan_texts  # noqa: E402
-from public_release_packager import VERSION  # noqa: E402
-from release_tag_preflight import preflight  # noqa: E402
+from github_release_draft_generator import generate
+from public_docs_leakage_scanner import scan_texts
+from public_release_packager import VERSION
+from release_tag_preflight import preflight
 
 
 def test_github_release_draft_generates() -> None:
@@ -43,7 +43,12 @@ def test_release_tag_preflight_does_not_create_tag_or_push() -> None:
     assert payload['tag'] == f'v{VERSION}'
     assert payload['auto_tag_created'] is False
     assert isinstance(payload['suggested_commands'], list)
-    tag_check = subprocess.run(['git', 'rev-parse', '--verify', f'v{VERSION}'], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    tag_check = subprocess.run(
+        ['git', 'rev-parse', '--verify', f'v{VERSION}'],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
     if payload['tag_exists'] is False:
         assert tag_check.returncode != 0
 

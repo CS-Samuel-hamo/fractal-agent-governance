@@ -18,7 +18,13 @@ def main() -> int:
     parser.add_argument('--refresh-instructions', action='store_true')
     args = parser.parse_args()
 
-    command = [sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'bootstrap', '--workspace', str(Path(args.workspace).resolve())]
+    command = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'agent.py'),
+        'bootstrap',
+        '--workspace',
+        str(Path(args.workspace).resolve()),
+    ]
     if args.new:
         command.append('--new')
     if args.force_new_project:

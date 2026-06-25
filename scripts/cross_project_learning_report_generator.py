@@ -10,9 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import load_store, store_dir  # noqa: E402
-from runtime_common import project_root  # noqa: E402
-
+from cross_project_store import load_store, store_dir
+from runtime_common import project_root
 
 READY = 'CROSS_PROJECT_LEARNING_097_READY'
 PARTIAL = 'PARTIALLY_READY'
@@ -35,7 +34,11 @@ def build_report(project: Path) -> str:
     memory = load_store(project, 'worker_memory').get('worker_performance') or []
     failures = load_store(project, 'failure_taxonomy').get('failure_patterns') or []
     insights = load_store(project, 'learning_insights').get('insights') or []
-    feedback = json.loads((store_dir(project) / 'learning_feedback_applied.json').read_text(encoding='utf-8-sig')) if (store_dir(project) / 'learning_feedback_applied.json').exists() else {'applied': []}
+    feedback = (
+        json.loads((store_dir(project) / 'learning_feedback_applied.json').read_text(encoding='utf-8-sig'))
+        if (store_dir(project) / 'learning_feedback_applied.json').exists()
+        else {'applied': []}
+    )
     status = report_status(project)
     lines = [
         '# Cross-project Learning Report',
@@ -47,11 +50,11 @@ def build_report(project: Path) -> str:
         '',
         '## Pattern Library',
         f'- Patterns: {len(patterns)}',
-        *[f"- {item.get('pattern_id')}: confidence {item.get('confidence')}" for item in patterns[:8]],
+        *[f'- {item.get("pattern_id")}: confidence {item.get("confidence")}' for item in patterns[:8]],
         '',
         '## Release Readiness Templates',
         f'- Templates: {len(templates)}',
-        *[f"- {item.get('template_id')}: {item.get('goal')}" for item in templates[:6]],
+        *[f'- {item.get("template_id")}: {item.get("goal")}' for item in templates[:6]],
         '',
         '## Worker Performance Memory',
         f'- Rows: {len(memory)}',
@@ -61,10 +64,10 @@ def build_report(project: Path) -> str:
         '',
         '## Learning Insights',
         f'- Insights: {len(insights)}',
-        *[f"- {item.get('message')} ({item.get('recommended_effect')})" for item in insights[:8]],
+        *[f'- {item.get("message")} ({item.get("recommended_effect")})' for item in insights[:8]],
         '',
         '## Feedback Applied',
-        f"- Advisory effects applied: {len(feedback.get('applied') or [])}",
+        f'- Advisory effects applied: {len(feedback.get("applied") or [])}',
         '- Learning only affects ranking, suggestions, worker preference, Cockpit display, and digest suggestions.',
         '- Learning does not bypass blocked zones, checkpoints, secret handling, push, merge, or delete protections.',
         '',
@@ -76,8 +79,11 @@ def build_report(project: Path) -> str:
 
 
 def generate_report(project: Path) -> dict[str, Any]:
-    path = build_report(project)
-    return {'status': report_status(project), 'report': '.zoo-agent/learning/cross_project/cross_project_learning_report.md'}
+    build_report(project)
+    return {
+        'status': report_status(project),
+        'report': '.zoo-agent/learning/cross_project/cross_project_learning_report.md',
+    }
 
 
 def main() -> int:

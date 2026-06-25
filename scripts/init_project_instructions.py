@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 SOURCE_ROOT_CANDIDATES = [
     'src',
@@ -235,10 +234,14 @@ def write_init(project: Path, *, refresh: bool, dry_run: bool) -> dict[str, Any]
 
     if standards_path.exists() and refresh:
         target_standards = standards_proposal_path
-        actions.append({'action': 'write_proposal', 'path': str(target_standards), 'reason': 'code standards refresh requested'})
+        actions.append(
+            {'action': 'write_proposal', 'path': str(target_standards), 'reason': 'code standards refresh requested'}
+        )
     elif standards_path.exists():
         target_standards = standards_path
-        actions.append({'action': 'keep_active', 'path': str(target_standards), 'reason': 'code standards already exist'})
+        actions.append(
+            {'action': 'keep_active', 'path': str(target_standards), 'reason': 'code standards already exist'}
+        )
     else:
         target_standards = standards_path
         actions.append({'action': 'write_active', 'path': str(target_standards), 'reason': 'code standards missing'})

@@ -8,7 +8,7 @@ from runtime_common import utc_now
 
 def build_learning_signal(eval_payload: dict[str, Any], governance_decision: dict[str, Any]) -> dict[str, Any]:
     return {
-        'signal_id': f"signal-{eval_payload.get('run_id') or utc_now()}",
+        'signal_id': f'signal-{eval_payload.get("run_id") or utc_now()}',
         'created_at': utc_now(),
         'run_id': eval_payload.get('run_id', ''),
         'failure_type': eval_payload.get('failure_type', 'none'),

@@ -11,11 +11,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_privacy_filter import filter_artifact, write_privacy_report  # noqa: E402
-from cross_project_store import append_project_index, initialize_store, store_dir  # noqa: E402
-from project_fingerprint import build_fingerprint  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from cross_project_privacy_filter import filter_artifact, write_privacy_report
+from cross_project_store import append_project_index, initialize_store, store_dir
+from project_fingerprint import build_fingerprint
+from runtime_common import project_root, utc_now, write_json
 
 ARTIFACTS = [
     '.zoo-agent/map/project_map.json',
@@ -30,7 +29,7 @@ ARTIFACTS = [
 
 
 def safe_project_id(fingerprint_hash: str, source_label: str) -> str:
-    return 'project-' + hashlib.sha256(f'{fingerprint_hash}:{source_label}'.encode('utf-8')).hexdigest()[:12]
+    return 'project-' + hashlib.sha256(f'{fingerprint_hash}:{source_label}'.encode()).hexdigest()[:12]
 
 
 def read_artifact(path: Path) -> Any:
@@ -42,7 +41,9 @@ def read_artifact(path: Path) -> Any:
         return {}
 
 
-def import_project_artifacts(target_project: Path, source_project: Path, *, source_kind: str = 'local_artifact') -> dict[str, Any]:
+def import_project_artifacts(
+    target_project: Path, source_project: Path, *, source_kind: str = 'local_artifact'
+) -> dict[str, Any]:
     initialize_store(target_project)
     imported: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
@@ -59,7 +60,13 @@ def import_project_artifacts(target_project: Path, source_project: Path, *, sour
             continue
         key = relative.replace('.zoo-agent/', '').replace('/', '__')
         sanitized_payloads[key] = report.get('sanitized')
-        imported.append({'artifact': relative, 'privacy_status': report.get('privacy_status'), 'redactions': report.get('redactions') or []})
+        imported.append(
+            {
+                'artifact': relative,
+                'privacy_status': report.get('privacy_status'),
+                'redactions': report.get('redactions') or [],
+            }
+        )
 
     fingerprint = build_fingerprint(source_project)
     project_id = safe_project_id(fingerprint.get('fingerprint_hash', ''), source_project.name)
@@ -84,11 +91,18 @@ def import_project_artifacts(target_project: Path, source_project: Path, *, sour
             'fingerprint': fingerprint.get('fingerprint_hash', ''),
             'source': source_kind,
             'imported_at': bundle['imported_at'],
-            'privacy_status': 'sanitized' if any(item.get('redactions') for item in imported) else 'sanitized',
+            'privacy_status': 'sanitized',
             'evidence_count': sum(1 for item in imported if item.get('artifact')),
         },
     )
-    report = {'schema_version': '1.0', 'generated_by': 'learning_artifact_importer.py', 'project_id': project_id, 'imported': imported, 'skipped': skipped, 'bundle': f'.zoo-agent/learning/cross_project/imported_projects/{project_id}.json'}
+    report = {
+        'schema_version': '1.0',
+        'generated_by': 'learning_artifact_importer.py',
+        'project_id': project_id,
+        'imported': imported,
+        'skipped': skipped,
+        'bundle': f'.zoo-agent/learning/cross_project/imported_projects/{project_id}.json',
+    }
     write_json(store_dir(target_project) / 'import_report.json', report)
     return report
 

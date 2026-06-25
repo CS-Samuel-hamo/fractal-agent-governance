@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 READY = 'READY_FOR_098_GITHUB_PR_RELEASE_WORKFLOW'
 FIX = 'FIX_BEFORE_098'
@@ -45,7 +44,9 @@ def generate_readiness(project: Path, lift: dict[str, Any]) -> dict[str, Any]:
         'privacy_score': lift.get('privacy_score', 0.0),
         'safety_preservation_score': lift.get('safety_preservation_score', 0.0),
         'must_fix_before_098': must_fix,
-        'recommended_next_steps': ['Design GitHub / PR / Release Workflow using the same local-first boundaries.'] if readiness == READY else ['Fix failed learning lift checks, then rerun agent learning --dogfood.'],
+        'recommended_next_steps': ['Design GitHub / PR / Release Workflow using the same local-first boundaries.']
+        if readiness == READY
+        else ['Fix failed learning lift checks, then rerun agent learning --dogfood.'],
     }
     write_json(dogfood_dir(project) / 'readiness_for_098.json', payload)
     return payload
@@ -63,27 +64,27 @@ def generate_product_report(project: Path) -> dict[str, Any]:
         'Learning produces visible product lift when compared against a learning-off baseline.',
         '',
         '## Does learning improve AI Project Operator?',
-        f"- Positive lift projects: {summary.get('projects_with_positive_lift', 0)} / {summary.get('total_projects', 0)}",
-        f"- Learning lift score: {lift.get('learning_lift_score')}",
+        f'- Positive lift projects: {summary.get("projects_with_positive_lift", 0)} / {summary.get("total_projects", 0)}',
+        f'- Learning lift score: {lift.get("learning_lift_score")}',
         '',
         '## Does learning improve next_action quality?',
-        f"- next_action_lift_score: {lift.get('next_action_lift_score')}",
+        f'- next_action_lift_score: {lift.get("next_action_lift_score")}',
         '- Learning favors evidence-backed release and scan actions over generic cleanup.',
         '',
         '## Does learning improve release readiness?',
-        f"- release_readiness_lift_score: {lift.get('release_readiness_lift_score')}",
+        f'- release_readiness_lift_score: {lift.get("release_readiness_lift_score")}',
         '- Release templates add quickstart, tests, worker doctor, and Cockpit review steps.',
         '',
         '## Does learning improve worker routing?',
-        f"- worker_routing_lift_score: {lift.get('worker_routing_lift_score')}",
+        f'- worker_routing_lift_score: {lift.get("worker_routing_lift_score")}',
         '- Worker memory prefers local scanner and dry-run roles for metadata and preview tasks.',
         '',
         '## Does learning help avoid repeated failures?',
-        f"- failure_avoidance_lift_score: {lift.get('failure_avoidance_lift_score')}",
+        f'- failure_avoidance_lift_score: {lift.get("failure_avoidance_lift_score")}',
         '- Failure taxonomy adds warnings for no-delivery, blocked zones, and weak evidence.',
         '',
         '## Does learning remain privacy-preserving?',
-        f"- privacy_score: {lift.get('privacy_score')}",
+        f'- privacy_score: {lift.get("privacy_score")}',
         '- Dogfood artifacts store only structured summaries and sanitized metadata.',
         '',
         '## Does Cockpit explain learning insight clearly?',
@@ -93,7 +94,7 @@ def generate_product_report(project: Path) -> dict[str, Any]:
         '- 0.98 should focus on GitHub / PR / Release Workflow while preserving local-first execution.',
         '',
         '## Should we proceed to 0.98 GitHub / PR / Release Workflow?',
-        f"- Final recommendation: {readiness.get('readiness')}",
+        f'- Final recommendation: {readiness.get("readiness")}',
         '',
     ]
     report_path = dogfood_dir(project) / 'learning_product_report.md'

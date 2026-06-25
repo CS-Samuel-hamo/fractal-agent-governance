@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from execution_policy import detect_hard_risk, safe_name  # noqa: E402
+from execution_policy import detect_hard_risk, safe_name
 
 SEMANTIC_RESOURCE_PATTERNS = {
     'api_contract': ['api', 'endpoint', 'route', 'contract', 'openapi', 'swagger'],
@@ -29,7 +29,19 @@ GOVERNANCE_NODE_TERMS = [
     'implementation queue',
 ]
 
-DEPENDENCY_TERMS = ['after', 'before', 'depends', 'dependency', 'then', 'sequence', 'blocked by', '\u5148', '\u7136\u540e', '\u518d', '\u4f9d\u8d56']
+DEPENDENCY_TERMS = [
+    'after',
+    'before',
+    'depends',
+    'dependency',
+    'then',
+    'sequence',
+    'blocked by',
+    '\u5148',
+    '\u7136\u540e',
+    '\u518d',
+    '\u4f9d\u8d56',
+]
 
 
 def utc_now() -> str:
@@ -60,8 +72,7 @@ def git_root(workspace: Path) -> Path:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or 'workspace is not a git repository')
@@ -128,20 +139,30 @@ def dependency_hits(leaf: dict) -> list[str]:
 
 def expected_paths(repo_root: Path, run_id: str, parent_task_id: str, leaf: dict) -> dict:
     task_id = safe_name(str(leaf.get('task_id') or 'leaf'))
-    worktree_root = repo_root / '.zoo-agent' / 'worktrees' / safe_name(run_id) / 'parallel' / safe_name(parent_task_id) / task_id
+    worktree_root = (
+        repo_root / '.zoo-agent' / 'worktrees' / safe_name(run_id) / 'parallel' / safe_name(parent_task_id) / task_id
+    )
     return {
         'worktree_root': str(worktree_root),
         'task_pack_dir': str(worktree_root / 'attempt-1' / '.zoo-agent' / 'runs' / run_id / 'codex-tasks' / task_id),
-        'collected_result': str(worktree_root / 'attempt-1' / '.zoo-agent' / 'runs' / run_id / 'codex-results' / task_id / 'result.json'),
+        'collected_result': str(
+            worktree_root / 'attempt-1' / '.zoo-agent' / 'runs' / run_id / 'codex-results' / task_id / 'result.json'
+        ),
         'dispatcher_report': str(repo_root / '.zoo-agent' / 'runs' / run_id / 'dispatcher-runs' / f'{task_id}.json'),
         'optimistic_report': str(repo_root / '.zoo-agent' / 'runs' / run_id / 'optimistic-runs' / f'{task_id}.json'),
-        'worker_log_dir': str(repo_root / '.zoo-agent' / 'runs' / run_id / 'parallel-workers' / safe_name(parent_task_id) / task_id),
+        'worker_log_dir': str(
+            repo_root / '.zoo-agent' / 'runs' / run_id / 'parallel-workers' / safe_name(parent_task_id) / task_id
+        ),
     }
 
 
-def build_contract(repo_root: Path, run_id: str, leaf_index_path: Path, *, max_workers: int, allow_planned: bool = False) -> dict:
+def build_contract(
+    repo_root: Path, run_id: str, leaf_index_path: Path, *, max_workers: int, allow_planned: bool = False
+) -> dict:
     index, leaves = load_leaves(leaf_index_path)
-    parent_task_id = str(index.get('parent_task_id') or (leaves[0].get('parent_task_id') if leaves else 'parallel-workers'))
+    parent_task_id = str(
+        index.get('parent_task_id') or (leaves[0].get('parent_task_id') if leaves else 'parallel-workers')
+    )
     blockers: list[dict] = []
     locks: dict[str, str] = {}
     schedule = []
@@ -185,7 +206,9 @@ def build_contract(repo_root: Path, run_id: str, leaf_index_path: Path, *, max_w
 
         semantic_hits = semantic_resource_hits(str(leaf.get('objective') or ''), allowed)
         if semantic_hits:
-            blockers.append({'id': 'semantic_resource_unknown_not_parallel_safe', 'task_id': task_id, 'hits': semantic_hits})
+            blockers.append(
+                {'id': 'semantic_resource_unknown_not_parallel_safe', 'task_id': task_id, 'hits': semantic_hits}
+            )
 
         hard_risk_hits = detect_hard_risk(str(leaf.get('objective') or ''), allowed)
         if hard_risk_hits:
@@ -206,7 +229,9 @@ def build_contract(repo_root: Path, run_id: str, leaf_index_path: Path, *, max_w
         for key, value in paths.items():
             owner = seen_paths.get(value)
             if owner and owner != task_id:
-                blockers.append({'id': 'shared_output_or_worktree_path', 'path_kind': key, 'path': value, 'tasks': [owner, task_id]})
+                blockers.append(
+                    {'id': 'shared_output_or_worktree_path', 'path_kind': key, 'path': value, 'tasks': [owner, task_id]}
+                )
             seen_paths[value] = task_id
 
         schedule.append(
@@ -271,10 +296,31 @@ def main() -> int:
 
     repo_root = git_root(Path(args.workspace).resolve())
     leaf_index = Path(args.leaf_index).resolve()
-    contract = build_contract(repo_root, args.run_id, leaf_index, max_workers=args.max_workers, allow_planned=args.allow_planned)
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else repo_root / '.zoo-agent' / 'runs' / args.run_id / 'parallel-workers' / safe_name(contract['parent_task_id'])
-    write_json(output_dir / 'resource-locks.json', {'resource_locks': contract['resource_locks'], 'status': contract['status'], 'blockers': contract['blockers']})
-    write_json(output_dir / 'branch-schedule.json', {'branch_schedule': contract['branch_schedule'], 'status': contract['status'], 'max_workers': contract['max_workers']})
+    contract = build_contract(
+        repo_root, args.run_id, leaf_index, max_workers=args.max_workers, allow_planned=args.allow_planned
+    )
+    output_dir = (
+        Path(args.output_dir).resolve()
+        if args.output_dir
+        else repo_root
+        / '.zoo-agent'
+        / 'runs'
+        / args.run_id
+        / 'parallel-workers'
+        / safe_name(contract['parent_task_id'])
+    )
+    write_json(
+        output_dir / 'resource-locks.json',
+        {'resource_locks': contract['resource_locks'], 'status': contract['status'], 'blockers': contract['blockers']},
+    )
+    write_json(
+        output_dir / 'branch-schedule.json',
+        {
+            'branch_schedule': contract['branch_schedule'],
+            'status': contract['status'],
+            'max_workers': contract['max_workers'],
+        },
+    )
     write_json(output_dir / 'concurrency-check.json', contract)
     if args.json_output:
         write_json(Path(args.json_output).resolve(), contract)

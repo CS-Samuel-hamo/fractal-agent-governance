@@ -10,10 +10,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_scheduler import schedule_goals  # noqa: E402
-from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state  # noqa: E402
-from filter_system_goals import filter_goals  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from filter_system_goals import filter_goals
+from goal_scheduler import schedule_goals
+from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state
+from runtime_common import load_json, project_root, utc_now, write_json
 
 
 def normalize_backend_health(raw: str) -> str:
@@ -57,7 +57,9 @@ def loop_patch(field: str, value: Any, reason: str) -> dict[str, Any]:
     return {'goal_id': '', 'op': 'set_loop_status', 'field': field, 'to': value, 'reason': reason}
 
 
-def write_and_apply_patch(project: Path, *, reason: str, changes: list[dict[str, Any]], filename: str) -> dict[str, Any]:
+def write_and_apply_patch(
+    project: Path, *, reason: str, changes: list[dict[str, Any]], filename: str
+) -> dict[str, Any]:
     if not changes:
         return {}
     patch = build_state_patch(project, source='global_loop', reason=reason, changes=changes)
@@ -131,9 +133,17 @@ def run_global_loop(
         loop_patch('system_pressure', pressure, 'global_loop_status_update'),
         loop_patch('backend_health', health, 'global_loop_status_update'),
         loop_patch('system_status', system_status, 'global_loop_status_update'),
-        loop_patch('actual_execution_frozen', bool(schedule.get('actual_execution_frozen') or health == 'unhealthy'), 'global_loop_status_update'),
+        loop_patch(
+            'actual_execution_frozen',
+            bool(schedule.get('actual_execution_frozen') or health == 'unhealthy'),
+            'global_loop_status_update',
+        ),
         loop_patch('single_goal_mode', True, 'global_loop_status_update'),
-        loop_patch('next_action', 'continue_active_goal' if active_goal and system_status == 'active' else 'human_or_scheduler_decision', 'global_loop_status_update'),
+        loop_patch(
+            'next_action',
+            'continue_active_goal' if active_goal and system_status == 'active' else 'human_or_scheduler_decision',
+            'global_loop_status_update',
+        ),
     ]
     if system_status in {'converged', 'paused', 'degraded'} and not active_goal:
         post_changes.extend(

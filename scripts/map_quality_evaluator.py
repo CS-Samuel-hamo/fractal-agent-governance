@@ -8,7 +8,6 @@ from typing import Any
 
 from runtime_common import load_json, project_root, utc_now, write_json
 
-
 VAGUE_ACTION_WORDS = {'improve', 'review', 'optimize', 'polish', 'cleanup', 'thing', 'stuff', 'misc'}
 VALID_CAPABILITY_STATUS = {'missing', 'partial', 'implemented', 'verified'}
 VALID_MODULE_STATUS = {'unknown', 'mapped', 'working', 'complete', 'risky'}
@@ -29,7 +28,11 @@ def _action_is_vague(action: dict[str, Any]) -> bool:
 
 
 def _evidence_paths(evidence_payload: dict[str, Any]) -> set[str]:
-    return {str(item.get('path') or '').replace('\\', '/') for item in evidence_payload.get('evidence') or [] if isinstance(item, dict)}
+    return {
+        str(item.get('path') or '').replace('\\', '/')
+        for item in evidence_payload.get('evidence') or []
+        if isinstance(item, dict)
+    }
 
 
 def evaluate_map(project_map: dict[str, Any], evidence_payload: dict[str, Any]) -> dict[str, Any]:
@@ -46,7 +49,7 @@ def evaluate_map(project_map: dict[str, Any], evidence_payload: dict[str, Any]) 
 
     for module in modules:
         module_id = str(module.get('module_id') or module.get('name') or '')
-        if not _has_evidence(module) or module.get('status') == 'mapped' and not module.get('key_files'):
+        if not _has_evidence(module) or (module.get('status') == 'mapped' and not module.get('key_files')):
             unsupported_modules.append(module_id)
         key_files = [str(item).replace('\\', '/') for item in module.get('key_files') or []]
         if key_files and not any(path in paths for path in key_files):
@@ -63,16 +66,27 @@ def evaluate_map(project_map: dict[str, Any], evidence_payload: dict[str, Any]) 
         if capability.get('status') in {'implemented', 'verified', 'partial'} and not _has_evidence(capability):
             unsupported_capabilities.append(capability_id)
 
-    risk_without_files = [str(item.get('risk_id') or item.get('description') or '') for item in risks if not item.get('affected_files')]
-    vague_actions = [str(item.get('action_id') or item.get('title') or '') for item in actions if _action_is_vague(item)]
+    risk_without_files = [
+        str(item.get('risk_id') or item.get('description') or '') for item in risks if not item.get('affected_files')
+    ]
+    vague_actions = [
+        str(item.get('action_id') or item.get('title') or '') for item in actions if _action_is_vague(item)
+    ]
     unsupported_actions = [
         str(item.get('action_id') or item.get('title') or '')
         for item in actions
-        if item.get('target_files') and not any(str(path).replace('\\', '/') in paths for path in item.get('target_files') or [])
+        if item.get('target_files')
+        and not any(str(path).replace('\\', '/') in paths for path in item.get('target_files') or [])
     ]
 
     total_entities = max(1, len(modules) + len(capabilities) + len(actions) + len(risks))
-    supported_entities = total_entities - len(set(unsupported_modules)) - len(set(unsupported_capabilities)) - len(vague_actions) - len(risk_without_files)
+    supported_entities = (
+        total_entities
+        - len(set(unsupported_modules))
+        - len(set(unsupported_capabilities))
+        - len(vague_actions)
+        - len(risk_without_files)
+    )
     evidence_coverage = round(max(0.0, supported_entities / total_entities), 3)
     penalties = (
         0.18 * len(set(unsupported_modules))
@@ -130,12 +144,24 @@ def main() -> int:
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    map_path = Path(args.project_map).resolve() if args.project_map else project / '.zoo-agent' / 'map' / 'project_map.json'
-    evidence_path = Path(args.evidence).resolve() if args.evidence else project / '.zoo-agent' / 'map' / 'map_evidence.json'
+    map_path = (
+        Path(args.project_map).resolve() if args.project_map else project / '.zoo-agent' / 'map' / 'project_map.json'
+    )
+    evidence_path = (
+        Path(args.evidence).resolve() if args.evidence else project / '.zoo-agent' / 'map' / 'map_evidence.json'
+    )
     payload = evaluate_map(load_json(map_path), load_json(evidence_path))
-    output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'dogfood' / 'map_quality_report.json'
+    output = (
+        Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'dogfood' / 'map_quality_report.json'
+    )
     write_json(output, payload)
-    print(json.dumps({'status': 'ok', 'map_quality_report': str(output), 'recommendation': payload['recommendation']}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'map_quality_report': str(output), 'recommendation': payload['recommendation']},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

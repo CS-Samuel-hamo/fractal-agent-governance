@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
 
 SCENARIOS = [
     'active_session',
@@ -36,7 +35,9 @@ def evidence(kind: str, path: str, summary: str, confidence: float = 0.8) -> dic
 def build_fixture_artifacts(fixture: Path) -> list[Path]:
     generated: list[Path] = []
     fixture.mkdir(parents=True, exist_ok=True)
-    (fixture / 'README.md').write_text('# Synthetic Cockpit Demo\n\nThis fixture is synthetic and safe.\n', encoding='utf-8')
+    (fixture / 'README.md').write_text(
+        '# Synthetic Cockpit Demo\n\nThis fixture is synthetic and safe.\n', encoding='utf-8'
+    )
     (fixture / 'docs').mkdir(exist_ok=True)
     (fixture / 'docs' / 'release.md').write_text('# Release Notes\n\nDraft readiness notes.\n', encoding='utf-8')
     (fixture / 'tests').mkdir(exist_ok=True)
@@ -55,20 +56,86 @@ def build_fixture_artifacts(fixture: Path) -> list[Path]:
         'project_type': 'local cli project',
         'main_goal': 'Prepare this project for a confident local alpha release.',
         'modules': [
-            {'module_id': 'module-readme', 'name': 'Project entry', 'purpose': 'Explain what the project is.', 'key_files': ['README.md'], 'status': 'mapped', 'confidence': 0.86, 'evidence': readme_ev},
-            {'module_id': 'module-docs', 'name': 'Release docs', 'purpose': 'Track readiness and examples.', 'key_files': ['docs/release.md'], 'status': 'working', 'confidence': 0.78, 'evidence': docs_ev},
-            {'module_id': 'module-tests', 'name': 'Smoke tests', 'purpose': 'Provide a quick confidence check.', 'key_files': ['tests/test_smoke.py'], 'status': 'complete', 'confidence': 0.82, 'evidence': tests_ev},
+            {
+                'module_id': 'module-readme',
+                'name': 'Project entry',
+                'purpose': 'Explain what the project is.',
+                'key_files': ['README.md'],
+                'status': 'mapped',
+                'confidence': 0.86,
+                'evidence': readme_ev,
+            },
+            {
+                'module_id': 'module-docs',
+                'name': 'Release docs',
+                'purpose': 'Track readiness and examples.',
+                'key_files': ['docs/release.md'],
+                'status': 'working',
+                'confidence': 0.78,
+                'evidence': docs_ev,
+            },
+            {
+                'module_id': 'module-tests',
+                'name': 'Smoke tests',
+                'purpose': 'Provide a quick confidence check.',
+                'key_files': ['tests/test_smoke.py'],
+                'status': 'complete',
+                'confidence': 0.82,
+                'evidence': tests_ev,
+            },
         ],
         'capabilities': [
-            {'capability_id': 'cap-missing', 'name': 'Install walkthrough', 'status': 'missing', 'evidence': [], 'related_modules': ['module-docs']},
-            {'capability_id': 'cap-partial', 'name': 'Release notes', 'status': 'partial', 'evidence': docs_ev, 'related_modules': ['module-docs']},
-            {'capability_id': 'cap-implemented', 'name': 'Project overview', 'status': 'implemented', 'evidence': readme_ev, 'related_modules': ['module-readme']},
-            {'capability_id': 'cap-verified', 'name': 'Smoke test surface', 'status': 'verified', 'evidence': tests_ev, 'related_modules': ['module-tests']},
+            {
+                'capability_id': 'cap-missing',
+                'name': 'Install walkthrough',
+                'status': 'missing',
+                'evidence': [],
+                'related_modules': ['module-docs'],
+            },
+            {
+                'capability_id': 'cap-partial',
+                'name': 'Release notes',
+                'status': 'partial',
+                'evidence': docs_ev,
+                'related_modules': ['module-docs'],
+            },
+            {
+                'capability_id': 'cap-implemented',
+                'name': 'Project overview',
+                'status': 'implemented',
+                'evidence': readme_ev,
+                'related_modules': ['module-readme'],
+            },
+            {
+                'capability_id': 'cap-verified',
+                'name': 'Smoke test surface',
+                'status': 'verified',
+                'evidence': tests_ev,
+                'related_modules': ['module-tests'],
+            },
         ],
         'risks': [
-            {'risk_id': 'risk-low-doc-gap', 'description': 'Release guide could be clearer.', 'severity': 'low', 'affected_files': ['docs/release.md'], 'evidence': docs_ev},
-            {'risk_id': 'risk-medium-test-gap', 'description': 'Only smoke-level validation is represented.', 'severity': 'medium', 'affected_files': ['tests/test_smoke.py'], 'evidence': tests_ev},
-            {'risk_id': 'risk-high-release-claim', 'description': 'Release confidence should not be claimed without review.', 'severity': 'high', 'affected_files': ['README.md', 'docs/release.md'], 'evidence': [*readme_ev, *docs_ev]},
+            {
+                'risk_id': 'risk-low-doc-gap',
+                'description': 'Release guide could be clearer.',
+                'severity': 'low',
+                'affected_files': ['docs/release.md'],
+                'evidence': docs_ev,
+            },
+            {
+                'risk_id': 'risk-medium-test-gap',
+                'description': 'Only smoke-level validation is represented.',
+                'severity': 'medium',
+                'affected_files': ['tests/test_smoke.py'],
+                'evidence': tests_ev,
+            },
+            {
+                'risk_id': 'risk-high-release-claim',
+                'description': 'Release confidence should not be claimed without review.',
+                'severity': 'high',
+                'affected_files': ['README.md', 'docs/release.md'],
+                'evidence': [*readme_ev, *docs_ev],
+            },
         ],
         'next_actions': [
             {
@@ -154,9 +221,32 @@ def build_fixture_artifacts(fixture: Path) -> list[Path]:
         'generated_by': 'cockpit_demo_fixture_builder.py',
         'synthetic_demo': True,
         'actions': [
-            {'at': utc_now(), 'action_id': 'action-readme-clarity', 'title': 'Clarify README alpha status', 'status': 'done', 'result': 'COMPLETED', 'changed_files': ['README.md'], 'checkpoint_id': 'checkpoint-0001'},
-            {'at': utc_now(), 'action_id': 'action-paused-demo', 'title': 'Pause before higher-impact release claim', 'status': 'paused', 'result': 'PAUSED_FOR_REVIEW', 'changed_files': []},
-            {'at': utc_now(), 'action_id': 'action-release-guide', 'title': 'Complete release guide outline', 'status': 'needs_attention', 'result': 'REVIEW_REQUIRED', 'changed_files': ['docs/release.md'], 'checkpoint_id': 'checkpoint-0002'},
+            {
+                'at': utc_now(),
+                'action_id': 'action-readme-clarity',
+                'title': 'Clarify README alpha status',
+                'status': 'done',
+                'result': 'COMPLETED',
+                'changed_files': ['README.md'],
+                'checkpoint_id': 'checkpoint-0001',
+            },
+            {
+                'at': utc_now(),
+                'action_id': 'action-paused-demo',
+                'title': 'Pause before higher-impact release claim',
+                'status': 'paused',
+                'result': 'PAUSED_FOR_REVIEW',
+                'changed_files': [],
+            },
+            {
+                'at': utc_now(),
+                'action_id': 'action-release-guide',
+                'title': 'Complete release guide outline',
+                'status': 'needs_attention',
+                'result': 'REVIEW_REQUIRED',
+                'changed_files': ['docs/release.md'],
+                'checkpoint_id': 'checkpoint-0002',
+            },
         ],
     }
     attention = {
@@ -173,8 +263,26 @@ def build_fixture_artifacts(fixture: Path) -> list[Path]:
         'generated_by': 'cockpit_demo_fixture_builder.py',
         'synthetic_demo': True,
         'checkpoints': [
-            {'checkpoint_id': 'checkpoint-0001', 'created_at': utc_now(), 'action_id': 'action-readme-clarity', 'title': 'Clarify README alpha status', 'git_head': 'synthetic', 'git_branch': 'synthetic-demo', 'status_short': [], 'undo_available': True},
-            {'checkpoint_id': 'checkpoint-0002', 'created_at': utc_now(), 'action_id': 'action-release-guide', 'title': 'Complete release guide outline', 'git_head': 'synthetic', 'git_branch': 'synthetic-demo', 'status_short': ['M docs/release.md'], 'undo_available': True},
+            {
+                'checkpoint_id': 'checkpoint-0001',
+                'created_at': utc_now(),
+                'action_id': 'action-readme-clarity',
+                'title': 'Clarify README alpha status',
+                'git_head': 'synthetic',
+                'git_branch': 'synthetic-demo',
+                'status_short': [],
+                'undo_available': True,
+            },
+            {
+                'checkpoint_id': 'checkpoint-0002',
+                'created_at': utc_now(),
+                'action_id': 'action-release-guide',
+                'title': 'Complete release guide outline',
+                'git_head': 'synthetic',
+                'git_branch': 'synthetic-demo',
+                'status_short': ['M docs/release.md'],
+                'undo_available': True,
+            },
         ],
     }
     map_quality = {
@@ -236,7 +344,17 @@ def main() -> int:
     args = parser.parse_args()
     project = project_root(args.workspace)
     payload = build_demo_fixture(project)
-    print(json.dumps({'status': 'ok', 'fixture_path': payload['fixture_path'], 'summary': str(project / '.zoo-agent' / 'cockpit_dogfood' / 'demo_fixture_summary.json')}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                'status': 'ok',
+                'fixture_path': payload['fixture_path'],
+                'summary': str(project / '.zoo-agent' / 'cockpit_dogfood' / 'demo_fixture_summary.json'),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

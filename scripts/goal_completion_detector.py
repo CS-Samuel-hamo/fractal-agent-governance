@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import (  # noqa: E402
+from big_task_common import (
     goal_coverage,
     load_big_task_contract,
     load_leaf_contracts,
@@ -19,8 +19,7 @@ from big_task_common import (  # noqa: E402
     parent_aggregation,
     project_root,
 )
-from runtime_common import load_json, resolve_goal, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, resolve_goal, utc_now, write_json
 
 COMPLETED_VERDICT = 'COMPLETED'
 PARTIAL_VERDICT = 'PARTIAL'
@@ -81,7 +80,9 @@ def outcome_counts(leaves: list[dict[str, Any]], outcomes: dict[str, dict[str, A
     }
 
 
-def detect_over_decomposition(loop_state: dict[str, Any], leaf_count: int, coverage_rate: float) -> tuple[bool, list[str]]:
+def detect_over_decomposition(
+    loop_state: dict[str, Any], leaf_count: int, coverage_rate: float
+) -> tuple[bool, list[str]]:
     reasons = []
     decomposition_rounds = int(loop_state.get('decomposition_rounds') or 0)
     max_decomposition_rounds = int(loop_state.get('max_decomposition_rounds') or 2)
@@ -117,9 +118,19 @@ def classify_goal_completion(
     convergence_failures = int(aggregation.get('convergence_failure_leaf_count') or 0)
     backend_failures = int(aggregation.get('backend_failure_leaf_count') or 0)
     no_delivery_count = int(aggregation.get('no_delivery_leaf_count') or 0)
-    if aggregation_verdict == 'READY_FOR_INTEGRATION_WORKTREE' and coverage_rate >= 1.0 and not missing and not unresolved_blockers:
+    if (
+        aggregation_verdict == 'READY_FOR_INTEGRATION_WORKTREE'
+        and coverage_rate >= 1.0
+        and not missing
+        and not unresolved_blockers
+    ):
         return COMPLETED_VERDICT, ['all_success_criteria_covered_by_delivered_leaf_evidence'], 'goal_completed'
-    if aggregation_verdict in {'BLOCKED', 'HUMAN_DECISION_REQUIRED'} or convergence_failures or backend_failures or unresolved_blockers:
+    if (
+        aggregation_verdict in {'BLOCKED', 'HUMAN_DECISION_REQUIRED'}
+        or convergence_failures
+        or backend_failures
+        or unresolved_blockers
+    ):
         if aggregation_verdict:
             reasons.append(f'aggregation_verdict:{aggregation_verdict}')
         if convergence_failures:
@@ -152,11 +163,17 @@ def build_goal_completion(project: Path, run_id: str, goal_id: str = '', *, max_
     convergence = load_leaf_convergence(project, run_id)
     aggregation = load_parent_aggregation(project, run_id)
     coverage = aggregation.get('root_goal_coverage') or goal_coverage(contract, leaves, outcomes)
-    loop_state = load_json(run_dir(project, run_id) / 'loop-state.json') or load_json(run_dir(project, run_id) / 'loop_state.json') or {}
+    loop_state = (
+        load_json(run_dir(project, run_id) / 'loop-state.json')
+        or load_json(run_dir(project, run_id) / 'loop_state.json')
+        or {}
+    )
     if max_iterations:
         loop_state.setdefault('max_iterations', max_iterations)
     counts = outcome_counts(leaves, outcomes)
-    over_decomposition, over_reasons = detect_over_decomposition(loop_state, len(leaves), float(coverage.get('coverage_rate') or 0.0))
+    over_decomposition, over_reasons = detect_over_decomposition(
+        loop_state, len(leaves), float(coverage.get('coverage_rate') or 0.0)
+    )
     stuck_leaf_ids = [
         str(item.get('leaf_id'))
         for item in convergence.get('resolutions') or []
@@ -250,7 +267,9 @@ def write_goal_completion(project: Path, run_id: str, payload: dict[str, Any]) -
     }
 
 
-def detect_and_write_goal_completion(project: Path, run_id: str, goal_id: str = '', *, max_iterations: int = 10) -> dict[str, Any]:
+def detect_and_write_goal_completion(
+    project: Path, run_id: str, goal_id: str = '', *, max_iterations: int = 10
+) -> dict[str, Any]:
     payload = build_goal_completion(project, run_id, goal_id, max_iterations=max_iterations)
     paths = write_goal_completion(project, run_id, payload)
     payload['paths'] = paths

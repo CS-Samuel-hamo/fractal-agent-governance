@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -8,13 +8,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -77,7 +78,22 @@ def set_docs_goal(repo: Path, *, two_criteria: bool = True) -> str:
 
 
 def decompose(repo: Path, run_id: str, goal_id: str, task: str) -> None:
-    run([sys.executable, str(AGENT), 'decompose', task, '--workspace', str(repo), '--run-id', run_id, '--goal-id', goal_id], repo, check=False)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            task,
+            '--workspace',
+            str(repo),
+            '--run-id',
+            run_id,
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+    )
 
 
 def test_completed_goal_loop() -> None:
@@ -87,7 +103,20 @@ def test_completed_goal_loop() -> None:
     result_dir = repo / '.zoo-agent' / 'runs' / 'run-complete' / 'leaf-results'
     write_json(result_dir / 'leaf-001.json', {'delivery_outcome': 'delivered'})
     write_json(result_dir / 'leaf-002.json', {'delivery_outcome': 'delivered'})
-    run([sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', 'run-complete', '--goal-id', goal_id], repo)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'aggregate',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-complete',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+    )
     matrix = load(repo / '.zoo-agent' / 'runs' / 'run-complete' / 'goal-coverage-matrix.json')
     goal_state = load(repo / '.zoo-agent' / 'goal' / 'goal_state.json')
     loop_report = load(repo / '.zoo-agent' / 'runs' / 'run-complete' / 'goal-loop-report.json')
@@ -104,23 +133,64 @@ def test_partial_goal_enters_next_decomposition_loop() -> None:
     repo = init_repo('partial')
     goal_id = set_docs_goal(repo)
     decompose(repo, 'run-partial', goal_id, 'update docs/a.md docs/b.md')
-    write_json(repo / '.zoo-agent' / 'runs' / 'run-partial' / 'leaf-results' / 'leaf-001.json', {'delivery_outcome': 'delivered'})
-    proc = run([sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', 'run-partial', '--goal-id', goal_id], repo, check=False)
+    write_json(
+        repo / '.zoo-agent' / 'runs' / 'run-partial' / 'leaf-results' / 'leaf-001.json',
+        {'delivery_outcome': 'delivered'},
+    )
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'aggregate',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-partial',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+    )
     assert proc.returncode == 10
     matrix = load(repo / '.zoo-agent' / 'runs' / 'run-partial' / 'goal-coverage-matrix.json')
     loop_report = load(repo / '.zoo-agent' / 'runs' / 'run-partial' / 'goal-loop-report.json')
     assert matrix['goal_completion_verdict'] in {'PARTIAL', 'NEEDS_REPLAN'}
     assert loop_report['loop_status'] == 'active'
-    assert loop_report['next_action'] in {'next_decomposition_loop', 'continue_goal_driven_loop_or_refine_required_leaf'}
+    assert loop_report['next_action'] in {
+        'next_decomposition_loop',
+        'continue_goal_driven_loop_or_refine_required_leaf',
+    }
 
 
 def test_max_iteration_forces_human_loop_decision() -> None:
     repo = init_repo('max-iteration')
     goal_id = set_docs_goal(repo)
     decompose(repo, 'run-max', goal_id, 'update docs/a.md docs/b.md')
-    write_json(repo / '.zoo-agent' / 'runs' / 'run-max' / 'leaf-results' / 'leaf-001.json', {'delivery_outcome': 'delivered'})
-    write_json(repo / '.zoo-agent' / 'runs' / 'run-max' / 'loop-state.json', {'iteration': 10, 'max_iterations': 10, 'status': 'active'})
-    proc = run([sys.executable, str(AGENT), 'goal-loop', '--workspace', str(repo), '--run-id', 'run-max', '--goal-id', goal_id, '--max-iterations', '10'], repo, check=False)
+    write_json(
+        repo / '.zoo-agent' / 'runs' / 'run-max' / 'leaf-results' / 'leaf-001.json', {'delivery_outcome': 'delivered'}
+    )
+    write_json(
+        repo / '.zoo-agent' / 'runs' / 'run-max' / 'loop-state.json',
+        {'iteration': 10, 'max_iterations': 10, 'status': 'active'},
+    )
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'goal-loop',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-max',
+            '--goal-id',
+            goal_id,
+            '--max-iterations',
+            '10',
+        ],
+        repo,
+        check=False,
+    )
     assert proc.returncode == 10
     report = load(repo / '.zoo-agent' / 'runs' / 'run-max' / 'goal-loop-report.json')
     goal_state = load(repo / '.zoo-agent' / 'goal' / 'goal_state.json')

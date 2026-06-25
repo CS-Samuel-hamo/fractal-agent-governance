@@ -10,11 +10,19 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import load_store, write_store  # noqa: E402
-from runtime_common import load_json, project_root  # noqa: E402
+from cross_project_store import load_store, write_store
+from runtime_common import load_json, project_root
 
 
-def insight(insight_id: str, kind: str, applies_to: str, message: str, evidence: list[dict[str, Any]], confidence: float, effect: str) -> dict[str, Any]:
+def insight(
+    insight_id: str,
+    kind: str,
+    applies_to: str,
+    message: str,
+    evidence: list[dict[str, Any]],
+    confidence: float,
+    effect: str,
+) -> dict[str, Any]:
     if confidence < 0.5 and effect == 'boost':
         effect = 'warn'
     return {
@@ -36,10 +44,15 @@ def build_insights(project: Path) -> dict[str, Any]:
     project_map = load_json(project / '.zoo-agent' / 'map' / 'project_map.json')
     insights = []
     for pattern in sorted(patterns, key=lambda item: item.get('confidence', 0), reverse=True)[:5]:
-        effect = 'boost' if float(pattern.get('confidence') or 0) >= 0.5 and pattern.get('recommended_next_action_type') != 'failure_warning' else 'warn'
+        effect = (
+            'boost'
+            if float(pattern.get('confidence') or 0) >= 0.5
+            and pattern.get('recommended_next_action_type') != 'failure_warning'
+            else 'warn'
+        )
         insights.append(
             insight(
-                f"insight-{pattern.get('pattern_id')}",
+                f'insight-{pattern.get("pattern_id")}',
                 'next_action_boost' if effect == 'boost' else 'next_action_warning',
                 str(pattern.get('recommended_next_action_type') or ''),
                 str(pattern.get('why_it_works') or pattern.get('situation') or ''),
@@ -48,20 +61,30 @@ def build_insights(project: Path) -> dict[str, Any]:
                 effect,
             )
         )
-    template = next((item for item in templates if item.get('template_id') in {'agent_runtime_release', 'cli_tool_release'}), templates[0] if templates else {})
+    template = next(
+        (item for item in templates if item.get('template_id') in {'agent_runtime_release', 'cli_tool_release'}),
+        templates[0] if templates else {},
+    )
     if template:
         insights.append(
             insight(
-                f"insight-template-{template.get('template_id')}",
+                f'insight-template-{template.get("template_id")}',
                 'readiness_template',
                 str(template.get('goal') or 'release'),
-                f"Use {template.get('template_id')} as a local readiness path.",
+                f'Use {template.get("template_id")} as a local readiness path.',
                 [{'template_id': template.get('template_id')}],
                 float(template.get('confidence') or 0.5),
                 'warn' if float(template.get('confidence') or 0) < 0.5 else 'boost',
             )
         )
-    preferred = next((item for item in worker_memory if item.get('recommended_use') == 'prefer' and item.get('worker_role') == 'local_scanner'), None)
+    preferred = next(
+        (
+            item
+            for item in worker_memory
+            if item.get('recommended_use') == 'prefer' and item.get('worker_role') == 'local_scanner'
+        ),
+        None,
+    )
     if preferred:
         insights.append(
             insight(
@@ -88,8 +111,20 @@ def build_insights(project: Path) -> dict[str, Any]:
             )
         )
     if project_map.get('next_actions') and not insights:
-        insights.append(insight('insight-uncertain', 'next_action_warning', 'project', 'No strong cross-project pattern yet; continue collecting local session evidence.', [{'source': 'current_project_map'}], 0.3, 'warn'))
-    return write_store(project, 'learning_insights', {'generated_by': 'cross_project_insight_engine.py', 'insights': insights})
+        insights.append(
+            insight(
+                'insight-uncertain',
+                'next_action_warning',
+                'project',
+                'No strong cross-project pattern yet; continue collecting local session evidence.',
+                [{'source': 'current_project_map'}],
+                0.3,
+                'warn',
+            )
+        )
+    return write_store(
+        project, 'learning_insights', {'generated_by': 'cross_project_insight_engine.py', 'insights': insights}
+    )
 
 
 def main() -> int:

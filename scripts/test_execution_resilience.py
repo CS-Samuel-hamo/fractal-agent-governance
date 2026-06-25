@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -6,19 +6,22 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-import pipeline_executor  # noqa: E402
-from execution_health_scoring import score_execution_health  # noqa: E402
-from execution_result_model import build_execution_result_model  # noqa: E402
+import pipeline_executor
+from execution_health_scoring import score_execution_health
+from execution_result_model import build_execution_result_model
 
 
 def run(cmd: list[str], cwd: Path) -> None:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     if proc.returncode:
         raise AssertionError(proc.stdout)
 
@@ -30,7 +33,9 @@ def temp_repo() -> Path:
     (repo / 'src').mkdir()
     (repo / 'tests').mkdir()
     (repo / 'src' / 'app.py').write_text('def add(a, b):\n    return a + b\n', encoding='utf-8')
-    (repo / 'tests' / 'test_app.py').write_text('from src.app import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n', encoding='utf-8')
+    (repo / 'tests' / 'test_app.py').write_text(
+        'from src.app import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n', encoding='utf-8'
+    )
     run(['git', 'init'], repo)
     run(['git', 'config', 'user.email', 'execution@example.local'], repo)
     run(['git', 'config', 'user.name', 'Execution Resilience Test'], repo)
@@ -111,9 +116,19 @@ def test_timeout_retry_success() -> None:
     def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
         calls['count'] += 1
         if calls['count'] == 1:
-            return {'returncode': 124, 'stdout_tail': '{"status":"timeout","returncode":124}', 'stderr_tail': '', 'duration_seconds': 120.0}
+            return {
+                'returncode': 124,
+                'stdout_tail': '{"status":"timeout","returncode":124}',
+                'stderr_tail': '',
+                'duration_seconds': 120.0,
+            }
         (workspace / 'README.md').write_text('# Demo\n\nInitial.\n\nRetry delivered.\n', encoding='utf-8')
-        return {'returncode': 0, 'stdout_tail': '{"status":"succeeded","returncode":0}', 'stderr_tail': '', 'duration_seconds': 1.0}
+        return {
+            'returncode': 0,
+            'stdout_tail': '{"status":"succeeded","returncode":0}',
+            'stderr_tail': '',
+            'duration_seconds': 1.0,
+        }
 
     result = execute_with_fake(plan, fake)
     leaf = result['leaf_results'][0]
@@ -128,8 +143,15 @@ def test_partial_execution_detection() -> None:
     plan = write_plan(repo, 'partial', 'add multiply and test', ['src/app.py', 'tests/test_app.py'])
 
     def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
-        (workspace / 'src' / 'app.py').write_text('def add(a, b):\n    return a + b\n\n\ndef multiply(a, b):\n    return a * b\n', encoding='utf-8')
-        return {'returncode': 0, 'stdout_tail': '{"status":"succeeded","returncode":0}', 'stderr_tail': '', 'duration_seconds': 1.0}
+        (workspace / 'src' / 'app.py').write_text(
+            'def add(a, b):\n    return a + b\n\n\ndef multiply(a, b):\n    return a * b\n', encoding='utf-8'
+        )
+        return {
+            'returncode': 0,
+            'stdout_tail': '{"status":"succeeded","returncode":0}',
+            'stderr_tail': '',
+            'duration_seconds': 1.0,
+        }
 
     result = execute_with_fake(plan, fake, max_retries=0)
     leaf = result['leaf_results'][0]
@@ -143,7 +165,12 @@ def test_fallback_chain_activation() -> None:
     plan = write_plan(repo, 'fallback', 'append a line to README.md', ['README.md'])
 
     def fake(*, workspace: Path, task_dir: Path, sandbox: str, timeout_seconds: int, dry_run: bool) -> dict[str, Any]:
-        return {'returncode': 124, 'stdout_tail': '{"status":"timeout","returncode":124}', 'stderr_tail': '', 'duration_seconds': 120.0}
+        return {
+            'returncode': 124,
+            'stdout_tail': '{"status":"timeout","returncode":124}',
+            'stderr_tail': '',
+            'duration_seconds': 120.0,
+        }
 
     result = execute_with_fake(plan, fake, max_retries=1)
     leaf = result['leaf_results'][0]
@@ -161,12 +188,27 @@ def test_execution_split_success() -> None:
         calls['count'] += 1
         prompt = (task_dir / 'CODEX_TASK_PROMPT.md').read_text(encoding='utf-8')
         if calls['count'] == 1:
-            return {'returncode': 124, 'stdout_tail': '{"status":"timeout","returncode":124}', 'stderr_tail': '', 'duration_seconds': 120.0}
+            return {
+                'returncode': 124,
+                'stdout_tail': '{"status":"timeout","returncode":124}',
+                'stderr_tail': '',
+                'duration_seconds': 120.0,
+            }
         if 'src/app.py' in prompt:
-            (workspace / 'src' / 'app.py').write_text('def add(a, b):\n    return a + b\n\n\ndef multiply(a, b):\n    return a * b\n', encoding='utf-8')
+            (workspace / 'src' / 'app.py').write_text(
+                'def add(a, b):\n    return a + b\n\n\ndef multiply(a, b):\n    return a * b\n', encoding='utf-8'
+            )
         if 'tests/test_app.py' in prompt:
-            (workspace / 'tests' / 'test_app.py').write_text('from src.app import add, multiply\n\n\ndef test_add():\n    assert add(1, 2) == 3\n\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n', encoding='utf-8')
-        return {'returncode': 0, 'stdout_tail': '{"status":"succeeded","returncode":0}', 'stderr_tail': '', 'duration_seconds': 1.0}
+            (workspace / 'tests' / 'test_app.py').write_text(
+                'from src.app import add, multiply\n\n\ndef test_add():\n    assert add(1, 2) == 3\n\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n',
+                encoding='utf-8',
+            )
+        return {
+            'returncode': 0,
+            'stdout_tail': '{"status":"succeeded","returncode":0}',
+            'stderr_tail': '',
+            'duration_seconds': 1.0,
+        }
 
     result = execute_with_fake(plan, fake, max_retries=0)
     leaf = result['leaf_results'][0]
@@ -187,7 +229,9 @@ def test_health_scoring_downgrade() -> None:
 
 
 def test_returncode_zero_no_diff_not_success() -> None:
-    model = build_execution_result_model(task_id='leaf-001', backend_returncode=0, worker_status='succeeded', business_changed_files=[])
+    model = build_execution_result_model(
+        task_id='leaf-001', backend_returncode=0, worker_status='succeeded', business_changed_files=[]
+    )
     assert model['execution_status'] == 'failed'
     assert model['reason'] == 'returncode_zero_without_business_diff'
 

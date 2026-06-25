@@ -12,9 +12,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-from worker_adapter_contract import worker_contract  # noqa: E402
-
+from runtime_common import project_root, utc_now, write_json
+from worker_adapter_contract import worker_contract
 
 COMMAND_CANDIDATES = ['claude', 'claude-code']
 
@@ -27,8 +26,7 @@ def safe_probe(command: str) -> dict[str, Any]:
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 timeout=4,
             )
             text = (proc.stdout or proc.stderr).strip().splitlines()

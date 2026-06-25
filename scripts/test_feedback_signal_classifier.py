@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_intake_schema import FEEDBACK_DIR, validate_item, write_schema  # noqa: E402
-from feedback_signal_classifier import classify  # noqa: E402
+from feedback_intake_schema import FEEDBACK_DIR, validate_item, write_schema
+from feedback_signal_classifier import classify
 
 
 def write_items(project: Path) -> None:

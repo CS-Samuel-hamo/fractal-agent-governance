@@ -11,10 +11,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from default_branch_advisor import RECOMMENDED_DEFAULT_BRANCH, advise  # noqa: E402
-from publishing_command_linter import lint_project  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from default_branch_advisor import RECOMMENDED_DEFAULT_BRANCH, advise
+from publishing_command_linter import lint_project
+from runtime_common import project_root, utc_now, write_json
 
 EXPECTED_TAG = 'v1.0.0-alpha.1'
 POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
@@ -22,8 +21,21 @@ POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
 
 def run_git(project: Path, args: list[str], timeout: int = 30) -> dict[str, Any]:
     try:
-        proc = subprocess.run(['git', *args], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
-        return {'ok': proc.returncode == 0, 'stdout': proc.stdout.strip(), 'stderr': proc.stderr.strip(), 'returncode': proc.returncode}
+        proc = subprocess.run(
+            ['git', *args],
+            cwd=project,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+            timeout=timeout,
+        )
+        return {
+            'ok': proc.returncode == 0,
+            'stdout': proc.stdout.strip(),
+            'stderr': proc.stderr.strip(),
+            'returncode': proc.returncode,
+        }
     except Exception as exc:
         return {'ok': False, 'stdout': '', 'stderr': str(exc), 'returncode': 1}
 
@@ -53,7 +65,9 @@ def fast_forward_safe(project: Path) -> bool:
     return bool(run_git(project, ['merge-base', '--is-ancestor', 'origin/master', 'master'], timeout=10).get('ok'))
 
 
-def audit(project: Path, *, release_branch: str = RECOMMENDED_DEFAULT_BRANCH, expected_tag: str = EXPECTED_TAG) -> dict[str, Any]:
+def audit(
+    project: Path, *, release_branch: str = RECOMMENDED_DEFAULT_BRANCH, expected_tag: str = EXPECTED_TAG
+) -> dict[str, Any]:
     current = run_git(project, ['branch', '--show-current'], timeout=10).get('stdout') or 'unknown'
     main = branch_exists(project, 'main')
     master = branch_exists(project, 'master')
@@ -77,7 +91,11 @@ def audit(project: Path, *, release_branch: str = RECOMMENDED_DEFAULT_BRANCH, ex
         score -= 0.05
     score = round(max(score, 0.0), 3)
 
-    if lint.get('hardcoded_main_push_detected') or lint.get('force_push_detected') or lint.get('unsafe_github_write_detected'):
+    if (
+        lint.get('hardcoded_main_push_detected')
+        or lint.get('force_push_detected')
+        or lint.get('unsafe_github_write_detected')
+    ):
         recommendation = 'fix_docs'
     elif not release or not tag:
         recommendation = 'fail'

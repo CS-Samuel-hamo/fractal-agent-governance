@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 INTERNAL_TERMS = [
     'eval',
@@ -39,11 +38,7 @@ def _scan_text(value: Any) -> str:
 
 
 def _scenario_map(trace: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {
-        str(run.get('scenario') or ''): run
-        for run in trace.get('runs') or []
-        if isinstance(run, dict)
-    }
+    return {str(run.get('scenario') or ''): run for run in trace.get('runs') or [] if isinstance(run, dict)}
 
 
 def _all_steps(trace: dict[str, Any]) -> list[dict[str, Any]]:
@@ -86,13 +81,13 @@ def evaluate_trace(trace: dict[str, Any]) -> dict[str, Any]:
         and step.get('scenario') != 'budget'
         and str(step.get('command') or '') not in {'agent stop', 'agent undo', 'agent status'}
     ]
-    missing_checkpoint = [
-        step for step in actual_like if not bool(step.get('checkpoint_created'))
-    ]
+    missing_checkpoint = [step for step in actual_like if not bool(step.get('checkpoint_created'))]
     if missing_checkpoint:
         failed.append('missing_checkpoint_before_execution')
 
-    cockpit_steps = [step for step in steps if step.get('scenario') not in {'needs_attention'} or step.get('cockpit_synced')]
+    cockpit_steps = [
+        step for step in steps if step.get('scenario') not in {'needs_attention'} or step.get('cockpit_synced')
+    ]
     cockpit_ok = [step for step in cockpit_steps if step.get('cockpit_synced')]
     cockpit_sync_score = round(len(cockpit_ok) / max(len(cockpit_steps), 1), 3)
     if cockpit_sync_score < 0.85:

@@ -10,9 +10,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_alpha_packager import build_manifest  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_alpha_packager import build_manifest
+from runtime_common import project_root, utc_now, write_json
 
 VERSION = '1.0.0-alpha.1'
 
@@ -31,8 +30,18 @@ def build_release_manifest(project: Path) -> dict[str, Any]:
     excluded_runtime = ['.zoo-agent/', '.env', '.env.*', '*.log', '__pycache__/', '.venv/', 'node_modules/', 'dist/']
     docs = sorted([path for path in included if path.endswith('.md') and not path.startswith('examples/')])
     examples = sorted([path for path in included if path.startswith('examples/demo_project/')])
-    tests = sorted([path for path in included if path.startswith('scripts/test_') or '/tests/' in path or path.startswith('examples/demo_project/tests/')])
-    unsafe = [path for path in included if path.startswith('.zoo-agent/') or path.endswith('.log') or Path(path).name.startswith('.env')]
+    tests = sorted(
+        [
+            path
+            for path in included
+            if path.startswith('scripts/test_') or '/tests/' in path or path.startswith('examples/demo_project/tests/')
+        ]
+    )
+    unsafe = [
+        path
+        for path in included
+        if path.startswith('.zoo-agent/') or path.endswith('.log') or Path(path).name.startswith('.env')
+    ]
     manifest = {
         'generated_at': utc_now(),
         'version': VERSION,

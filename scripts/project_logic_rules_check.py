@@ -8,7 +8,6 @@ from typing import Any
 
 from runtime_common import load_json, project_root, utc_now, write_json
 
-
 EXPECTED_DOCS = {
     'project_beginning_prompt.md': 'seed_prompt',
     'docs/project_plan.md': 'project_plan',
@@ -33,8 +32,16 @@ EXPECTED_LINKS = [
     ('docs/research_workflow.md', 'docs/prompt_templates.md', 'workflow should use prompt templates'),
     ('docs/research_workflow.md', 'docs/workflow_checklist.md', 'workflow should be executable as a checklist'),
     ('docs/prompt_templates.md', 'docs/output_schema.md', 'templates should produce the declared output schema'),
-    ('docs/literature_search_protocol.md', 'docs/literature_matrix_template.md', 'search protocol should feed the literature matrix'),
-    ('docs/evidence_plan.md', 'docs/evidence_quality_standard.md', 'evidence plan should follow evidence quality standards'),
+    (
+        'docs/literature_search_protocol.md',
+        'docs/literature_matrix_template.md',
+        'search protocol should feed the literature matrix',
+    ),
+    (
+        'docs/evidence_plan.md',
+        'docs/evidence_quality_standard.md',
+        'evidence plan should follow evidence quality standards',
+    ),
     ('docs/evidence_quality_standard.md', 'docs/review_rubric.md', 'rubric should evaluate evidence quality'),
     ('docs/failure_modes.md', 'docs/red_team_review_template.md', 'red-team review should cover known failure modes'),
     ('docs/validation_checklist.md', 'docs/red_team_review_template.md', 'validation should feed red-team review'),
@@ -92,13 +99,12 @@ def build_rules_check(project: Path) -> dict[str, Any]:
     standards = load_json(project / '.zoo-agent' / 'code-standards.json')
     agents = _read_lower(project, 'AGENTS.md')
     doc_rule_text = '\n'.join(_read_lower(project, rel) for rel in EXPECTED_DOCS if _exists(project, rel))
-    forbidden_actions = standards.get('forbidden_actions') if isinstance(standards.get('forbidden_actions'), list) else []
+    forbidden_actions = (
+        standards.get('forbidden_actions') if isinstance(standards.get('forbidden_actions'), list) else []
+    )
     done_criteria = standards.get('done_criteria') if isinstance(standards.get('done_criteria'), list) else []
     combined = '\n'.join([agents, json.dumps(standards, ensure_ascii=False).lower(), doc_rule_text])
-    coverage = {
-        key: any(signal.lower() in combined for signal in signals)
-        for key, signals in RULE_KEYWORDS.items()
-    }
+    coverage = {key: any(signal.lower() in combined for signal in signals) for key, signals in RULE_KEYWORDS.items()}
     docs_rule_present = any(coverage.values())
     checks = [
         {'name': 'AGENTS.md', 'status': 'present' if agents else 'missing', 'path': 'AGENTS.md'},

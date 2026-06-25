@@ -1,26 +1,52 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
-from runtime_common import load_json, project_root, resolve_goal, safe_name, utc_now, write_json
-
+from runtime_common import load_json, resolve_goal, safe_name, utc_now, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 
 BIG_TASK_TERMS = [
-    'architecture', 'architectural', 'system', 'project', 'multi-module', 'cross-module',
-    'end-to-end', 'e2e', 'refactor', 'migration', 'migrate', 'database', 'schema',
-    'public api', 'api response', 'dto', 'auth', 'security', 'integration',
+    'architecture',
+    'architectural',
+    'system',
+    'project',
+    'multi-module',
+    'cross-module',
+    'end-to-end',
+    'e2e',
+    'refactor',
+    'migration',
+    'migrate',
+    'database',
+    'schema',
+    'public api',
+    'api response',
+    'dto',
+    'auth',
+    'security',
+    'integration',
 ]
 HIGH_RISK_TERMS = [
-    'database', 'schema', 'migration', 'auth', 'security', 'public api', 'api response',
-    'deployment', 'production', 'release', 'permission', 'token', 'secret',
+    'database',
+    'schema',
+    'migration',
+    'auth',
+    'security',
+    'public api',
+    'api response',
+    'deployment',
+    'production',
+    'release',
+    'permission',
+    'token',
+    'secret',
 ]
 CRITICAL_RISK_TERMS = ['production migration', 'deploy', 'release', 'delete data', 'payment']
 DOC_TERMS = ['docs', 'documentation', 'readme', '.md']
@@ -48,12 +74,26 @@ def rel(project: Path, path: Path) -> str:
 
 
 def git_head(project: Path) -> str:
-    proc = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        ['git', 'rev-parse', 'HEAD'],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return proc.stdout.strip() if proc.returncode == 0 else ''
 
 
 def is_git_repo(project: Path) -> bool:
-    proc = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'],
+        cwd=project,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     return proc.returncode == 0
 
 
@@ -143,7 +183,12 @@ def rollback_capability(project: Path) -> str:
 
 
 def architecture_known(project: Path) -> bool:
-    candidates = ['docs/architecture.md', 'ARCHITECTURE.md', '.zoo-agent/project-map.json', '.zoo-agent/project-resource-map.json']
+    candidates = [
+        'docs/architecture.md',
+        'ARCHITECTURE.md',
+        '.zoo-agent/project-map.json',
+        '.zoo-agent/project-resource-map.json',
+    ]
     return any((project / item).exists() for item in candidates)
 
 
@@ -196,7 +241,9 @@ def classify_readiness(contract: dict[str, Any]) -> tuple[str, str, list[str], s
     risk = contract.get('risk_level') or 'medium'
     backend = load_json(Path(str(contract.get('backend_profile_ref')))) if contract.get('backend_profile_ref') else {}
     backend_status = str(backend.get('health_status') or 'unknown')
-    readiness = load_json(Path(str(contract.get('project_readiness_ref')))) if contract.get('project_readiness_ref') else {}
+    readiness = (
+        load_json(Path(str(contract.get('project_readiness_ref')))) if contract.get('project_readiness_ref') else {}
+    )
     test_status = contract.get('test_capability') or 'unknown'
     rollback_status = contract.get('rollback_capability') or 'unknown'
     criteria = [item for item in contract.get('success_criteria') or [] if str(item).strip()]
@@ -206,7 +253,9 @@ def classify_readiness(contract: dict[str, Any]) -> tuple[str, str, list[str], s
         if isinstance(raw_blockers, list):
             for item in raw_blockers:
                 if isinstance(item, dict) and item.get('severity') == 'blocking':
-                    readiness_blockers.append(str(item.get('type') or item.get('message') or 'project_readiness_blocker'))
+                    readiness_blockers.append(
+                        str(item.get('type') or item.get('message') or 'project_readiness_blocker')
+                    )
                 elif isinstance(item, str):
                     readiness_blockers.append(item)
         for key in ['safe_for_bootstrap', 'safe_for_level_0_1_trial', 'safe_for_codex_actual_run']:
@@ -218,26 +267,61 @@ def classify_readiness(contract: dict[str, Any]) -> tuple[str, str, list[str], s
         return 'BLOCKED_GOAL_UNCLEAR', 'blocked', blockers, 'Set an explicit /goal with success criteria and non-goals.'
     if readiness_blockers:
         blockers.extend(f'project_not_ready:{item}' for item in readiness_blockers)
-        return 'BLOCKED_PROJECT_NOT_READY', 'blocked', blockers, 'Resolve project readiness blockers before big task decomposition.'
+        return (
+            'BLOCKED_PROJECT_NOT_READY',
+            'blocked',
+            blockers,
+            'Resolve project readiness blockers before big task decomposition.',
+        )
     if risk in {'high', 'critical'}:
         blockers.append('high_or_critical_risk_requires_human_gate')
-        return 'BLOCKED_HIGH_RISK_HUMAN_GATE', 'blocked', blockers, 'Use GPT/human architecture review before leaf execution.'
+        return (
+            'BLOCKED_HIGH_RISK_HUMAN_GATE',
+            'blocked',
+            blockers,
+            'Use GPT/human architecture review before leaf execution.',
+        )
     if not contract.get('architecture_known') and len(contract.get('affected_domains') or []) > 1:
         blockers.append('architecture_unknown_for_cross_domain_change')
-        return 'READY_FOR_DECOMPOSITION_ONLY', 'decomposition_only', blockers, 'Generate leaf contracts; do not execute leaves yet.'
+        return (
+            'READY_FOR_DECOMPOSITION_ONLY',
+            'decomposition_only',
+            blockers,
+            'Generate leaf contracts; do not execute leaves yet.',
+        )
     if not criteria:
         blockers.append('success_criteria_not_verifiable')
-        return 'READY_FOR_DECOMPOSITION_ONLY', 'decomposition_only', blockers, 'Clarify success criteria before leaf dry-run.'
+        return (
+            'READY_FOR_DECOMPOSITION_ONLY',
+            'decomposition_only',
+            blockers,
+            'Clarify success criteria before leaf dry-run.',
+        )
     if backend_status not in {'healthy', 'healthy_with_warnings'}:
         blockers.append(f'backend_not_ready:{backend_status}')
-        return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Use dry-run/manual task packs until backend health is healthy enough for actual execution.'
+        return (
+            'READY_FOR_LEAF_DRY_RUN',
+            'leaf_dry_run',
+            blockers,
+            'Use dry-run/manual task packs until backend health is healthy enough for actual execution.',
+        )
     if test_status == 'unknown':
         blockers.append('testability_unknown')
         return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Leaf actual requires known or explicit test policy.'
     if rollback_status == 'unknown':
         blockers.append('rollback_unknown')
-        return 'READY_FOR_LEAF_DRY_RUN', 'leaf_dry_run', blockers, 'Leaf actual requires git rollback/worktree capability.'
-    return 'READY_FOR_LEAF_ACTUAL_WITH_CONFIRMATION', 'leaf_actual_allowed', blockers, 'Leaf actual is allowed only with --allow-leaf-actual and ready low-risk leaves.'
+        return (
+            'READY_FOR_LEAF_DRY_RUN',
+            'leaf_dry_run',
+            blockers,
+            'Leaf actual requires git rollback/worktree capability.',
+        )
+    return (
+        'READY_FOR_LEAF_ACTUAL_WITH_CONFIRMATION',
+        'leaf_actual_allowed',
+        blockers,
+        'Leaf actual is allowed only with --allow-leaf-actual and ready low-risk leaves.',
+    )
 
 
 def decomposition_gate(contract: dict[str, Any]) -> tuple[bool, list[str]]:
@@ -288,7 +372,8 @@ def build_big_task_contract(project: Path, run_id: str, raw_input: str, goal_id:
         'rollback_capability': rollback_capability(project),
         'affected_domains': domains,
         'affected_resources': paths,
-        'requires_architecture_decision': len(domains) > 1 or any(item in domains for item in ['api_contract', 'database', 'auth_security']),
+        'requires_architecture_decision': len(domains) > 1
+        or any(item in domains for item in ['api_contract', 'database', 'auth_security']),
         'requires_human_gate': risk_level(raw_input, paths) in {'high', 'critical'},
         'allowed_execution_mode': 'decomposition_only',
         'blocking_reasons': [],
@@ -297,7 +382,14 @@ def build_big_task_contract(project: Path, run_id: str, raw_input: str, goal_id:
         'loop_state': loop_state,
     }
     verdict, mode, blockers, next_action = classify_readiness(contract)
-    contract.update({'readiness_verdict': verdict, 'allowed_execution_mode': mode, 'blocking_reasons': sorted(set(blockers)), 'next_action': next_action})
+    contract.update(
+        {
+            'readiness_verdict': verdict,
+            'allowed_execution_mode': mode,
+            'blocking_reasons': sorted(set(blockers)),
+            'next_action': next_action,
+        }
+    )
     return contract
 
 
@@ -305,11 +397,11 @@ def render_contract_md(contract: dict[str, Any]) -> str:
     lines = [
         '# Big Task Contract',
         '',
-        f"- run_id: {contract.get('run_id')}",
-        f"- goal_id: {contract.get('goal_id') or 'missing'}",
-        f"- readiness_verdict: {contract.get('readiness_verdict')}",
-        f"- allowed_execution_mode: {contract.get('allowed_execution_mode')}",
-        f"- risk_level: {contract.get('risk_level')}",
+        f'- run_id: {contract.get("run_id")}',
+        f'- goal_id: {contract.get("goal_id") or "missing"}',
+        f'- readiness_verdict: {contract.get("readiness_verdict")}',
+        f'- allowed_execution_mode: {contract.get("allowed_execution_mode")}',
+        f'- risk_level: {contract.get("risk_level")}',
         '',
         '## Root Goal',
         '',
@@ -317,19 +409,19 @@ def render_contract_md(contract: dict[str, Any]) -> str:
         '',
         '## Success Criteria',
         '',
-        *[f"- {item}" for item in contract.get('success_criteria') or ['MISSING_VERIFIABLE_CRITERIA']],
+        *[f'- {item}' for item in contract.get('success_criteria') or ['MISSING_VERIFIABLE_CRITERIA']],
         '',
         '## Non-goals',
         '',
-        *[f"- {item}" for item in contract.get('non_goals') or ['WARNING: non_goals_missing']],
+        *[f'- {item}' for item in contract.get('non_goals') or ['WARNING: non_goals_missing']],
         '',
         '## Affected Resources',
         '',
-        *[f"- {item}" for item in contract.get('affected_resources') or ['unknown']],
+        *[f'- {item}' for item in contract.get('affected_resources') or ['unknown']],
         '',
         '## Blocking Reasons',
         '',
-        *[f"- {item}" for item in contract.get('blocking_reasons') or ['none']],
+        *[f'- {item}' for item in contract.get('blocking_reasons') or ['none']],
         '',
         '## Policy',
         '',
@@ -396,7 +488,13 @@ def generate_resource_map(project: Path, raw_input: str = '') -> dict[str, Any]:
     if not resources:
         unknowns.append('no_explicit_resources_detected')
     confidence = 'low' if unknowns or any('*' in path for path in paths) else 'medium'
-    return {'project_root': str(project), 'created_at': utc_now(), 'confidence': confidence, 'resources': resources, 'unknowns': unknowns}
+    return {
+        'project_root': str(project),
+        'created_at': utc_now(),
+        'confidence': confidence,
+        'resources': resources,
+        'unknowns': unknowns,
+    }
 
 
 def write_resource_map(project: Path, resource_map: dict[str, Any]) -> dict[str, str]:
@@ -408,12 +506,21 @@ def write_resource_map(project: Path, resource_map: dict[str, Any]) -> dict[str,
 
 
 def render_resource_map_md(resource_map: dict[str, Any]) -> str:
-    lines = ['# Semantic Resource Map', '', f"- confidence: {resource_map.get('confidence')}", '', '## Resources']
+    lines = ['# Semantic Resource Map', '', f'- confidence: {resource_map.get("confidence")}', '', '## Resources']
     for item in resource_map.get('resources') or []:
-        lines.append(f"- {item.get('resource_id')}: {item.get('type')} `{item.get('name')}` confidence={item.get('confidence')}")
+        lines.append(
+            f'- {item.get("resource_id")}: {item.get("type")} `{item.get("name")}` confidence={item.get("confidence")}'
+        )
     if resource_map.get('unknowns'):
-        lines.extend(['', '## Unknowns', *[f"- {item}" for item in resource_map.get('unknowns') or []]])
-    lines.extend(['', '## Boundary', '', '- This lightweight map uses paths and task text only; secret file contents are not read.'])
+        lines.extend(['', '## Unknowns', *[f'- {item}' for item in resource_map.get('unknowns') or []]])
+    lines.extend(
+        [
+            '',
+            '## Boundary',
+            '',
+            '- This lightweight map uses paths and task text only; secret file contents are not read.',
+        ]
+    )
     return '\n'.join(lines) + '\n'
 
 
@@ -423,7 +530,9 @@ def leaf_task_type(objective: str, allowed_files: list[str]) -> str:
         return 'review'
     if any(term in surface for term in ['research', 'investigate']):
         return 'research'
-    if any(term in surface for term in DOC_TERMS) or all(path.endswith('.md') or path.startswith('docs/') for path in allowed_files if path):
+    if any(term in surface for term in DOC_TERMS) or all(
+        path.endswith('.md') or path.startswith('docs/') for path in allowed_files if path
+    ):
         return 'docs'
     if any(term in surface for term in ['test', 'pytest', 'spec']):
         return 'test'
@@ -432,43 +541,63 @@ def leaf_task_type(objective: str, allowed_files: list[str]) -> str:
     return 'code'
 
 
-def split_leaf_objectives(contract: dict[str, Any], resource_map: dict[str, Any]) -> list[tuple[str, list[str], list[str]]]:
+def split_leaf_objectives(
+    contract: dict[str, Any], resource_map: dict[str, Any]
+) -> list[tuple[str, list[str], list[str]]]:
     raw = str(contract.get('raw_input') or '')
     resources = resource_map.get('resources') or []
     leaves: list[tuple[str, list[str], list[str]]] = []
     if resources:
         for item in resources:
             paths = [str(path) for path in item.get('paths') or []]
-            leaves.append((f"Implement bounded change for {item.get('name')}", paths, [str(item.get('resource_id'))]))
+            leaves.append((f'Implement bounded change for {item.get("name")}', paths, [str(item.get('resource_id'))]))
     else:
         paths = infer_paths(raw)
         if paths:
             for path in paths:
-                leaves.append((f"Implement bounded change for {path}", [path], [safe_name(path).lower()]))
+                leaves.append((f'Implement bounded change for {path}', [path], [safe_name(path).lower()]))
     if not leaves and 'documentation' in (contract.get('affected_domains') or []):
-        leaves.append(('Update documentation surface with explicit scoped edits', ['README.md', 'docs/**'], ['documentation_surface']))
+        leaves.append(
+            (
+                'Update documentation surface with explicit scoped edits',
+                ['README.md', 'docs/**'],
+                ['documentation_surface'],
+            )
+        )
     if not leaves:
         leaves.append(('Clarify big task into executable leaf contracts', [], ['unknown']))
     return leaves
 
 
-def build_leaf_contracts(project: Path, contract: dict[str, Any], resource_map: dict[str, Any], *, allow_leaf_actual: bool = False) -> list[dict[str, Any]]:
+def build_leaf_contracts(
+    project: Path, contract: dict[str, Any], resource_map: dict[str, Any], *, allow_leaf_actual: bool = False
+) -> list[dict[str, Any]]:
     leaves: list[dict[str, Any]] = []
     base_risk = str(contract.get('risk_level') or 'medium')
     for index, (objective, paths, resources) in enumerate(split_leaf_objectives(contract, resource_map), start=1):
-        leaf_id = f"leaf-{index:03d}"
+        leaf_id = f'leaf-{index:03d}'
         leaf_risk = risk_level(objective, paths)
         if base_risk in {'high', 'critical'}:
             leaf_risk = base_risk
         task_type = leaf_task_type(objective, paths)
-        acceptance = [f"Satisfies parent success criteria for {', '.join(resources)}."] if paths else []
-        test_policy = 'not_applicable' if task_type in {'docs', 'research', 'review'} else contract.get('test_capability', 'unknown')
+        acceptance = [f'Satisfies parent success criteria for {", ".join(resources)}.'] if paths else []
+        test_policy = (
+            'not_applicable'
+            if task_type in {'docs', 'research', 'review'}
+            else contract.get('test_capability', 'unknown')
+        )
         if test_policy in {'known', 'partial'}:
             test_policy = 'required' if task_type in {'code', 'test'} else 'optional'
         preferred_route = 'dry_run_only'
         execution_mode = 'dry_run_only'
         execution_allowed = False
-        if allow_leaf_actual and leaf_risk == 'low' and paths and acceptance and task_type not in {'research', 'review'}:
+        if (
+            allow_leaf_actual
+            and leaf_risk == 'low'
+            and paths
+            and acceptance
+            and task_type not in {'research', 'review'}
+        ):
             preferred_route = 'fast'
             execution_mode = 'actual_allowed'
             execution_allowed = True
@@ -487,7 +616,9 @@ def build_leaf_contracts(project: Path, contract: dict[str, Any], resource_map: 
             'provides': resources,
             'consumes': [],
             'acceptance': acceptance,
-            'test_policy': test_policy if test_policy in {'required', 'optional', 'not_applicable', 'unknown'} else 'unknown',
+            'test_policy': test_policy
+            if test_policy in {'required', 'optional', 'not_applicable', 'unknown'}
+            else 'unknown',
             'test_commands': [],
             'rollback_note': 'Use isolated worktree discard; do not reset main branch.',
             'preferred_route': preferred_route,
@@ -495,7 +626,7 @@ def build_leaf_contracts(project: Path, contract: dict[str, Any], resource_map: 
             'execution_allowed': execution_allowed,
             'execution_mode': execution_mode,
             'blocking_reasons': [],
-            'success_criteria_ids': [f"sc-{i + 1}" for i, _ in enumerate(contract.get('success_criteria') or [])],
+            'success_criteria_ids': [f'sc-{i + 1}' for i, _ in enumerate(contract.get('success_criteria') or [])],
             'non_goals': contract.get('non_goals') or [],
         }
         leaves.append(leaf)
@@ -533,7 +664,9 @@ def leaf_readiness(leaf: dict[str, Any], backend_profile: dict[str, Any] | None 
         'verdict': verdict,
         'execution_allowed': verdict == 'READY_FOR_ACTUAL_CODEX',
         'blocking_reasons': blockers,
-        'next_action': 'generate_codex_task_pack' if verdict == 'READY_FOR_ACTUAL_CODEX' else 'keep_as_dry_run_or_review',
+        'next_action': 'generate_codex_task_pack'
+        if verdict == 'READY_FOR_ACTUAL_CODEX'
+        else 'keep_as_dry_run_or_review',
     }
 
 
@@ -542,11 +675,19 @@ def write_leaf_contracts(project: Path, run_id: str, leaves: list[dict[str, Any]
     leaf_dir.mkdir(parents=True, exist_ok=True)
     index = []
     for leaf in leaves:
-        path = leaf_dir / f"{safe_name(str(leaf.get('leaf_id')))}.json"
+        path = leaf_dir / f'{safe_name(str(leaf.get("leaf_id")))}.json'
         md = path.with_suffix('.md')
         write_json(path, leaf)
         md.write_text(render_leaf_md(leaf), encoding='utf-8')
-        index.append({'leaf_id': leaf.get('leaf_id'), 'json': str(path), 'markdown': str(md), 'execution_mode': leaf.get('execution_mode'), 'risk_level': leaf.get('risk_level')})
+        index.append(
+            {
+                'leaf_id': leaf.get('leaf_id'),
+                'json': str(path),
+                'markdown': str(md),
+                'execution_mode': leaf.get('execution_mode'),
+                'risk_level': leaf.get('risk_level'),
+            }
+        )
     payload = {'run_id': run_id, 'leaf_count': len(index), 'leaves': index, 'directory': str(leaf_dir)}
     write_json(leaf_dir / 'leaf-tasks.json', payload)
     return payload
@@ -554,11 +695,11 @@ def write_leaf_contracts(project: Path, run_id: str, leaves: list[dict[str, Any]
 
 def render_leaf_md(leaf: dict[str, Any]) -> str:
     lines = [
-        f"# Leaf Task Contract: {leaf.get('leaf_id')}",
+        f'# Leaf Task Contract: {leaf.get("leaf_id")}',
         '',
-        f"- task_type: {leaf.get('task_type')}",
-        f"- risk_level: {leaf.get('risk_level')}",
-        f"- execution_mode: {leaf.get('execution_mode')}",
+        f'- task_type: {leaf.get("task_type")}',
+        f'- risk_level: {leaf.get("risk_level")}',
+        f'- execution_mode: {leaf.get("execution_mode")}',
         '',
         '## Objective',
         '',
@@ -566,12 +707,12 @@ def render_leaf_md(leaf: dict[str, Any]) -> str:
         '',
         '## Scope',
         '',
-        *[f"- allowed: {item}" for item in leaf.get('allowed_files') or []],
-        *[f"- denied: {item}" for item in leaf.get('denied_files') or []],
+        *[f'- allowed: {item}' for item in leaf.get('allowed_files') or []],
+        *[f'- denied: {item}' for item in leaf.get('denied_files') or []],
         '',
         '## Acceptance',
         '',
-        *[f"- {item}" for item in leaf.get('acceptance') or ['MISSING_ACCEPTANCE']],
+        *[f'- {item}' for item in leaf.get('acceptance') or ['MISSING_ACCEPTANCE']],
     ]
     return '\n'.join(lines) + '\n'
 
@@ -587,7 +728,13 @@ def load_leaf_contracts(project: Path, run_id: str) -> list[dict[str, Any]]:
     return leaves
 
 
-def detect_independence(leaves: list[dict[str, Any]], resource_map: dict[str, Any], backend_profile: dict[str, Any] | None = None, *, actual: bool = False) -> dict[str, Any]:
+def detect_independence(
+    leaves: list[dict[str, Any]],
+    resource_map: dict[str, Any],
+    backend_profile: dict[str, Any] | None = None,
+    *,
+    actual: bool = False,
+) -> dict[str, Any]:
     parallel_groups: list[list[str]] = []
     serial_order: list[str] = []
     denials: list[dict[str, Any]] = []
@@ -617,7 +764,15 @@ def detect_independence(leaves: list[dict[str, Any]], resource_map: dict[str, An
         if actual and resource_confidence == 'low':
             blockers.append('resource_map_low_confidence')
         if blockers:
-            denials.append({'leaf_ids': [leaf_id], 'reason': ';'.join(sorted(set(blockers))), 'blocking_resources': resources, 'blocking_dependencies': [], 'how_to_make_parallel_safe': 'Clarify resource ownership and run serial or dry-run.'})
+            denials.append(
+                {
+                    'leaf_ids': [leaf_id],
+                    'reason': ';'.join(sorted(set(blockers))),
+                    'blocking_resources': resources,
+                    'blocking_dependencies': [],
+                    'how_to_make_parallel_safe': 'Clarify resource ownership and run serial or dry-run.',
+                }
+            )
         else:
             current_group.append(leaf_id)
         for file in files:
@@ -643,9 +798,13 @@ def load_leaf_convergence(project: Path, run_id: str) -> dict[str, Any]:
     return load_json(project / '.zoo-agent' / 'runs' / run_id / 'leaf-convergence-report.json')
 
 
-def goal_coverage(contract: dict[str, Any], leaves: list[dict[str, Any]], outcomes: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def goal_coverage(
+    contract: dict[str, Any], leaves: list[dict[str, Any]], outcomes: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
     criteria = contract.get('success_criteria') or []
-    delivered_leaf_ids = {leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'delivered'}
+    delivered_leaf_ids = {
+        leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'delivered'
+    }
     covered = []
     missing = []
     for index, criterion in enumerate(criteria, start=1):
@@ -666,11 +825,16 @@ def parent_aggregation(project: Path, run_id: str) -> dict[str, Any]:
     resolved_by_leaf = {str(item.get('leaf_id')): item for item in resolutions if isinstance(item, dict)}
     coverage = goal_coverage(contract, leaves, outcomes)
     no_delivery = [leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'no_delivery']
-    backend_failures = [leaf_id for leaf_id, payload in outcomes.items() if payload.get('delivery_outcome') == 'blocked' and payload.get('failure_type')]
+    backend_failures = [
+        leaf_id
+        for leaf_id, payload in outcomes.items()
+        if payload.get('delivery_outcome') == 'blocked' and payload.get('failure_type')
+    ]
     blocked = [
         leaf.get('leaf_id')
         for leaf in leaves
-        if leaf.get('blocking_reasons') and (resolved_by_leaf.get(str(leaf.get('leaf_id'))) or {}).get('status') == 'stuck'
+        if leaf.get('blocking_reasons')
+        and (resolved_by_leaf.get(str(leaf.get('leaf_id'))) or {}).get('status') == 'stuck'
     ]
     deferred = [leaf_id for leaf_id, item in resolved_by_leaf.items() if item.get('final_resolution') == 'defer']
     merged = [leaf_id for leaf_id, item in resolved_by_leaf.items() if item.get('final_resolution') == 'merge']
@@ -715,26 +879,28 @@ def parent_aggregation(project: Path, run_id: str) -> dict[str, Any]:
         'backend_failure_leaf_count': len(backend_failures),
         'local_optimization_deferred_count': 0,
         'verdict': verdict,
-        'next_action': 'create integration worktree only after review' if verdict == 'READY_FOR_INTEGRATION_WORKTREE' else 'resolve aggregation blockers',
+        'next_action': 'create integration worktree only after review'
+        if verdict == 'READY_FOR_INTEGRATION_WORKTREE'
+        else 'resolve aggregation blockers',
     }
 
 
 def render_parent_aggregation_md(report: dict[str, Any]) -> str:
     missing_items = (report.get('root_goal_coverage') or {}).get('missing') or []
-    missing_lines = [f"- {item.get('criterion')}" for item in missing_items if isinstance(item, dict)]
+    missing_lines = [f'- {item.get("criterion")}' for item in missing_items if isinstance(item, dict)]
     if not missing_lines:
         missing_lines = ['- none']
     lines = [
         '# Parent Aggregation Report',
         '',
-        f"- run_id: {report.get('run_id')}",
-        f"- verdict: {report.get('verdict')}",
-        f"- no_delivery_leaf_count: {report.get('no_delivery_leaf_count')}",
-        f"- backend_failure_leaf_count: {report.get('backend_failure_leaf_count')}",
-        f"- deferred_leaf_count: {report.get('deferred_leaf_count', 0)}",
-        f"- merged_leaf_count: {report.get('merged_leaf_count', 0)}",
-        f"- collapsed_leaf_count: {report.get('collapsed_leaf_count', 0)}",
-        f"- convergence_failure_leaf_count: {report.get('convergence_failure_leaf_count', 0)}",
+        f'- run_id: {report.get("run_id")}',
+        f'- verdict: {report.get("verdict")}',
+        f'- no_delivery_leaf_count: {report.get("no_delivery_leaf_count")}',
+        f'- backend_failure_leaf_count: {report.get("backend_failure_leaf_count")}',
+        f'- deferred_leaf_count: {report.get("deferred_leaf_count", 0)}',
+        f'- merged_leaf_count: {report.get("merged_leaf_count", 0)}',
+        f'- collapsed_leaf_count: {report.get("collapsed_leaf_count", 0)}',
+        f'- convergence_failure_leaf_count: {report.get("convergence_failure_leaf_count", 0)}',
         '',
         '## Missing Coverage',
         '',
@@ -758,14 +924,28 @@ def write_parent_aggregation(project: Path, run_id: str, report: dict[str, Any])
 def integration_candidate(project: Path, run_id: str, *, create: bool = False) -> dict[str, Any]:
     aggregation = load_json(project / '.zoo-agent' / 'runs' / run_id / 'parent-aggregation-report.json')
     repo_name = project.name
-    worktree_path = Path(os.environ.get('ZOO_INTEGRATION_WORKTREE_ROOT', str(Path(tempfile.gettempdir()) / 'agent-runtime-worktrees'))) / f'{repo_name}-integration-{safe_name(run_id)}'
+    worktree_path = (
+        Path(
+            os.environ.get(
+                'ZOO_INTEGRATION_WORKTREE_ROOT', str(Path(tempfile.gettempdir()) / 'agent-runtime-worktrees')
+            )
+        )
+        / f'{repo_name}-integration-{safe_name(run_id)}'
+    )
     verdict = 'NEEDS_PARENT_REAGGREGATION'
     created = False
     if aggregation.get('verdict') == 'READY_FOR_INTEGRATION_WORKTREE':
         verdict = 'INTEGRATION_CANDIDATE_READY'
         if create:
             worktree_path.parent.mkdir(parents=True, exist_ok=True)
-            proc = subprocess.run(['git', 'worktree', 'add', str(worktree_path), 'HEAD'], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.run(
+                ['git', 'worktree', 'add', str(worktree_path), 'HEAD'],
+                cwd=project,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                capture_output=True,
+            )
             created = proc.returncode == 0
             if not created:
                 verdict = 'INTEGRATION_CONFLICTS'
@@ -786,22 +966,25 @@ def integration_candidate(project: Path, run_id: str, *, create: bool = False) -
 
 
 def render_integration_md(report: dict[str, Any]) -> str:
-    return '\n'.join(
-        [
-            '# Integration Candidate Report',
-            '',
-            f"- run_id: {report.get('run_id')}",
-            f"- verdict: {report.get('verdict')}",
-            f"- integration_worktree_path: {report.get('integration_worktree_path')}",
-            f"- worktree_created: {report.get('worktree_created')}",
-            '',
-            '## Boundary',
-            '',
-            '- No merge was performed.',
-            '- No push was performed.',
-            '- Worktree removal requires explicit user confirmation.',
-        ]
-    ) + '\n'
+    return (
+        '\n'.join(
+            [
+                '# Integration Candidate Report',
+                '',
+                f'- run_id: {report.get("run_id")}',
+                f'- verdict: {report.get("verdict")}',
+                f'- integration_worktree_path: {report.get("integration_worktree_path")}',
+                f'- worktree_created: {report.get("worktree_created")}',
+                '',
+                '## Boundary',
+                '',
+                '- No merge was performed.',
+                '- No push was performed.',
+                '- Worktree removal requires explicit user confirmation.',
+            ]
+        )
+        + '\n'
+    )
 
 
 def write_integration_report(project: Path, run_id: str, report: dict[str, Any]) -> dict[str, str]:

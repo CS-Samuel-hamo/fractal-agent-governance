@@ -10,16 +10,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_release_packager import VERSION, public_release_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_release_packager import VERSION, public_release_dir
+from runtime_common import project_root, utc_now, write_json
 
 TAG = f'v{VERSION}'
 
 
 def run_git(project: Path, args: list[str]) -> tuple[int, str]:
     try:
-        proc = subprocess.run(['git', *args], cwd=project, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=8)
+        proc = subprocess.run(
+            ['git', *args],
+            cwd=project,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+            timeout=8,
+        )
         return proc.returncode, proc.stdout.strip()
     except Exception:
         return 1, ''

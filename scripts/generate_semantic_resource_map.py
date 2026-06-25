@@ -8,7 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import common_big_task_parser, generate_resource_map, project_root, write_resource_map  # noqa: E402
+from big_task_common import (
+    common_big_task_parser,
+    generate_resource_map,
+    project_root,
+    write_resource_map,
+)
 
 
 def main() -> int:

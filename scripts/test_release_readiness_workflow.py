@@ -12,9 +12,9 @@ SCRIPTS = ROOT / 'scripts'
 
 
 def run(cmd: list[str], cwd: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if check and proc.returncode != 0:
-        raise AssertionError(f"command failed: {' '.join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+        raise AssertionError(f'command failed: {" ".join(cmd)}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc
 
 
@@ -30,7 +30,15 @@ def write_blocked_map(root: Path) -> None:
         'main_goal': 'public release',
         'modules': [],
         'capabilities': [],
-        'risks': [{'risk_id': 'auth', 'description': 'Auth and secret area touched', 'severity': 'high', 'affected_files': ['auth/secrets.py'], 'evidence': [{'source': 'fixture'}]}],
+        'risks': [
+            {
+                'risk_id': 'auth',
+                'description': 'Auth and secret area touched',
+                'severity': 'high',
+                'affected_files': ['auth/secrets.py'],
+                'evidence': [{'source': 'fixture'}],
+            }
+        ],
         'next_actions': [
             {
                 'action_id': 'blocked',
@@ -50,7 +58,9 @@ def write_blocked_map(root: Path) -> None:
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix='release-readiness-non-git-') as tmp:
         non_git = Path(tmp).resolve()
-        git_context = json.loads(run([sys.executable, str(SCRIPTS / 'git_context_detector.py'), '--workspace', str(non_git)], non_git).stdout)
+        git_context = json.loads(
+            run([sys.executable, str(SCRIPTS / 'git_context_detector.py'), '--workspace', str(non_git)], non_git).stdout
+        )
         assert git_context['is_git_repo'] is False
         assert (non_git / '.zoo-agent' / 'release' / 'git_context.json').exists()
 
@@ -61,7 +71,9 @@ def main() -> int:
         run([sys.executable, str(SCRIPTS / 'git_context_detector.py'), '--workspace', str(root)], root)
         run([sys.executable, str(SCRIPTS / 'release_readiness_template_builder.py'), '--workspace', str(root)], root)
         run([sys.executable, str(SCRIPTS / 'github_readiness_detector.py'), '--workspace', str(root)], root)
-        readiness_proc = run([sys.executable, str(SCRIPTS / 'release_readiness_evaluator.py'), '--workspace', str(root)], root)
+        readiness_proc = run(
+            [sys.executable, str(SCRIPTS / 'release_readiness_evaluator.py'), '--workspace', str(root)], root
+        )
         readiness = json.loads(readiness_proc.stdout)
         github = load(root / '.zoo-agent' / 'release' / 'github_readiness.json')
         assert 'README missing' in github['blockers']
@@ -74,7 +86,10 @@ def main() -> int:
         action_plan = load(root / '.zoo-agent' / 'release' / 'release_action_plan.json')
         assert action_plan['blocked_actions'], 'blocked zone was not captured'
         assert all(not item.get('autopilot_eligible') for item in action_plan['blocked_actions'])
-        assert not any(item.get('action') == 'Update auth deployment secrets' and item.get('autopilot_eligible') for item in action_plan['next_actions'])
+        assert not any(
+            item.get('action') == 'Update auth deployment secrets' and item.get('autopilot_eligible')
+            for item in action_plan['next_actions']
+        )
 
         report = (root / '.zoo-agent' / 'release' / 'release_readiness_report.md').read_text(encoding='utf-8')
         assert 'Release Readiness Report' in report

@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 TOKEN_RE = re.compile(r'(?i)(api[_-]?key|token|secret|password|credential)\s*[:=]\s*["\']?[^"\'\s,}]+')
 EMAIL_RE = re.compile(r'[\w.\-+]+@[\w.\-]+\.\w+')
@@ -84,7 +83,7 @@ def filter_artifact(path: Path, payload: Any | None = None) -> dict[str, Any]:
         return {
             'input_artifact': path.name,
             'privacy_status': 'rejected',
-            'redactions': sorted(set(redactions + ['secret_marker_after_sanitize'])),
+            'redactions': sorted(set([*redactions, 'secret_marker_after_sanitize'])),
             'rejection_reason': 'secret-like marker remained after sanitize',
             'safe_to_store': False,
             'sanitized': {},

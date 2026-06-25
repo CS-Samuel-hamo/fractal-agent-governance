@@ -21,7 +21,7 @@ def _load_history(project: Path) -> list[dict[str, Any]]:
 
 def build_health_report(project: Path, eval_payload: dict[str, Any]) -> dict[str, Any]:
     history = _load_history(project)
-    window = history[-49:] + [eval_payload]
+    window = [*history[-49:], eval_payload]
     total = max(len(window), 1)
     false_successes = sum(1 for item in window if item.get('false_success_detected'))
     classified = sum(1 for item in window if str(item.get('failure_type') or 'none') != 'none')
@@ -37,7 +37,9 @@ def build_health_report(project: Path, eval_payload: dict[str, Any]) -> dict[str
         'metrics': {
             'eval_accuracy_score': _clamp(1.0 - false_successes / total),
             'false_success_detection_rate': _clamp(false_successes / total),
-            'failure_classification_accuracy': _clamp(1.0 if classified or eval_payload.get('failure_type') == 'none' else 0.8),
+            'failure_classification_accuracy': _clamp(
+                1.0 if classified or eval_payload.get('failure_type') == 'none' else 0.8
+            ),
             'fallback_effectiveness': _clamp(1.0 - actions.count('escalate') / total),
             'runtime_stability_score': _clamp(stable / total),
             'backend_behavior_consistency': _clamp(sum(backend_scores) / max(len(backend_scores), 1)),

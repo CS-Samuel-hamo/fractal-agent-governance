@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 from typing import Any
 
 from runtime_common import project_root
 from session_state_store import load_session_history, load_session_state
-
 
 DEFAULT_BUDGET = {
     'max_steps': 5,
@@ -28,7 +26,9 @@ def normalize_budget(overrides: dict[str, Any] | None = None) -> dict[str, int]:
     return payload
 
 
-def budget_decision(state: dict[str, Any], history: dict[str, Any], budget: dict[str, int] | None = None) -> dict[str, Any]:
+def budget_decision(
+    state: dict[str, Any], history: dict[str, Any], budget: dict[str, int] | None = None
+) -> dict[str, Any]:
     budget = normalize_budget(budget)
     steps = [item for item in history.get('steps') or [] if isinstance(item, dict)]
     failures = len([item for item in steps if item.get('outcome') in {'failed', 'blocked', 'timeout'}])
@@ -40,7 +40,9 @@ def budget_decision(state: dict[str, Any], history: dict[str, Any], budget: dict
         else:
             break
     current_step = int(state.get('current_step') or 0)
-    changed_too_many = any(len(item.get('changed_files') or []) > budget['max_changed_files_per_step'] for item in steps[-1:])
+    changed_too_many = any(
+        len(item.get('changed_files') or []) > budget['max_changed_files_per_step'] for item in steps[-1:]
+    )
     reasons: list[str] = []
     status = 'ok'
     if budget['max_steps'] and current_step >= budget['max_steps']:

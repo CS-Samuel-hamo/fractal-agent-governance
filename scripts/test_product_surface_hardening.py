@@ -9,7 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -92,7 +91,16 @@ def init_repo(env: dict[str, str]) -> Path:
 
 
 def assert_docs_clean() -> None:
-    public_docs = ['README.md', 'INSTALL.md', 'QUICKSTART.md', 'EXAMPLES.md', 'CLI_REFERENCE.md', 'ARCHITECTURE.md', 'docs/README.md', 'docs/product-mind-model.md']
+    public_docs = [
+        'README.md',
+        'INSTALL.md',
+        'QUICKSTART.md',
+        'EXAMPLES.md',
+        'CLI_REFERENCE.md',
+        'ARCHITECTURE.md',
+        'docs/README.md',
+        'docs/product-mind-model.md',
+    ]
     for rel in public_docs:
         text = (ROOT / rel).read_text(encoding='utf-8')
         assert '.py' not in text, f'{rel} exposes script file paths'

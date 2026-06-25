@@ -13,8 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from worker_router_value_gate import evaluate_worker_router_value  # noqa: E402
-
+from worker_router_value_gate import evaluate_worker_router_value
 
 AGENT = ROOT / 'scripts' / 'agent.py'
 
@@ -22,7 +21,15 @@ AGENT = ROOT / 'scripts' / 'agent.py'
 def run(command: list[str], cwd: Path, *, allow_fail: bool = False) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='worker-dogfood-test-codex-home-')).resolve()))
-    proc = subprocess.run(command, cwd=cwd, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     if proc.returncode != 0 and not allow_fail:
         raise AssertionError(f'command failed: {command}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc

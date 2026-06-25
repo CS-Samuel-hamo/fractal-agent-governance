@@ -14,9 +14,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_launch_packager import public_launch_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_launch_packager import public_launch_dir
+from runtime_common import project_root, utc_now, write_json
 
 COMMANDS = [
     ['--help'],
@@ -31,7 +30,9 @@ COMMANDS = [
 def make_demo_workspace(project: Path) -> Path:
     source = project / 'examples' / 'demo_project'
     target = Path(tempfile.mkdtemp(prefix='first-user-flow-')).resolve()
-    shutil.copytree(source, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns('.zoo-agent', '.git', '__pycache__'))
+    shutil.copytree(
+        source, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns('.zoo-agent', '.git', '__pycache__')
+    )
     return target
 
 
@@ -39,16 +40,45 @@ def run_agent(project: Path, workspace: Path, args: list[str]) -> dict[str, Any]
     env = os.environ.copy()
     env.setdefault('CODEX_HOME', str(Path(tempfile.mkdtemp(prefix='first-user-codex-home-')).resolve()))
     if args and args[0] == 'prepare this project for public release':
-        subprocess.run([sys.executable, str(project / 'scripts' / 'agent.py'), 'config', 'backend', 'dry_run', '--workspace', str(workspace)], cwd=workspace, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            [
+                sys.executable,
+                str(project / 'scripts' / 'agent.py'),
+                'config',
+                'backend',
+                'dry_run',
+                '--workspace',
+                str(workspace),
+            ],
+            cwd=workspace,
+            env=env,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            capture_output=True,
+        )
     if args == ['--help']:
         command = [sys.executable, str(project / 'scripts' / 'agent.py'), '--help']
     elif not args:
         command = [sys.executable, str(project / 'scripts' / 'agent.py')]
     else:
         command = [sys.executable, str(project / 'scripts' / 'agent.py'), *args, '--workspace', str(workspace)]
-    proc = subprocess.run(command, cwd=workspace, env=env, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        cwd=workspace,
+        env=env,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     label = 'agent' if not args else 'agent ' + ' '.join(args)
-    return {'command': label, 'returncode': proc.returncode, 'stdout_tail': proc.stdout[-800:], 'stderr_tail': proc.stderr[-800:]}
+    return {
+        'command': label,
+        'returncode': proc.returncode,
+        'stdout_tail': proc.stdout[-800:],
+        'stderr_tail': proc.stderr[-800:],
+    }
 
 
 def validate(project: Path) -> dict[str, Any]:
@@ -58,8 +88,16 @@ def validate(project: Path) -> dict[str, Any]:
     for doc in docs:
         if doc not in docs_verified:
             missing_instructions.append(doc)
-    readme = (project / 'README.md').read_text(encoding='utf-8-sig', errors='replace') if (project / 'README.md').exists() else ''
-    quickstart = (project / 'QUICKSTART.md').read_text(encoding='utf-8-sig', errors='replace') if (project / 'QUICKSTART.md').exists() else ''
+    readme = (
+        (project / 'README.md').read_text(encoding='utf-8-sig', errors='replace')
+        if (project / 'README.md').exists()
+        else ''
+    )
+    quickstart = (
+        (project / 'QUICKSTART.md').read_text(encoding='utf-8-sig', errors='replace')
+        if (project / 'QUICKSTART.md').exists()
+        else ''
+    )
     for phrase in ['AI Project Operator', 'agent "<goal>"', 'agent cockpit', 'agent release', 'agent pr']:
         if phrase not in readme and phrase not in quickstart:
             missing_instructions.append(phrase)
@@ -70,7 +108,7 @@ def validate(project: Path) -> dict[str, Any]:
         result = run_agent(project, workspace, args)
         commands.append(result)
         if result['returncode'] != 0:
-            friction.append(f"{result['command']} failed")
+            friction.append(f'{result["command"]} failed')
             break
     if not (workspace / '.zoo-agent' / 'cockpit' / 'index.html').exists():
         friction.append('cockpit_not_generated')

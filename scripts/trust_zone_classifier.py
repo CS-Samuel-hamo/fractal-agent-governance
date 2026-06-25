@@ -8,18 +8,47 @@ from typing import Any
 
 from runtime_common import project_root, utc_now, write_json
 
-
-BLOCKED_TERMS = ['secret', '.env', 'auth', 'payment', 'billing', 'production deploy', 'deploy production', 'database migration', 'migration', 'auto push', 'auto merge', 'delete files', 'destructive']
-GUARDED_TERMS = ['public api', 'api response', 'schema', 'dependency', 'package.json', 'pyproject.toml', '.github/workflows', 'ci pipeline', 'config', 'cross-module', 'core runtime']
+BLOCKED_TERMS = [
+    'secret',
+    '.env',
+    'auth',
+    'payment',
+    'billing',
+    'production deploy',
+    'deploy production',
+    'database migration',
+    'migration',
+    'auto push',
+    'auto merge',
+    'delete files',
+    'destructive',
+]
+GUARDED_TERMS = [
+    'public api',
+    'api response',
+    'schema',
+    'dependency',
+    'package.json',
+    'pyproject.toml',
+    '.github/workflows',
+    'ci pipeline',
+    'config',
+    'cross-module',
+    'core runtime',
+]
 TRUSTED_PREFIXES = ['docs/', 'examples/', 'tests/', 'test/']
 TRUSTED_FILES = {'README.md', 'QUICKSTART.md', 'INSTALL.md', 'EXAMPLES.md', 'CONTRIBUTING.md'}
 
 
-def classify_trust_zone(*, title: str = '', target_files: list[str] | None = None, risk_level: str = 'low') -> dict[str, Any]:
+def classify_trust_zone(
+    *, title: str = '', target_files: list[str] | None = None, risk_level: str = 'low'
+) -> dict[str, Any]:
     files = [str(item).replace('\\', '/') for item in target_files or []]
     surface = ' '.join([title, risk_level, *files]).lower()
     reasons: list[str] = []
-    if any(term in surface for term in BLOCKED_TERMS) or any(path.lower().startswith(('.env', 'secrets/', 'credentials/')) for path in files):
+    if any(term in surface for term in BLOCKED_TERMS) or any(
+        path.lower().startswith(('.env', 'secrets/', 'credentials/')) for path in files
+    ):
         zone = 'blocked'
         reasons.append('blocked_sensitive_or_destructive_surface')
     elif risk_level in {'high', 'critical'}:
@@ -28,7 +57,12 @@ def classify_trust_zone(*, title: str = '', target_files: list[str] | None = Non
     elif any(term in surface for term in GUARDED_TERMS):
         zone = 'guarded'
         reasons.append('guarded_api_config_dependency_or_cross_module_surface')
-    elif files and all(path in TRUSTED_FILES or any(path.startswith(prefix) for prefix in TRUSTED_PREFIXES) or path.startswith('scripts/') for path in files):
+    elif files and all(
+        path in TRUSTED_FILES
+        or any(path.startswith(prefix) for prefix in TRUSTED_PREFIXES)
+        or path.startswith('scripts/')
+        for path in files
+    ):
         zone = 'trusted'
         reasons.append('trusted_documentation_test_example_or_local_script_surface')
     elif len(files) == 1 and str(risk_level) == 'low':

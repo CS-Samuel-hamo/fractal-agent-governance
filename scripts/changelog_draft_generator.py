@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now  # noqa: E402
+from runtime_common import load_json, project_root, utc_now
 
 
 def release_dir(project: Path) -> Path:
@@ -26,8 +26,16 @@ def build_changelog(project: Path) -> dict[str, str]:
         for item in project_map.get('capabilities') or []
         if isinstance(item, dict) and item.get('status') in {'implemented', 'verified'}
     ][:8]
-    capability_rows = [f'- {item}' for item in capabilities] if capabilities else ['- No completed capability claim found in Project Map.']
-    limitation_rows = [f"- {item}" for item in readiness.get('must_fix') or []] if readiness.get('must_fix') else ['- No hard release blocker recorded.']
+    capability_rows = (
+        [f'- {item}' for item in capabilities]
+        if capabilities
+        else ['- No completed capability claim found in Project Map.']
+    )
+    limitation_rows = (
+        [f'- {item}' for item in readiness.get('must_fix') or []]
+        if readiness.get('must_fix')
+        else ['- No hard release blocker recorded.']
+    )
     lines = [
         '# Changelog Draft',
         '',
@@ -37,7 +45,7 @@ def build_changelog(project: Path) -> dict[str, str]:
         *capability_rows,
         '',
         '### Changed',
-        f"- Release readiness stage: {readiness.get('stage') or 'unknown'}",
+        f'- Release readiness stage: {readiness.get("stage") or "unknown"}',
         '',
         '### Fixed',
         '- No fixes are claimed by this local workflow.',
@@ -48,7 +56,7 @@ def build_changelog(project: Path) -> dict[str, str]:
         '### Not included',
         '- No version number is assigned by this workflow.',
         '- No remote release was created.',
-        f"- Changed files currently detected: {len(changed)}",
+        f'- Changed files currently detected: {len(changed)}',
         '',
         f'_Generated locally at {utc_now()}._',
         '',

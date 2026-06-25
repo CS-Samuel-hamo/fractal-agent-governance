@@ -8,7 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import build_big_task_contract, classify_readiness, common_big_task_parser, load_big_task_contract, project_root, write_big_task_contract  # noqa: E402
+from big_task_common import (
+    build_big_task_contract,
+    classify_readiness,
+    common_big_task_parser,
+    load_big_task_contract,
+    project_root,
+    write_big_task_contract,
+)
 
 
 def main() -> int:
@@ -28,9 +35,23 @@ def main() -> int:
                 return 2
             contract = build_big_task_contract(project, run_id, text, goal_id=args.goal_id)
     verdict, mode, blockers, next_action = classify_readiness(contract)
-    contract.update({'readiness_verdict': verdict, 'allowed_execution_mode': mode, 'blocking_reasons': sorted(set(blockers)), 'next_action': next_action})
+    contract.update(
+        {
+            'readiness_verdict': verdict,
+            'allowed_execution_mode': mode,
+            'blocking_reasons': sorted(set(blockers)),
+            'next_action': next_action,
+        }
+    )
     paths = write_big_task_contract(project, contract)
-    report = {'status': 'ok', 'verdict': verdict, 'allowed_execution_mode': mode, 'blocking_reasons': sorted(set(blockers)), 'paths': paths, 'contract': contract}
+    report = {
+        'status': 'ok',
+        'verdict': verdict,
+        'allowed_execution_mode': mode,
+        'blocking_reasons': sorted(set(blockers)),
+        'paths': paths,
+        'contract': contract,
+    }
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0 if not verdict.startswith('BLOCKED') else 10
 

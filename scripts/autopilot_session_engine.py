@@ -12,20 +12,20 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from attention_router import mark_attention  # noqa: E402
-from autopilot_mode_engine import max_steps_for_mode, normalize_mode, should_pause_after_result  # noqa: E402
-from backend_registry import read_backend_selection  # noqa: E402
-from checkpoint_manager import create_checkpoint  # noqa: E402
-from map_task_selector import select_next_action  # noqa: E402
-from progress_summary_generator import build_progress_summary, render_user_summary  # noqa: E402
-from project_map_builder import build_project_map  # noqa: E402
-from project_map_schema import map_dir  # noqa: E402
-from project_map_updater import update_project_map  # noqa: E402
-from runtime_common import load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
+from attention_router import mark_attention
+from autopilot_mode_engine import max_steps_for_mode, normalize_mode, should_pause_after_result
+from backend_registry import read_backend_selection
+from checkpoint_manager import create_checkpoint
+from map_task_selector import select_next_action
+from progress_summary_generator import build_progress_summary, render_user_summary
+from project_map_builder import build_project_map
+from project_map_schema import map_dir
+from project_map_updater import update_project_map
+from runtime_common import load_json, project_root, set_active_goal, utc_now, write_json
 
 
 def run_command(command: list[str], cwd: Path) -> dict[str, Any]:
-    proc = subprocess.run(command, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(command, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     return {
         'command': [str(item) for item in command],
         'returncode': proc.returncode,
@@ -132,14 +132,36 @@ def start_session(project: Path, *, goal: str, mode: str, max_steps: int = 0, ba
     for step in range(1, steps + 1):
         selected = select_next_action(project, mode=mode)
         if selected.get('execution_mode') == 'needs_attention':
-            attention = mark_attention(project, reason=str(selected.get('reason') or 'selected action needs attention'), suggested_next_step='Review the selected action, then run agent continue.', action=selected)
-            session.update({'status': 'needs_attention', 'updated_at': utc_now(), 'attention_reason': attention.get('reason'), 'step_count': step - 1})
+            attention = mark_attention(
+                project,
+                reason=str(selected.get('reason') or 'selected action needs attention'),
+                suggested_next_step='Review the selected action, then run agent continue.',
+                action=selected,
+            )
+            session.update(
+                {
+                    'status': 'needs_attention',
+                    'updated_at': utc_now(),
+                    'attention_reason': attention.get('reason'),
+                    'step_count': step - 1,
+                }
+            )
             write_session(project, session)
             return {'session': session, 'summary': None, 'attention': attention}
-        checkpoint = create_checkpoint(project, action_id=str(selected.get('selected_action_id') or ''), title=str(selected.get('title') or ''))
+        checkpoint = create_checkpoint(
+            project, action_id=str(selected.get('selected_action_id') or ''), title=str(selected.get('title') or '')
+        )
         result = run_selected_action(project, action=selected, mode=mode, backend=backend, step=step)
-        update_project_map(project, run_id=result['run_id'], action=selected, execution_result=result['execution'], final_result=result['final_result'])
-        summary = build_progress_summary(project, action=selected, execution=result['execution'], final_result=result['final_result'], mode=mode)
+        update_project_map(
+            project,
+            run_id=result['run_id'],
+            action=selected,
+            execution_result=result['execution'],
+            final_result=result['final_result'],
+        )
+        summary = build_progress_summary(
+            project, action=selected, execution=result['execution'], final_result=result['final_result'], mode=mode
+        )
         append_history(
             project,
             {
@@ -157,9 +179,21 @@ def start_session(project: Path, *, goal: str, mode: str, max_steps: int = 0, ba
         )
         summaries.append(summary)
         pause, reason = should_pause_after_result(result['final_result'], result['execution'])
-        session.update({'step_count': step, 'updated_at': utc_now(), 'last_run_id': result['run_id'], 'last_result': summary.get('result')})
+        session.update(
+            {
+                'step_count': step,
+                'updated_at': utc_now(),
+                'last_run_id': result['run_id'],
+                'last_result': summary.get('result'),
+            }
+        )
         if pause:
-            attention = mark_attention(project, reason=reason, suggested_next_step='Review the result, then run agent continue when ready.', action=selected)
+            attention = mark_attention(
+                project,
+                reason=reason,
+                suggested_next_step='Review the result, then run agent continue when ready.',
+                action=selected,
+            )
             session.update({'status': 'needs_attention', 'attention_reason': reason})
             write_session(project, session)
             return {'session': session, 'summary': summary, 'attention': attention}
@@ -180,7 +214,13 @@ def stop_session(project: Path) -> dict[str, Any]:
 def continue_session(project: Path, *, mode: str = '', max_steps: int = 0, backend: str = '') -> dict[str, Any]:
     existing = load_json(session_path(project))
     goal = str(existing.get('goal') or 'Continue current project goal')
-    return start_session(project, goal=goal, mode=mode or str(existing.get('mode') or 'standard'), max_steps=max_steps or 1, backend=backend or str(existing.get('backend') or ''))
+    return start_session(
+        project,
+        goal=goal,
+        mode=mode or str(existing.get('mode') or 'standard'),
+        max_steps=max_steps or 1,
+        backend=backend or str(existing.get('backend') or ''),
+    )
 
 
 def main() -> int:
@@ -208,11 +248,20 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif payload.get('attention'):
         attention = payload['attention']
-        print('Needs attention.\nReason:\n* ' + str(attention.get('reason')) + '\n\nSuggested next step:\n* ' + str(attention.get('suggested_next_step')))
+        print(
+            'Needs attention.\nReason:\n* '
+            + str(attention.get('reason'))
+            + '\n\nSuggested next step:\n* '
+            + str(attention.get('suggested_next_step'))
+        )
     elif payload.get('summary'):
         print(render_user_summary(payload['summary']))
     else:
-        print('Done.\nChanged:\n* No business files changed\n\nWhy:\n* Session updated.\n\nProject progress:\n* ' + str((payload.get('session') or {}).get('status')) + '\n\nUndo:\nagent undo')
+        print(
+            'Done.\nChanged:\n* No business files changed\n\nWhy:\n* Session updated.\n\nProject progress:\n* '
+            + str((payload.get('session') or {}).get('status'))
+            + '\n\nUndo:\nagent undo'
+        )
     return 0
 
 

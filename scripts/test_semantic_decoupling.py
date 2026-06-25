@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -11,15 +11,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_core import RuntimeCore  # noqa: E402
-
+from runtime_core import RuntimeCore
 
 FORBIDDEN_PREFIX = 'codex_'
 FORBIDDEN_VERIFIER_TERMS = ['codex_', 'Codex', 'codex']
 
 
 def run(cmd: list[str], cwd: Path) -> str:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     if proc.returncode:
         raise AssertionError(proc.stdout)
     return proc.stdout
@@ -62,7 +63,16 @@ def leaf_schema(execution: dict[str, Any]) -> set[str]:
     leaves = execution.get('leaf_results') or []
     assert leaves, execution
     leaf = leaves[0]
-    required = {'backend_type', 'backend_status', 'backend_returncode', 'execution_status', 'diff', 'confidence', 'execution_time', 'notes'}
+    required = {
+        'backend_type',
+        'backend_status',
+        'backend_returncode',
+        'execution_status',
+        'diff',
+        'confidence',
+        'execution_time',
+        'notes',
+    }
     assert required.issubset(set(leaf)), leaf
     return set(leaf)
 
@@ -76,7 +86,13 @@ def test_verifier_backend_agnostic_source() -> None:
 def test_mock_backend_execution_result_schema() -> None:
     repo = temp_repo('semantic-mock-')
     core = RuntimeCore(repo, backend='mock')
-    payload = core.run_task('append backend-neutral line', run_id='semantic-mock', dry_run=False, allow_actual=True, allowed_files=['README.md'])
+    payload = core.run_task(
+        'append backend-neutral line',
+        run_id='semantic-mock',
+        dry_run=False,
+        allow_actual=True,
+        allowed_files=['README.md'],
+    )
     execution = execution_result_from(payload)
     assert execution['execution_backend']['selected'] == 'mock'
     assert_no_forbidden_prefix(execution)
@@ -88,7 +104,13 @@ def test_mock_backend_execution_result_schema() -> None:
 def test_codex_backend_dry_run_schema_equivalent() -> None:
     repo = temp_repo('semantic-codex-dry-')
     core = RuntimeCore(repo, backend='codex')
-    payload = core.run_task('dry-run backend-neutral line', run_id='semantic-codex-dry', dry_run=True, allow_actual=False, allowed_files=['README.md'])
+    payload = core.run_task(
+        'dry-run backend-neutral line',
+        run_id='semantic-codex-dry',
+        dry_run=True,
+        allow_actual=False,
+        allowed_files=['README.md'],
+    )
     execution = execution_result_from(payload)
     assert execution['execution_backend']['selected'] == 'codex'
     assert_no_forbidden_prefix(execution)
@@ -105,7 +127,13 @@ def test_runtime_core_has_no_backend_specific_import() -> None:
 def test_verifier_result_has_backend_fields_only() -> None:
     repo = temp_repo('semantic-verifier-')
     core = RuntimeCore(repo, backend='mock')
-    payload = core.run_pipeline('append verifier neutral line', run_id='semantic-verifier', dry_run=False, allow_actual=True, allowed_files=['README.md'])
+    payload = core.run_pipeline(
+        'append verifier neutral line',
+        run_id='semantic-verifier',
+        dry_run=False,
+        allow_actual=True,
+        allowed_files=['README.md'],
+    )
     result = payload.get('result') or {}
     final_ref = result.get('final_result_ref')
     assert final_ref

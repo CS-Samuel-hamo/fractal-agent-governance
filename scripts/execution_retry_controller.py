@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 RETRYABLE_STATUSES = {'timeout'}
 RETRYABLE_REASONS = {
     'backend_worker_timeout',
@@ -27,7 +26,9 @@ def retry_decision(model: dict[str, Any], *, attempt: int, max_retries: int = 2)
         'retryable': retryable,
         'should_retry': should_retry,
         'backoff_seconds': 2 ** max(0, attempt - 1) if should_retry else 0,
-        'reason': 'retryable_transient_failure' if should_retry else ('retry_limit_reached' if retryable else 'not_retryable'),
+        'reason': 'retryable_transient_failure'
+        if should_retry
+        else ('retry_limit_reached' if retryable else 'not_retryable'),
     }
 
 

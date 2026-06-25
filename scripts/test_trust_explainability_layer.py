@@ -89,7 +89,17 @@ def main() -> int:
     assert trust['recommendation'] in {'proceed', 'review', 'avoid'}
 
     safety = load(repo / '.zoo-agent' / 'explain' / 'safety_summary.json')
-    for field in ['what_changed', 'recommendation', 'requires_user_confirmation', 'risk_level', 'impact_scope', 'safe_to_apply', 'rollback_available', 'reasoning', 'summary']:
+    for field in [
+        'what_changed',
+        'recommendation',
+        'requires_user_confirmation',
+        'risk_level',
+        'impact_scope',
+        'safe_to_apply',
+        'rollback_available',
+        'reasoning',
+        'summary',
+    ]:
         assert field in safety
     assert safety['safe_to_apply'] == 'suggested_only'
     assert safety['requires_user_confirmation'] is True
@@ -97,7 +107,14 @@ def main() -> int:
     assert_no_internal_terms({'summary': safety['summary']})
     assert (repo / '.zoo-agent' / 'explain' / 'safety_summary.md').exists()
 
-    run_eval = load(repo / '.zoo-agent' / 'runs' / load(repo / '.zoo-agent' / 'eval' / 'invisible_eval.json')['run_id'] / 'explain' / 'safety_summary.json')
+    run_eval = load(
+        repo
+        / '.zoo-agent'
+        / 'runs'
+        / load(repo / '.zoo-agent' / 'eval' / 'invisible_eval.json')['run_id']
+        / 'explain'
+        / 'safety_summary.json'
+    )
     assert run_eval['summary'] == safety['summary']
 
     help_text = run([sys.executable, str(AGENT), '--help'], repo, env=env).stdout.lower()

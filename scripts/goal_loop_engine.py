@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_completion_detector import (  # noqa: E402
+from goal_completion_detector import (
     BLOCKED_VERDICT,
     COMPLETED_VERDICT,
     DIVERGING_VERDICT,
@@ -18,9 +18,9 @@ from goal_completion_detector import (  # noqa: E402
     PARTIAL_VERDICT,
     detect_and_write_goal_completion,
 )
-from next_goal_suggester import suggest_and_write  # noqa: E402
-from goal_state_manager import update_goal_from_goal_loop  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
+from goal_state_manager import update_goal_from_goal_loop
+from next_goal_suggester import suggest_and_write
+from runtime_common import load_json, project_root, utc_now, write_json
 
 
 def run_dir(project: Path, run_id: str) -> Path:
@@ -48,15 +48,23 @@ def write_goal_loop_metrics(project: Path, report: dict[str, Any]) -> None:
     previous = load_json(metrics_path)
     counters = previous.get('counters') if isinstance(previous.get('counters'), dict) else {}
     total = int(counters.get('goal_loop_iterations') or 0) + 1
-    completed = int(counters.get('goal_completed_count') or 0) + (1 if report.get('goal_completion_verdict') == COMPLETED_VERDICT else 0)
+    completed = int(counters.get('goal_completed_count') or 0) + (
+        1 if report.get('goal_completion_verdict') == COMPLETED_VERDICT else 0
+    )
     converged = int(counters.get('loop_converged_count') or 0) + (1 if report.get('loop_status') == 'converged' else 0)
-    stuck = int(counters.get('stuck_loop_count') or 0) + (1 if report.get('loop_status') in {'diverging', 'waiting_human'} else 0)
+    stuck = int(counters.get('stuck_loop_count') or 0) + (
+        1 if report.get('loop_status') in {'diverging', 'waiting_human'} else 0
+    )
     over = int(counters.get('over_decomposition_count') or 0) + (1 if report.get('over_decomposition_detected') else 0)
     drift = int(counters.get('goal_drift_count') or 0) + (1 if report.get('drift_detected') else 0)
     leaf_total = int(counters.get('leaf_goal_total_count') or 0) + int(report.get('leaf_total_count') or 0)
     leaf_done = int(counters.get('leaf_goal_contribution_count') or 0) + int(report.get('completed_leaf_count') or 0)
-    no_delivery_impact = int(counters.get('no_delivery_goal_impact_count') or 0) + int(report.get('no_delivery_goal_impact') or 0)
-    codex_exec_success = int(counters.get('codex_execution_success_count') or 0) + int(report.get('codex_execution_success_count') or 0)
+    no_delivery_impact = int(counters.get('no_delivery_goal_impact_count') or 0) + int(
+        report.get('no_delivery_goal_impact') or 0
+    )
+    codex_exec_success = int(counters.get('codex_execution_success_count') or 0) + int(
+        report.get('codex_execution_success_count') or 0
+    )
     counters.update(
         {
             'goal_loop_iterations': total,
@@ -116,7 +124,11 @@ def run_goal_loop(
     matrix = completion['goal_coverage_matrix']
     goal_state = completion['goal_state']
     verdict = str(matrix.get('goal_completion_verdict') or '')
-    previous_loop = load_json(run_dir(project, run_id) / 'loop-state.json') or load_json(project / '.zoo-agent' / 'loop' / 'loop-state.json') or {}
+    previous_loop = (
+        load_json(run_dir(project, run_id) / 'loop-state.json')
+        or load_json(project / '.zoo-agent' / 'loop' / 'loop-state.json')
+        or {}
+    )
     current_iteration = int(previous_loop.get('iteration') or goal_state.get('loop_iteration') or 0)
     iteration = current_iteration + 1 if advance else current_iteration
     max_iterations = int(previous_loop.get('max_iterations') or goal_state.get('max_iterations') or max_iterations)
@@ -165,7 +177,9 @@ def run_goal_loop(
     write_json(project / '.zoo-agent' / 'loop' / 'loop-state.json', loop_state)
     write_json(project / '.zoo-agent' / 'loop_state.json', loop_state)
 
-    next_goal_report = suggest_and_write(project, run_id, str(goal_state.get('goal_id') or goal_id)) if suggest_next else {}
+    next_goal_report = (
+        suggest_and_write(project, run_id, str(goal_state.get('goal_id') or goal_id)) if suggest_next else {}
+    )
     if next_goal_report:
         goal_state['next_goal_candidates'] = next_goal_report.get('next_goal_candidates') or []
 
@@ -197,7 +211,9 @@ def run_goal_loop(
             **(completion.get('paths') or {}),
             'goal_loop_report': str(run_dir(project, run_id) / 'goal-loop-report.json'),
             'loop_state': str(run_dir(project, run_id) / 'loop-state.json'),
-            'next_goal_candidates': str(run_dir(project, run_id) / 'next-goal-candidates.json') if next_goal_report else '',
+            'next_goal_candidates': str(run_dir(project, run_id) / 'next-goal-candidates.json')
+            if next_goal_report
+            else '',
         },
     }
     patch_paths = update_goal_from_goal_loop(project, report) or {}
@@ -208,7 +224,9 @@ def run_goal_loop(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Run one goal-driven execution loop decision after parent aggregation.')
+    parser = argparse.ArgumentParser(
+        description='Run one goal-driven execution loop decision after parent aggregation.'
+    )
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--goal-id', default='')

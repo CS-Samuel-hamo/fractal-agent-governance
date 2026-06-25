@@ -13,9 +13,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from claude_code_worker_detector import detect_claude_code_cli  # noqa: E402
-from codex_worker_adapter_hardened import detect_codex_cli  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from claude_code_worker_detector import detect_claude_code_cli
+from codex_worker_adapter_hardened import detect_codex_cli
+from runtime_common import project_root, utc_now, write_json
 
 
 def version_check(command: list[str], *, timeout: int = 4) -> dict[str, Any]:
@@ -27,8 +27,7 @@ def version_check(command: list[str], *, timeout: int = 4) -> dict[str, Any]:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
         text = (proc.stdout or proc.stderr).strip().splitlines()
@@ -46,8 +45,7 @@ def git_status(project: Path) -> dict[str, Any]:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return {'is_git_repo': proc.returncode == 0, 'root': '<PROJECT_ROOT>' if proc.returncode == 0 else ''}
 

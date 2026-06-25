@@ -10,10 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_alpha_packager import public_alpha_dir  # noqa: E402
-from public_docs_leakage_scanner import scan_texts  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_alpha_packager import public_alpha_dir
+from public_docs_leakage_scanner import scan_texts
+from runtime_common import project_root, utc_now, write_json
 
 DEMO_FILES = {
     'README.md': """# Demo Project
@@ -72,12 +71,34 @@ def test_greeting_trims_name() -> None:
             'project_type': 'python_cli_sample',
             'main_goal': 'prepare this demo project for public release',
             'modules': [
-                {'name': 'sample_app', 'status': 'mapped', 'confidence': 0.9, 'key_files': ['src/sample_app.py'], 'evidence_count': 1},
-                {'name': 'tests', 'status': 'mapped', 'confidence': 0.9, 'key_files': ['tests/test_sample_app.py'], 'evidence_count': 1},
+                {
+                    'name': 'sample_app',
+                    'status': 'mapped',
+                    'confidence': 0.9,
+                    'key_files': ['src/sample_app.py'],
+                    'evidence_count': 1,
+                },
+                {
+                    'name': 'tests',
+                    'status': 'mapped',
+                    'confidence': 0.9,
+                    'key_files': ['tests/test_sample_app.py'],
+                    'evidence_count': 1,
+                },
             ],
             'next_actions': [
-                {'title': 'Refresh the local Cockpit', 'why_now': 'Show project state before release artifacts.', 'risk_level': 'low', 'target_files': []},
-                {'title': 'Generate release and PR drafts', 'why_now': 'Show the public alpha release workflow pack.', 'risk_level': 'low', 'target_files': []},
+                {
+                    'title': 'Refresh the local Cockpit',
+                    'why_now': 'Show project state before release artifacts.',
+                    'risk_level': 'low',
+                    'target_files': [],
+                },
+                {
+                    'title': 'Generate release and PR drafts',
+                    'why_now': 'Show the public alpha release workflow pack.',
+                    'risk_level': 'low',
+                    'target_files': [],
+                },
             ],
         },
         indent=2,

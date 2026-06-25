@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_state_manager import apply_goal_state_patch_data  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
+from goal_state_manager import apply_goal_state_patch_data
+from runtime_common import load_json, project_root, write_json
 
 
 def main() -> int:

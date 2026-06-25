@@ -10,10 +10,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state, sync_goals  # noqa: E402
-from filter_system_goals import filter_goals  # noqa: E402
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from filter_system_goals import filter_goals
+from goal_state_manager import apply_goal_state_patch_data, build_state_patch, load_goal_state, sync_goals
+from runtime_common import load_json, project_root, utc_now, write_json
 
 CRITICAL_MARKERS = ['api_contract', 'schema', 'database', 'auth_security', 'public_api', 'dto']
 
@@ -84,7 +83,9 @@ def detect_conflicts(project: Path) -> dict[str, Any]:
         if not left_resources and resource_map_known:
             left_resources = set()
         for right in goals[left_index + 1 :]:
-            right_resources = {normalize_resource(item) for item in right.get('resource_usage') or [] if str(item).strip()}
+            right_resources = {
+                normalize_resource(item) for item in right.get('resource_usage') or [] if str(item).strip()
+            }
             shared = left_resources & right_resources
             if not shared:
                 continue
@@ -129,9 +130,9 @@ def apply_conflict_resolutions(project: Path, report: dict[str, Any]) -> dict[st
         if loser_status in {'completed', 'blocked', 'backlog'}:
             continue
         reason = (
-            f"conflict_{conflict.get('resolution') or 'pause'}:"
-            f"{conflict.get('goal_a')}:{conflict.get('goal_b')}:"
-            f"{','.join(str(item) for item in conflict.get('shared_resources') or [])}"
+            f'conflict_{conflict.get("resolution") or "pause"}:'
+            f'{conflict.get("goal_a")}:{conflict.get("goal_b")}:'
+            f'{",".join(str(item) for item in conflict.get("shared_resources") or [])}'
         )
         if loser_status == 'active':
             changes.append(
@@ -155,7 +156,9 @@ def apply_conflict_resolutions(project: Path, report: dict[str, Any]) -> dict[st
             )
         paused.append(loser_id)
     if changes:
-        patch = build_state_patch(project, source='conflict_detector', reason='cross_goal_conflict_resolution', changes=changes)
+        patch = build_state_patch(
+            project, source='conflict_detector', reason='cross_goal_conflict_resolution', changes=changes
+        )
         patch_path = project / '.zoo-agent' / 'goal' / 'goal-conflict-state-patch.json'
         write_json(patch_path, patch)
         result = apply_goal_state_patch_data(project, patch)
@@ -182,7 +185,9 @@ def main() -> int:
     if args.apply:
         report = apply_conflict_resolutions(project, report)
     paths = write_conflict_report(project, report)
-    print(json.dumps({'status': 'ok', 'workspace': str(project), 'paths': paths, **report}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps({'status': 'ok', 'workspace': str(project), 'paths': paths, **report}, ensure_ascii=False, indent=2)
+    )
     return 0 if not any(item.get('severity') == 'critical' for item in report.get('conflicts') or []) else 10
 
 

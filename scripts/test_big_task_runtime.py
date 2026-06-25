@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
@@ -8,13 +8,23 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
-def run(cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+def run(
+    cmd: list[str], cwd: Path, *, check: bool = True, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -45,7 +55,9 @@ def init_repo(name: str, env: dict[str, str]) -> Path:
     (repo / 'src').mkdir()
     (repo / 'src' / 'app.py').write_text('def add(a, b):\n    return a + b\n', encoding='utf-8')
     (repo / 'tests').mkdir()
-    (repo / 'tests' / 'test_app.py').write_text('from src.app import add\n\ndef test_add():\n    assert add(1, 2) == 3\n', encoding='utf-8')
+    (repo / 'tests' / 'test_app.py').write_text(
+        'from src.app import add\n\ndef test_add():\n    assert add(1, 2) == 3\n', encoding='utf-8'
+    )
     (repo / 'docs').mkdir()
     for name in ['a.md', 'b.md', 'c.md']:
         (repo / 'docs' / name).write_text(f'# {name}\n', encoding='utf-8')
@@ -85,7 +97,23 @@ def set_goal(repo: Path, env: dict[str, str], goal: str = 'Deliver the requested
 def test_api_db_big_task(env: dict[str, str]) -> None:
     repo = init_repo('api-db', env)
     goal_id = set_goal(repo, env, 'Change public API and database schema only after human review')
-    proc = run([sys.executable, str(AGENT), 'plan-big', 'change public API response and database schema', '--workspace', str(repo), '--run-id', 'run-api-db', '--goal-id', goal_id], repo, check=False, env=env)
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'plan-big',
+            'change public API response and database schema',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-api-db',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode == 10
     contract = load(repo / '.zoo-agent' / 'runs' / 'run-api-db' / 'big-task-contract.json')
     assert contract['readiness_verdict'] in {'BLOCKED_HIGH_RISK_HUMAN_GATE', 'READY_FOR_DECOMPOSITION_ONLY'}
@@ -96,9 +124,28 @@ def test_api_db_big_task(env: dict[str, str]) -> None:
 def test_big_docs_decomposition(env: dict[str, str]) -> None:
     repo = init_repo('docs-big', env)
     goal_id = set_goal(repo, env, 'Update documentation sections safely')
-    run([sys.executable, str(AGENT), 'decompose', 'update docs/a.md and docs/b.md independently', '--workspace', str(repo), '--run-id', 'run-docs', '--goal-id', goal_id], repo, env=env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'update docs/a.md and docs/b.md independently',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-docs',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        env=env,
+    )
     contract = load(repo / '.zoo-agent' / 'runs' / 'run-docs' / 'big-task-contract.json')
-    leaves = [path for path in sorted((repo / '.zoo-agent' / 'runs' / 'run-docs' / 'leaf-tasks').glob('leaf-*.json')) if path.name != 'leaf-tasks.json']
+    leaves = [
+        path
+        for path in sorted((repo / '.zoo-agent' / 'runs' / 'run-docs' / 'leaf-tasks').glob('leaf-*.json'))
+        if path.name != 'leaf-tasks.json'
+    ]
     schedule = load(repo / '.zoo-agent' / 'runs' / 'run-docs' / 'leaf-schedule.json')
     assert contract['allowed_execution_mode'] in {'leaf_dry_run', 'leaf_actual_allowed', 'decomposition_only'}
     assert len(leaves) >= 2
@@ -110,7 +157,23 @@ def test_big_docs_decomposition(env: dict[str, str]) -> None:
 def test_cross_module_feature(env: dict[str, str]) -> None:
     repo = init_repo('cross-module', env)
     goal_id = set_goal(repo, env, 'Plan a cross-module feature with bounded leaves')
-    proc = run([sys.executable, str(AGENT), 'decompose', 'add cross-module feature touching src/app.py docs/a.md and tests/test_app.py', '--workspace', str(repo), '--run-id', 'run-cross', '--goal-id', goal_id], repo, check=False, env=env)
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'add cross-module feature touching src/app.py docs/a.md and tests/test_app.py',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-cross',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode in {0, 10}
     assert (repo / '.zoo-agent' / 'project-resource-map.json').exists()
     assert (repo / '.zoo-agent' / 'runs' / 'run-cross' / 'leaf-tasks' / 'leaf-tasks.json').exists()
@@ -120,12 +183,33 @@ def test_cross_module_feature(env: dict[str, str]) -> None:
 def test_parent_aggregation_simulation(env: dict[str, str]) -> None:
     repo = init_repo('aggregation', env)
     goal_id = set_goal(repo, env, 'Update three docs sections safely')
-    run([sys.executable, str(AGENT), 'decompose', 'update docs/a.md docs/b.md docs/c.md', '--workspace', str(repo), '--run-id', 'run-agg', '--goal-id', goal_id], repo, check=False, env=env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'update docs/a.md docs/b.md docs/c.md',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-agg',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     result_dir = repo / '.zoo-agent' / 'runs' / 'run-agg' / 'leaf-results'
     write_json(result_dir / 'leaf-001.json', {'delivery_outcome': 'delivered'})
     write_json(result_dir / 'leaf-002.json', {'delivery_outcome': 'delivered'})
     write_json(result_dir / 'leaf-003.json', {'delivery_outcome': 'no_delivery'})
-    proc = run([sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', 'run-agg'], repo, check=False, env=env)
+    proc = run(
+        [sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', 'run-agg'],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode == 10
     report = load(repo / '.zoo-agent' / 'runs' / 'run-agg' / 'parent-aggregation-report.json')
     assert report['verdict'] in {'NEEDS_LEAF_REDO', 'BLOCKED', 'NEEDS_REPLANNING'}
@@ -134,11 +218,31 @@ def test_parent_aggregation_simulation(env: dict[str, str]) -> None:
 def test_integration_worktree_report(env: dict[str, str]) -> None:
     repo = init_repo('integration', env)
     goal_id = set_goal(repo, env, 'Update one docs section safely')
-    run([sys.executable, str(AGENT), 'decompose', 'update docs/a.md', '--workspace', str(repo), '--run-id', 'run-int', '--goal-id', goal_id], repo, check=False, env=env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'update docs/a.md',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-int',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     result_dir = repo / '.zoo-agent' / 'runs' / 'run-int' / 'leaf-results'
     write_json(result_dir / 'leaf-001.json', {'delivery_outcome': 'delivered'})
     run([sys.executable, str(AGENT), 'aggregate', '--workspace', str(repo), '--run-id', 'run-int'], repo, env=env)
-    run([sys.executable, str(AGENT), 'integration-check', '--workspace', str(repo), '--run-id', 'run-int'], repo, env=env)
+    run(
+        [sys.executable, str(AGENT), 'integration-check', '--workspace', str(repo), '--run-id', 'run-int'],
+        repo,
+        env=env,
+    )
     report = load(repo / '.zoo-agent' / 'runs' / 'run-int' / 'integration-candidate-report.json')
     assert report['verdict'] == 'INTEGRATION_CANDIDATE_READY'
     assert report['merge_performed'] is False
@@ -148,11 +252,39 @@ def test_integration_worktree_report(env: dict[str, str]) -> None:
 
 def test_goal_missing_blocks(env: dict[str, str]) -> None:
     repo = init_repo('missing-goal', env)
-    proc = run([sys.executable, str(AGENT), 'plan-big', 'add cross-module feature touching src/app.py and docs/a.md', '--workspace', str(repo), '--run-id', 'run-missing-goal'], repo, check=False, env=env)
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'plan-big',
+            'add cross-module feature touching src/app.py and docs/a.md',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-missing-goal',
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode == 10
     contract = load(repo / '.zoo-agent' / 'runs' / 'run-missing-goal' / 'big-task-contract.json')
     assert contract['readiness_verdict'] == 'BLOCKED_GOAL_UNCLEAR'
-    proc = run([sys.executable, str(AGENT), 'decompose', 'add cross-module feature touching src/app.py and docs/a.md', '--workspace', str(repo), '--run-id', 'run-missing-goal-decompose'], repo, check=False, env=env)
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'add cross-module feature touching src/app.py and docs/a.md',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-missing-goal-decompose',
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode == 10
     assert (repo / '.zoo-agent' / 'runs' / 'run-missing-goal-decompose' / 'decomposition-blocked.json').exists()
     assert not (repo / '.zoo-agent' / 'runs' / 'run-missing-goal-decompose' / 'leaf-tasks').exists()
@@ -160,7 +292,22 @@ def test_goal_missing_blocks(env: dict[str, str]) -> None:
 
 def test_agent_run_big_task_does_not_create_transient_goal(env: dict[str, str]) -> None:
     repo = init_repo('run-no-transient-goal', env)
-    proc = run([sys.executable, str(AGENT), 'run', 'change public API response and database schema', '--workspace', str(repo), '--run-id', 'run-no-transient', '--dry-run'], repo, check=False, env=env)
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'run',
+            'change public API response and database schema',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-no-transient',
+            '--dry-run',
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode in {0, 10}
     current_goal = repo / '.zoo-agent' / 'goal' / 'current-goal.json'
     assert not current_goal.exists()
@@ -189,7 +336,23 @@ def test_project_readiness_blocker_stops_decomposition(env: dict[str, str]) -> N
             ],
         },
     )
-    proc = run([sys.executable, str(AGENT), 'decompose', 'add cross-module feature touching src/app.py docs/a.md', '--workspace', str(repo), '--run-id', 'run-readiness-blocked', '--goal-id', goal_id], repo, check=False, env=env)
+    proc = run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'add cross-module feature touching src/app.py docs/a.md',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-readiness-blocked',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     assert proc.returncode == 10
     contract = load(repo / '.zoo-agent' / 'runs' / 'run-readiness-blocked' / 'big-task-contract.json')
     assert contract['readiness_verdict'] == 'BLOCKED_PROJECT_NOT_READY'
@@ -200,7 +363,24 @@ def test_project_readiness_blocker_stops_decomposition(env: dict[str, str]) -> N
 def test_allow_leaf_actual_requires_backend_health(env: dict[str, str]) -> None:
     repo = init_repo('allow-actual-needs-backend', env)
     goal_id = set_goal(repo, env, 'Update docs only when backend health is known')
-    run([sys.executable, str(AGENT), 'decompose', 'update docs/a.md', '--workspace', str(repo), '--run-id', 'run-allow-actual', '--goal-id', goal_id, '--allow-leaf-actual'], repo, check=False, env=env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'update docs/a.md',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-allow-actual',
+            '--goal-id',
+            goal_id,
+            '--allow-leaf-actual',
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     contract = load(repo / '.zoo-agent' / 'runs' / 'run-allow-actual' / 'big-task-contract.json')
     leaf = load(repo / '.zoo-agent' / 'runs' / 'run-allow-actual' / 'leaf-tasks' / 'leaf-001.json')
     assert contract['allowed_execution_mode'] == 'leaf_dry_run'
@@ -244,7 +424,23 @@ def test_loop_divergence(env: dict[str, str]) -> None:
 def test_high_risk_leaf_blocked(env: dict[str, str]) -> None:
     repo = init_repo('high-risk-leaf', env)
     goal_id = set_goal(repo, env, 'Review database schema change')
-    run([sys.executable, str(AGENT), 'decompose', 'change database schema in database/migrations/001.sql', '--workspace', str(repo), '--run-id', 'run-high-leaf', '--goal-id', goal_id], repo, check=False, env=env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'change database schema in database/migrations/001.sql',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-high-leaf',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     leaf = load(repo / '.zoo-agent' / 'runs' / 'run-high-leaf' / 'leaf-tasks' / 'leaf-001.json')
     assert leaf['risk_level'] in {'high', 'critical'}
     assert leaf['task_readiness']['verdict'] == 'BLOCKED_HIGH_RISK'
@@ -254,8 +450,36 @@ def test_high_risk_leaf_blocked(env: dict[str, str]) -> None:
 def test_unknown_resource_not_independent(env: dict[str, str]) -> None:
     repo = init_repo('unknown-resource', env)
     goal_id = set_goal(repo, env)
-    run([sys.executable, str(AGENT), 'decompose', 'improve project quality broadly', '--workspace', str(repo), '--run-id', 'run-unknown', '--goal-id', goal_id], repo, check=False, env=env)
-    run([sys.executable, str(ROOT / 'scripts' / 'detect_leaf_independence.py'), '--workspace', str(repo), '--run-id', 'run-unknown'], repo, check=False, env=env)
+    run(
+        [
+            sys.executable,
+            str(AGENT),
+            'decompose',
+            'improve project quality broadly',
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-unknown',
+            '--goal-id',
+            goal_id,
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
+    run(
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'detect_leaf_independence.py'),
+            '--workspace',
+            str(repo),
+            '--run-id',
+            'run-unknown',
+        ],
+        repo,
+        check=False,
+        env=env,
+    )
     report = load(repo / '.zoo-agent' / 'runs' / 'run-unknown' / 'leaf-independence.json')
     assert report['parallel_denials']
     assert 'unknown' in json.dumps(report).lower()

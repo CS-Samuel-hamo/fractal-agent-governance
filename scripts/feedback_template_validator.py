@@ -11,9 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_launch_packager import FEEDBACK_TEMPLATES, public_launch_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_launch_packager import FEEDBACK_TEMPLATES, public_launch_dir
+from runtime_common import project_root, utc_now, write_json
 
 REQUIRED_SIGNALS = {
     'environment': ['environment', 'os'],
@@ -64,7 +63,9 @@ def validate(project: Path) -> dict[str, Any]:
             missing_signals[rel] = missing
         for pattern in HIGH_PRIVACY_PATTERNS:
             if pattern.search(text):
-                privacy_warnings.append({'template': rel, 'severity': 'high', 'reason': 'secret_or_absolute_path_marker'})
+                privacy_warnings.append(
+                    {'template': rel, 'severity': 'high', 'reason': 'secret_or_absolute_path_marker'}
+                )
     score = round(passed / total, 3) if total else 0.0
     recommendation = 'pass'
     if score < 0.9 or any(item['severity'] == 'high' for item in privacy_warnings) or missing_templates:

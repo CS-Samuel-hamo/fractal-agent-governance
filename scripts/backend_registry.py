@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
-from execution_interface import ExecutionBackend
 from codex_backend_plugin import CodexExecutionBackend
+from execution_interface import ExecutionBackend
 from mock_backend_plugin import DryRunExecutionBackend, MockExecutionBackend
-
 
 BackendFactory = Callable[[], ExecutionBackend]
 
@@ -79,7 +78,11 @@ def main() -> int:
     if args.health:
         print(json.dumps({'backends': registry.health()}, ensure_ascii=False, indent=2))
         return 0
-    print(json.dumps({'backends': registry.names(), 'selected': read_backend_selection(workspace)}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'backends': registry.names(), 'selected': read_backend_selection(workspace)}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 

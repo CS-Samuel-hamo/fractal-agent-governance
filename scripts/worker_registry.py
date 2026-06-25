@@ -11,10 +11,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-from worker_capability_profile import profile_for, worker_profiles  # noqa: E402
-from worker_interface import worker_result  # noqa: E402
-from worker_adapter_contract import contract_for, write_contracts  # noqa: E402
+from runtime_common import project_root, utc_now, write_json
+from worker_adapter_contract import contract_for, write_contracts
+from worker_capability_profile import worker_profiles
+from worker_interface import worker_result
 
 
 @dataclass
@@ -40,7 +40,9 @@ class ProfileWorker:
     def health(self) -> dict[str, Any]:
         return {
             'available': bool(self.profile.get('available')),
-            'health': str(self.profile.get('health') or ('healthy' if self.profile.get('available') else 'unavailable')),
+            'health': str(
+                self.profile.get('health') or ('healthy' if self.profile.get('available') else 'unavailable')
+            ),
             'reliability_score': float(self.profile.get('reliability_score') or 0.0),
         }
 
@@ -99,7 +101,9 @@ def registry_payload(project: Path) -> dict[str, Any]:
     workers = []
     profiles = worker_profiles(project)
     contracts_payload = write_contracts(project, profiles)
-    contract_rows = {item.get('worker_name'): item for item in contracts_payload.get('contracts') or [] if isinstance(item, dict)}
+    contract_rows = {
+        item.get('worker_name'): item for item in contracts_payload.get('contracts') or [] if isinstance(item, dict)
+    }
     for profile in profiles.values():
         contract = contract_rows.get(profile.get('worker_name')) or contract_for(str(profile.get('worker_name') or ''))
         workers.append(
@@ -125,7 +129,9 @@ def registry_payload(project: Path) -> dict[str, Any]:
                 'contract': contract,
                 'reason': profile.get('reason', ''),
                 'unavailable_reason': profile.get('unavailable_reason', ''),
-                'suggested_fix': 'Use preview/dry-run or install/enable the worker later.' if not profile.get('available') else 'No fix required.',
+                'suggested_fix': 'Use preview/dry-run or install/enable the worker later.'
+                if not profile.get('available')
+                else 'No fix required.',
             }
         )
     return {
@@ -161,7 +167,17 @@ def main() -> int:
     payload = write_worker_registry(project)
     if args.doctor:
         healthy = [item for item in payload['workers'] if item.get('available')]
-        print(json.dumps({'status': 'ok', 'available_workers': len(healthy), 'registry': '.zoo-agent/workers/worker_registry.json'}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    'status': 'ok',
+                    'available_workers': len(healthy),
+                    'registry': '.zoo-agent/workers/worker_registry.json',
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0

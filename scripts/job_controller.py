@@ -42,7 +42,10 @@ def _action_display_status(job: dict[str, Any], action: dict[str, Any]) -> str:
         return 'Blocked with reason'
     if action.get('preview_only') or action.get('execution_mode') == 'preview':
         return 'Preview recommended'
-    if action.get('source') in {'seed_prompt', 'user_goal'} or action.get('action_source') in {'seed_prompt', 'user_goal'}:
+    if action.get('source') in {'seed_prompt', 'user_goal'} or action.get('action_source') in {
+        'seed_prompt',
+        'user_goal',
+    }:
         return 'Ready for starter action'
     return str(job.get('status') or 'updated')
 
@@ -108,7 +111,18 @@ def _can_supersede_non_running_job(project: Path, existing: dict[str, Any]) -> b
             str(action.get('execution_mode') or ''),
         ]
     ).lower()
-    return any(term in surface for term in ['preview', 'no_delivery', 'no delivery', 'timeout', 'failed', 'apply requires user intent', 'worker unavailable'])
+    return any(
+        term in surface
+        for term in [
+            'preview',
+            'no_delivery',
+            'no delivery',
+            'timeout',
+            'failed',
+            'apply requires user intent',
+            'worker unavailable',
+        ]
+    )
 
 
 def _blocks_new_goal(existing: dict[str, Any], goal: str) -> bool:
@@ -197,13 +211,24 @@ def _summary(project: Path, job: dict[str, Any], *, started: bool = False, hint:
     return '\n'.join(lines)
 
 
-def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max_steps: int = 0, backend: str = '', steps: int = 0) -> dict[str, Any]:
+def start_or_update_job(
+    project: Path, goal: str, *, mode: str = 'standard', max_steps: int = 0, backend: str = '', steps: int = 0
+) -> dict[str, Any]:
     existing = load_current_job(project)
     decision = decide_policy(goal, existing_job=bool(existing))
     write_policy_report(project, decision)
     if existing and _blocks_new_goal(existing, goal):
         if _can_supersede_non_running_job(project, existing):
-            append_job_event(project, 'job_superseded', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal, 'old_status': existing.get('status', '')})
+            append_job_event(
+                project,
+                'job_superseded',
+                {
+                    'job_id': existing.get('job_id', ''),
+                    'old_goal': existing.get('goal', ''),
+                    'new_goal': goal,
+                    'old_status': existing.get('status', ''),
+                },
+            )
             stop_session(project)
             sync_job_from_session(project, goal=str(existing.get('goal') or ''))
         else:
@@ -216,7 +241,16 @@ def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max
             return {'status': 'blocked', 'job': existing, 'message': message}
     existing = load_current_job(project)
     if _should_replace_reviewable_job(existing, goal):
-        append_job_event(project, 'job_replaced_after_reviewable_state', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal, 'old_status': existing.get('status', '')})
+        append_job_event(
+            project,
+            'job_replaced_after_reviewable_state',
+            {
+                'job_id': existing.get('job_id', ''),
+                'old_goal': existing.get('goal', ''),
+                'new_goal': goal,
+                'old_status': existing.get('status', ''),
+            },
+        )
         stop_session(project)
         existing.update({'status': 'stopped', 'attention_required': False, 'attention_reason': ''})
         save_current_job(project, existing)
@@ -224,7 +258,16 @@ def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max
     existing = load_current_job(project)
     if existing and _blocks_new_goal(existing, goal):
         if _can_supersede_non_running_job(project, existing):
-            append_job_event(project, 'job_superseded_after_refresh', {'job_id': existing.get('job_id', ''), 'old_goal': existing.get('goal', ''), 'new_goal': goal, 'old_status': existing.get('status', '')})
+            append_job_event(
+                project,
+                'job_superseded_after_refresh',
+                {
+                    'job_id': existing.get('job_id', ''),
+                    'old_goal': existing.get('goal', ''),
+                    'new_goal': goal,
+                    'old_status': existing.get('status', ''),
+                },
+            )
             stop_session(project)
             sync_job_from_session(project, goal=str(existing.get('goal') or ''))
             existing = load_current_job(project)
@@ -247,12 +290,22 @@ def start_or_update_job(project: Path, goal: str, *, mode: str = 'standard', max
     if existing and existing.get('status') in JOB_ACTIVE_STATUSES:
         result = continue_session(project, mode=mode, steps=max(1, steps or 1), backend=backend)
         job = sync_job_from_session(project, goal=goal or str(existing.get('goal') or ''))
-        append_job_event(project, 'job_continued_from_goal', {'job_id': job.get('job_id', ''), 'goal': job.get('goal', '')})
-        return {'status': result.get('status'), 'job': job, 'message': _summary(project, job, started=False, hint=str(decision.get('hint') or ''))}
+        append_job_event(
+            project, 'job_continued_from_goal', {'job_id': job.get('job_id', ''), 'goal': job.get('goal', '')}
+        )
+        return {
+            'status': result.get('status'),
+            'job': job,
+            'message': _summary(project, job, started=False, hint=str(decision.get('hint') or '')),
+        }
     result = start_session(project, goal=goal, mode=mode, max_steps=max_steps, backend=backend, steps=steps)
     job = sync_job_from_session(project, goal=goal)
     append_job_event(project, 'job_started', {'job_id': job.get('job_id', ''), 'goal': goal})
-    return {'status': result.get('status'), 'job': job, 'message': _summary(project, job, started=True, hint=str(decision.get('hint') or ''))}
+    return {
+        'status': result.get('status'),
+        'job': job,
+        'message': _summary(project, job, started=True, hint=str(decision.get('hint') or '')),
+    }
 
 
 def show_job_inbox(project: Path) -> dict[str, Any]:
@@ -279,7 +332,11 @@ def stop_job(project: Path) -> dict[str, Any]:
 def undo_job(project: Path) -> dict[str, Any]:
     result = undo_session(project)
     job = sync_job_from_session(project)
-    append_job_event(project, 'job_undo_checked', {'job_id': job.get('job_id', ''), 'checkpoint': (result.get('checkpoint') or {}).get('checkpoint_id', '')})
+    append_job_event(
+        project,
+        'job_undo_checked',
+        {'job_id': job.get('job_id', ''), 'checkpoint': (result.get('checkpoint') or {}).get('checkpoint_id', '')},
+    )
     return {'status': result.get('status'), 'job': job, 'message': render_job_inbox(project, refresh=False)}
 
 
@@ -312,7 +369,9 @@ def main() -> int:
         if not goal:
             payload = show_job_inbox(project)
         else:
-            payload = start_or_update_job(project, goal, mode=args.mode, max_steps=args.max_steps, backend=args.backend, steps=args.steps)
+            payload = start_or_update_job(
+                project, goal, mode=args.mode, max_steps=args.max_steps, backend=args.backend, steps=args.steps
+            )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:

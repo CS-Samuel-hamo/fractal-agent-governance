@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import advance_loop, initialize_loop, project_root, utc_now, write_json  # noqa: E402
+from runtime_common import advance_loop, initialize_loop, project_root, utc_now, write_json
 
 
 def main() -> int:
@@ -32,7 +32,9 @@ def main() -> int:
     project = project_root(args.workspace)
     max_iterations = args.max_iterations or args.max_iteration
     if args.advance:
-        state = advance_loop(project, run_id=args.run_id or 'manual', task_id=args.task_id or 'manual', max_iteration=max_iterations)
+        state = advance_loop(
+            project, run_id=args.run_id or 'manual', task_id=args.task_id or 'manual', max_iteration=max_iterations
+        )
     else:
         state = initialize_loop(project, max_iteration=max_iterations, source='loop_controller.py')
 
@@ -87,7 +89,9 @@ def main() -> int:
         'explanation': {
             'loop_is_loss_controller_not_planner': True,
             'next_action': state.get('next_action', ''),
-        } if args.explain else {},
+        }
+        if args.explain
+        else {},
     }
     if args.json_output:
         write_json(Path(args.json_output).resolve(), report)

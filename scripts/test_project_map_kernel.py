@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 import tempfile
@@ -10,13 +9,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from project_map_builder import build_project_map  # noqa: E402
-from project_map_updater import update_project_map  # noqa: E402
-from runtime_common import write_json  # noqa: E402
+from project_map_builder import build_project_map
+from project_map_updater import update_project_map
+from runtime_common import write_json
 
 
 def run(cmd: list[str], cwd: Path) -> None:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if proc.returncode:
@@ -57,7 +58,13 @@ def main() -> int:
     write_json(map_dir / 'map_evidence.json', evidence)
     execution = {'leaf_results': [{'business_changed_files': ['README.md'], 'delivery_outcome': 'delivered'}]}
     final = {'final_verdict': 'COMPLETED'}
-    updated = update_project_map(repo, run_id='map-update-test', action=project_map['next_actions'][0], execution_result=execution, final_result=final)
+    updated = update_project_map(
+        repo,
+        run_id='map-update-test',
+        action=project_map['next_actions'][0],
+        execution_result=execution,
+        final_result=final,
+    )
     assert updated['changed_files'] == ['README.md']
     assert (map_dir / 'project_map.json').exists()
     assert (map_dir / 'project_map.md').exists()

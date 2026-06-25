@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -25,7 +24,9 @@ def safe_name(value: str) -> str:
     return ''.join(ch if ch.isalnum() or ch in '._-' else '-' for ch in value).strip('-') or 'health'
 
 
-def run_command(command: list[str], cwd: Path, *, timeout: int = 0, env: dict[str, str] | None = None) -> dict[str, Any]:
+def run_command(
+    command: list[str], cwd: Path, *, timeout: int = 0, env: dict[str, str] | None = None
+) -> dict[str, Any]:
     started = time.monotonic()
     try:
         proc = subprocess.run(
@@ -34,8 +35,7 @@ def run_command(command: list[str], cwd: Path, *, timeout: int = 0, env: dict[st
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout or None,
             env=env,
         )
@@ -96,16 +96,20 @@ def disk_probe() -> dict[str, Any]:
         usage = shutil.disk_usage(str(target))
         return {
             'target': str(target),
-            'total_gb': round(usage.total / (1024 ** 3), 3),
-            'free_gb': round(usage.free / (1024 ** 3), 3),
-            'status': 'pass' if usage.free > 1024 ** 3 else 'warning_low_space',
+            'total_gb': round(usage.total / (1024**3), 3),
+            'free_gb': round(usage.free / (1024**3), 3),
+            'status': 'pass' if usage.free > 1024**3 else 'warning_low_space',
         }
     except Exception as exc:
         return {'target': str(target), 'status': 'unknown', 'error': f'{type(exc).__name__}: {exc}'}
 
 
 def resolve_codex_command() -> str:
-    names = ['codex.cmd', 'codex.exe', 'codex.bat', 'codex'] if sys.platform == 'win32' else ['codex', 'codex.cmd', 'codex.exe', 'codex.bat']
+    names = (
+        ['codex.cmd', 'codex.exe', 'codex.bat', 'codex']
+        if sys.platform == 'win32'
+        else ['codex', 'codex.cmd', 'codex.exe', 'codex.bat']
+    )
     for name in names:
         found = shutil.which(name)
         if found:
@@ -117,7 +121,14 @@ def run_adapter_smoke(args: argparse.Namespace, health_dir: Path) -> tuple[dict[
     timestamp = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
     workspace = temp_root() / f'codex-worker-health-{timestamp}'
     workspace.mkdir(parents=True, exist_ok=True)
-    subprocess.run(['git', 'init'], cwd=workspace, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+    subprocess.run(
+        ['git', 'init'],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+    )
     task_dir = health_dir / 'adapter-smoke'
     task_dir.mkdir(parents=True, exist_ok=True)
     prompt_file = task_dir / 'prompt.md'
@@ -162,26 +173,28 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     lines = [
         '# Codex Worker Health',
         '',
-        f"- verdict: {payload['verdict']}",
-        f"- generated_at: {payload['generated_at']}",
-        f"- codex_home_exists: {payload['codex_home']['exists']}",
-        f"- codex_version_returncode: {payload['codex_version'].get('returncode')}",
-        f"- adapter_status: {payload['adapter_smoke'].get('status')}",
-        f"- output_last_message_exists: {payload['adapter_smoke'].get('output_last_message_exists')}",
+        f'- verdict: {payload["verdict"]}',
+        f'- generated_at: {payload["generated_at"]}',
+        f'- codex_home_exists: {payload["codex_home"]["exists"]}',
+        f'- codex_version_returncode: {payload["codex_version"].get("returncode")}',
+        f'- adapter_status: {payload["adapter_smoke"].get("status")}',
+        f'- output_last_message_exists: {payload["adapter_smoke"].get("output_last_message_exists")}',
         '',
         '## Blockers',
         '',
     ]
     blockers = payload.get('blockers') or []
-    lines.extend([f"- {item}" for item in blockers] or ['- none'])
+    lines.extend([f'- {item}' for item in blockers] or ['- none'])
     lines.extend(['', '## Warnings', ''])
     warnings = payload.get('warnings') or []
-    lines.extend([f"- {item}" for item in warnings] or ['- none'])
+    lines.extend([f'- {item}' for item in warnings] or ['- none'])
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Check local Codex worker execution health without reading auth files.')
+    parser = argparse.ArgumentParser(
+        description='Check local Codex worker execution health without reading auth files.'
+    )
     parser.add_argument('--codex-home', default=os.environ.get('CODEX_HOME', ''))
     parser.add_argument('--timeout-seconds', type=int, default=240)
     parser.add_argument('--no-output-timeout-seconds', type=int, default=120)
@@ -234,7 +247,14 @@ def main() -> int:
         'HEALTHY': {
             'allow_actual': True,
             'allow_parallel_actual': True,
-            'allowed_modes': ['fast_actual', 'parallel_actual_if_independent', 'dry_run', 'planning', 'decomposition', 'reporting'],
+            'allowed_modes': [
+                'fast_actual',
+                'parallel_actual_if_independent',
+                'dry_run',
+                'planning',
+                'decomposition',
+                'reporting',
+            ],
         },
         'HEALTHY_WITH_WARNINGS': {
             'allow_actual': True,
@@ -274,7 +294,19 @@ def main() -> int:
     write_json(json_path, payload)
     write_json(out_dir / 'codex-worker-health-latest.json', payload)
     write_markdown(md_path, payload)
-    print(json.dumps({'verdict': verdict, 'json': str(json_path), 'markdown': str(md_path), 'blockers': blockers, 'warnings': warnings}, ensure_ascii=True, indent=2))
+    print(
+        json.dumps(
+            {
+                'verdict': verdict,
+                'json': str(json_path),
+                'markdown': str(md_path),
+                'blockers': blockers,
+                'warnings': warnings,
+            },
+            ensure_ascii=True,
+            indent=2,
+        )
+    )
     return 0 if verdict in {'HEALTHY', 'HEALTHY_WITH_WARNINGS'} else 20
 
 

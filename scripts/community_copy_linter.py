@@ -11,10 +11,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_launch_packager import public_launch_dir  # noqa: E402
-from public_positioning_linter import lint_texts  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_launch_packager import public_launch_dir
+from public_positioning_linter import lint_texts
+from runtime_common import project_root, utc_now, write_json
 
 REQUIRED_SECTIONS = [
     'GitHub Repo Description',
@@ -47,7 +46,17 @@ def lint(project: Path) -> dict[str, Any]:
             bad_phrases.append(match.group(0))
     section_score = (len(REQUIRED_SECTIONS) - len(missing)) / len(REQUIRED_SECTIONS)
     overclaim = bool(bad_phrases) or bool(positioning.get('overclaim_detected'))
-    score = round(max(0.0, min(1.0, (float(positioning.get('operator_positioning_score') or 0) + section_score) / 2 - (0.2 if overclaim else 0))), 3)
+    score = round(
+        max(
+            0.0,
+            min(
+                1.0,
+                (float(positioning.get('operator_positioning_score') or 0) + section_score) / 2
+                - (0.2 if overclaim else 0),
+            ),
+        ),
+        3,
+    )
     recommendation = 'pass'
     if score < 0.85 or overclaim or positioning.get('codex_wrapper_risk') != 'low':
         recommendation = 'fix_before_launch'

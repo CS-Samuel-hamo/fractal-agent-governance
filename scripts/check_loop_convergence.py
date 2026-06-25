@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import initialize_loop, project_root, write_json  # noqa: E402
+from runtime_common import initialize_loop, project_root, write_json
 
 
 def main() -> int:
@@ -31,7 +31,8 @@ def main() -> int:
             'backend_failure_dry_run_only': int(state.get('backend_failure_count') or 0) >= 2,
             'doc_only_implementation_pass': int(state.get('doc_only_count') or 0) >= 2,
             'local_optimization_follow_up': int(state.get('local_optimization_count') or 0) >= 2,
-            'max_iterations_reached': int(state.get('iteration') or 0) >= int(state.get('max_iterations') or state.get('max_iteration') or 5),
+            'max_iterations_reached': int(state.get('iteration') or 0)
+            >= int(state.get('max_iterations') or state.get('max_iteration') or 5),
         },
         'next_action': state.get('next_action', ''),
     }

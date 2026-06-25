@@ -12,13 +12,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from branch_hygiene_audit import audit as branch_audit  # noqa: E402
-from default_branch_advisor import advise  # noqa: E402
-from post_launch_status_generator import generate as generate_status  # noqa: E402
-from post_publish_remote_verifier import verify  # noqa: E402
-from publishing_command_linter import lint_project  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from branch_hygiene_audit import audit as branch_audit
+from default_branch_advisor import advise
+from post_launch_status_generator import generate as generate_status
+from post_publish_remote_verifier import verify
+from publishing_command_linter import lint_project
+from runtime_common import project_root, utc_now, write_json
 
 POST_LAUNCH_DIR = Path('.zoo-agent') / 'post_launch'
 
@@ -32,7 +31,9 @@ def final_readiness(remote: dict[str, Any], branch: dict[str, Any], lint: dict[s
     return 'READY_FOR_POST_LAUNCH_FEEDBACK_TRIAGE'
 
 
-def build_report(remote: dict[str, Any], branch: dict[str, Any], lint: dict[str, Any], default: dict[str, Any], readiness: str) -> str:
+def build_report(
+    remote: dict[str, Any], branch: dict[str, Any], lint: dict[str, Any], default: dict[str, Any], readiness: str
+) -> str:
     return '\n'.join(
         [
             '# Post Publish Report',
@@ -45,35 +46,35 @@ def build_report(remote: dict[str, Any], branch: dict[str, Any], lint: dict[str,
             '',
             '## Remote Publish Verification',
             '',
-            f"- release branch verified: {remote.get('remote_branch_exists')}",
-            f"- tag verified: {remote.get('remote_tag_exists')}",
-            f"- content tree verified: {remote.get('tree_equal')}",
-            f"- local/remote file diff empty: {remote.get('local_remote_diff_empty')}",
-            f"- commit SHA differs but tree equal: {remote.get('commit_sha_differs_but_tree_equal')}",
-            f"- GitHub Release object verified: {remote.get('github_release_object_verified')}",
+            f'- release branch verified: {remote.get("remote_branch_exists")}',
+            f'- tag verified: {remote.get("remote_tag_exists")}',
+            f'- content tree verified: {remote.get("tree_equal")}',
+            f'- local/remote file diff empty: {remote.get("local_remote_diff_empty")}',
+            f'- commit SHA differs but tree equal: {remote.get("commit_sha_differs_but_tree_equal")}',
+            f'- GitHub Release object verified: {remote.get("github_release_object_verified")}',
             '',
             '## Branch Hygiene',
             '',
-            f"- current branch: `{branch.get('current_branch')}`",
-            f"- main exists: {branch.get('main_exists')}",
-            f"- master exists: {branch.get('master_exists')}",
-            f"- release branch exists: {branch.get('release_branch_exists')}",
-            f"- master fast-forward safe: {branch.get('master_fast_forward_safe')}",
-            f"- force push risk: {branch.get('force_push_risk')}",
-            f"- branch hygiene recommendation: {branch.get('recommendation')}",
+            f'- current branch: `{branch.get("current_branch")}`',
+            f'- main exists: {branch.get("main_exists")}',
+            f'- master exists: {branch.get("master_exists")}',
+            f'- release branch exists: {branch.get("release_branch_exists")}',
+            f'- master fast-forward safe: {branch.get("master_fast_forward_safe")}',
+            f'- force push risk: {branch.get("force_push_risk")}',
+            f'- branch hygiene recommendation: {branch.get("recommendation")}',
             '',
             '## Publishing Command Corrections',
             '',
-            f"- lint passed: {lint.get('publishing_command_lint_passed')}",
-            f"- hardcoded main push detected: {lint.get('hardcoded_main_push_detected')}",
-            f"- force push detected: {lint.get('force_push_detected')}",
-            f"- unsafe GitHub write detected: {lint.get('unsafe_github_write_detected')}",
+            f'- lint passed: {lint.get("publishing_command_lint_passed")}',
+            f'- hardcoded main push detected: {lint.get("hardcoded_main_push_detected")}',
+            f'- force push detected: {lint.get("force_push_detected")}',
+            f'- unsafe GitHub write detected: {lint.get("unsafe_github_write_detected")}',
             '',
             '## Default Branch Recommendation',
             '',
-            f"- current default branch: `{default.get('current_default_branch')}`",
-            f"- recommended default branch: `{default.get('recommended_default_branch')}`",
-            f"- manual action needed: {default.get('should_change_default_branch')}",
+            f'- current default branch: `{default.get("current_default_branch")}`',
+            f'- recommended default branch: `{default.get("recommended_default_branch")}`',
+            f'- manual action needed: {default.get("should_change_default_branch")}',
             '- manual path: GitHub Settings -> Branches -> Default branch',
             '',
             '## Remaining Manual Steps',
@@ -96,7 +97,9 @@ def generate(project: Path) -> dict[str, Any]:
     readiness = final_readiness(remote, branch, lint)
     manual_actions = []
     if default.get('should_change_default_branch'):
-        manual_actions.append('Optionally change GitHub default branch to release/v1.0.0-alpha.1 in Settings -> Branches.')
+        manual_actions.append(
+            'Optionally change GitHub default branch to release/v1.0.0-alpha.1 in Settings -> Branches.'
+        )
     must_fix = []
     if readiness == 'FIX_BRANCH_DOCS_FIRST':
         must_fix.append('remove unsafe or hardcoded publishing commands')

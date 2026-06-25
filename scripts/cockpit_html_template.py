@@ -37,11 +37,11 @@ def module_cards(modules: list[dict[str, Any]]) -> str:
     for item in modules:
         files = ', '.join(esc(path) for path in item.get('key_files') or []) or 'not available'
         rows.append(
-            f'''<article class="item">
+            f"""<article class="item">
   <div class="item-head"><strong>{esc(item.get('name'))}</strong>{badge(item.get('status'))}</div>
   <div class="meta">confidence {esc(item.get('confidence'))} | evidence {esc(item.get('evidence_count'))}</div>
   <div class="files">{files}</div>
-</article>'''
+</article>"""
         )
     return ''.join(rows)
 
@@ -53,14 +53,18 @@ def capability_rows(capabilities: list[dict[str, Any]]) -> str:
     for item in capabilities:
         related = ', '.join(esc(path) for path in item.get('related_modules') or []) or 'not available'
         rows.append(
-            f'''<tr>
+            f"""<tr>
   <td>{esc(item.get('name'))}</td>
   <td>{badge(item.get('status'))}</td>
   <td>{related}</td>
   <td>{esc(item.get('evidence_count'))}</td>
-</tr>'''
+</tr>"""
         )
-    return '<table><thead><tr><th>Capability</th><th>Status</th><th>Related</th><th>Evidence</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+    return (
+        '<table><thead><tr><th>Capability</th><th>Status</th><th>Related</th><th>Evidence</th></tr></thead><tbody>'
+        + ''.join(rows)
+        + '</tbody></table>'
+    )
 
 
 def risk_rows(risks: list[dict[str, Any]]) -> str:
@@ -71,11 +75,11 @@ def risk_rows(risks: list[dict[str, Any]]) -> str:
         files = ', '.join(esc(path) for path in item.get('affected_files') or []) or 'not available'
         reason = esc(item.get('reason') or 'Mapped from project evidence.')
         rows.append(
-            f'''<article class="item">
+            f"""<article class="item">
   <div class="item-head"><strong>{esc(item.get('description'))}</strong>{badge(item.get('severity'))}</div>
   <div class="meta">{files}</div>
   <p>{reason}</p>
-</article>'''
+</article>"""
         )
     return ''.join(rows)
 
@@ -87,12 +91,12 @@ def action_cards(actions: list[dict[str, Any]]) -> str:
     for item in actions[:8]:
         files = ', '.join(esc(path) for path in item.get('target_files') or []) or 'not available'
         rows.append(
-            f'''<article class="item action">
+            f"""<article class="item action">
   <div class="item-head"><strong>{esc(item.get('title'))}</strong>{badge(item.get('risk_level'))}</div>
   <p><b>Why now:</b> {esc(item.get('why_now'))}</p>
   <p><b>Impact:</b> {esc(item.get('expected_impact'))}</p>
   <div class="meta">mode {esc(item.get('execution_mode'))} | evidence {esc(item.get('evidence_count'))} | {files}</div>
-</article>'''
+</article>"""
         )
     return ''.join(rows)
 
@@ -102,11 +106,17 @@ def timeline(progress: dict[str, Any]) -> str:
     blocked = progress.get('blocked_actions') or []
     rows = []
     for item in completed[-6:]:
-        rows.append(f'<li><span class="dot good-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>')
+        rows.append(
+            f'<li><span class="dot good-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>'
+        )
     for item in blocked[-4:]:
-        rows.append(f'<li><span class="dot bad-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>')
+        rows.append(
+            f'<li><span class="dot bad-dot"></span><b>{esc(item.get("title"))}</b><small>{esc(item.get("status"))}</small></li>'
+        )
     if not rows:
-        rows.append('<li><span class="dot"></span><b>No actions recorded yet.</b><small>Start a session to build progress.</small></li>')
+        rows.append(
+            '<li><span class="dot"></span><b>No actions recorded yet.</b><small>Start a session to build progress.</small></li>'
+        )
     return '<ol class="timeline">' + ''.join(rows) + '</ol>'
 
 
@@ -117,11 +127,11 @@ def attention_panel(attention: dict[str, Any]) -> str:
     rows = []
     for item in items:
         rows.append(
-            f'''<article class="item">
+            f"""<article class="item">
   <div class="item-head"><strong>{esc(item.get('reason'))}</strong>{badge('needs_attention')}</div>
   <p>{esc(item.get('suggested_next_step'))}</p>
   <div class="meta">{esc(item.get('action'))}</div>
-</article>'''
+</article>"""
         )
     return ''.join(rows)
 
@@ -137,11 +147,11 @@ def worker_panel(worker: dict[str, Any]) -> str:
             f'<p>Provider: {esc(provider or "not available")} | Worker: {esc(worker_name or "not available")}</p>'
             '</details>'
         )
-    return f'''<p>{badge(worker.get('role') or 'Worker')}</p>
+    return f"""<p>{badge(worker.get('role') or 'Worker')}</p>
 <p><b>Status:</b> {esc(worker.get('status') or 'not available')}</p>
 <p><b>Routing mode:</b> {esc(worker.get('routing_mode') or 'not available')}</p>
 <p><b>Why this worker:</b> {esc(worker.get('reason') or 'not available')}</p>
-{developer}'''
+{developer}"""
 
 
 def worker_readiness_panel(readiness: dict[str, Any]) -> str:
@@ -155,16 +165,16 @@ def worker_readiness_panel(readiness: dict[str, Any]) -> str:
             '</details>'
         )
         rows.append(
-            f'''<article class="item">
+            f"""<article class="item">
   <div class="item-head"><strong>{esc(item.get('role'))}</strong>{badge(item.get('status'))}</div>
   <div class="meta">{esc(item.get('safe_capability') or 'not available')}</div>
   {developer}
-</article>'''
+</article>"""
         )
     if not rows:
         rows.append('<div class="empty">Worker readiness is not available yet.</div>')
-    return f'''<p>{badge('actual execution ' + str(readiness.get('actual_execution') or 'unknown'))}</p>
-{''.join(rows)}'''
+    return f"""<p>{badge('actual execution ' + str(readiness.get('actual_execution') or 'unknown'))}</p>
+{''.join(rows)}"""
 
 
 def learning_panel(learning: dict[str, Any]) -> str:
@@ -174,11 +184,11 @@ def learning_panel(learning: dict[str, Any]) -> str:
     rows = []
     for item in items:
         rows.append(
-            f'''<article class="item">
+            f"""<article class="item">
   <div class="item-head"><strong>{esc(item.get('label') or 'Learning insight')}</strong>{badge(item.get('effect') or 'suggestion')}</div>
   <p>{esc(item.get('message') or 'Similar project signal is available.')}</p>
   <div class="meta">confidence {esc(item.get('confidence'))} | evidence {esc(item.get('evidence_count'))}</div>
-</article>'''
+</article>"""
         )
     return ''.join(rows)
 
@@ -188,13 +198,13 @@ def release_panel(release: dict[str, Any]) -> str:
         return '<div class="empty">Run <code>agent release</code> to generate a local release workflow pack.</div>'
     blockers = release.get('blockers') or []
     path_items = [
-        release.get('pr_draft_path') and f"PR draft: {release.get('pr_draft_path')}",
-        release.get('release_notes_path') and f"Release notes: {release.get('release_notes_path')}",
-        release.get('changelog_path') and f"Changelog: {release.get('changelog_path')}",
-        release.get('report_path') and f"Workflow report: {release.get('report_path')}",
+        release.get('pr_draft_path') and f'PR draft: {release.get("pr_draft_path")}',
+        release.get('release_notes_path') and f'Release notes: {release.get("release_notes_path")}',
+        release.get('changelog_path') and f'Changelog: {release.get("changelog_path")}',
+        release.get('report_path') and f'Workflow report: {release.get("report_path")}',
     ]
     learning_path = release.get('learning_informed_path') or []
-    return f'''<div class="stats">
+    return f"""<div class="stats">
   <div class="stat"><span class="muted">Git status</span><b>{esc(release.get('git_status') or 'n/a')}</b></div>
   <div class="stat"><span class="muted">GitHub ready</span><b>{esc(str(bool(release.get('github_ready'))).lower())}</b></div>
   <div class="stat"><span class="muted">PR ready</span><b>{esc(str(bool(release.get('pr_ready'))).lower())}</b></div>
@@ -208,7 +218,7 @@ def release_panel(release: dict[str, Any]) -> str:
 <h3>Main blockers</h3>
 {list_items(blockers, empty='No release blocker recorded.')}
 <h3>Learning-informed release path</h3>
-{list_items(learning_path, empty='No local learning path available yet.')}'''
+{list_items(learning_path, empty='No local learning path available yet.')}"""
 
 
 def logic_rules_panel(logic_rules: dict[str, Any]) -> str:
@@ -222,7 +232,7 @@ def logic_rules_panel(logic_rules: dict[str, Any]) -> str:
         f'Restricted access policy: {str(bool(coverage.get("restricted_access"))).lower()}',
     ]
     links = (logic_rules.get('missing_links') or []) + (logic_rules.get('weak_links') or [])
-    return f'''<div class="stats">
+    return f"""<div class="stats">
   <div class="stat"><span class="muted">Rules</span><b>{esc(logic_rules.get('rules_status') or 'unknown')}</b></div>
   <div class="stat"><span class="muted">Workflow</span><b>{esc(logic_rules.get('workflow_chain') or 'unknown')}</b></div>
   <div class="stat"><span class="muted">Risk coverage</span><b>{esc(logic_rules.get('risk_coverage') or 'unknown')}</b></div>
@@ -233,7 +243,7 @@ def logic_rules_panel(logic_rules: dict[str, Any]) -> str:
 <h3>Missing or weak links</h3>
 {list_items(links, empty='No missing or weak module link recorded.')}
 <h3>Recommended fixes</h3>
-{list_items(logic_rules.get('recommendations') or [], empty='No logic fix recommended right now.')}'''
+{list_items(logic_rules.get('recommendations') or [], empty='No logic fix recommended right now.')}"""
 
 
 def render_cockpit_html(data: dict[str, Any]) -> str:
@@ -251,7 +261,7 @@ def render_cockpit_html(data: dict[str, Any]) -> str:
     logic_rules = data.get('logic_rules') or {}
     commands = ['agent status', 'agent continue', 'agent stop', 'agent undo']
     recent_changes = progress.get('recent_changes') or []
-    return f'''<!doctype html>
+    return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -421,4 +431,4 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
 </main>
 </body>
 </html>
-'''
+"""

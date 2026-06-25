@@ -10,8 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, write_json
 
 CODE_SUFFIXES = ('.py', '.js', '.ts', '.tsx', '.jsx', '.go', '.rs', '.java', '.cs', '.cpp', '.c', '.h')
 TEST_MARKERS = ('tests/', 'test/', '_test.', '.test.', '.spec.')
@@ -26,7 +25,9 @@ def normalize_files(values: Any) -> list[str]:
 
 def infer_task_type(title: str, target_files: list[str]) -> str:
     surface = ' '.join([title, *target_files]).lower()
-    if any(term in surface for term in ['secret', '.env', 'payment', 'auth', 'database migration', 'production deploy']):
+    if any(
+        term in surface for term in ['secret', '.env', 'payment', 'auth', 'database migration', 'production deploy']
+    ):
         return 'unknown'
     if any(path.startswith('docs/') or path == 'README.md' or path.endswith(DOC_SUFFIXES) for path in target_files):
         return 'docs_update'

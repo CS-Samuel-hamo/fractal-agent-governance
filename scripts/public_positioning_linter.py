@@ -11,9 +11,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from public_alpha_packager import PUBLIC_DOCS, public_alpha_dir  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
-
+from public_alpha_packager import PUBLIC_DOCS, public_alpha_dir
+from runtime_common import project_root, utc_now, write_json
 
 REQUIRED_SIGNALS = [
     'ai project operator',
@@ -63,7 +62,7 @@ def lint_texts(texts: dict[str, str]) -> dict[str, Any]:
     for pattern in WRAPPER_RISK_PATTERNS:
         for match in pattern.finditer(combined):
             prefix = combined[max(0, match.start() - 160) : match.start()].lower()
-            if any(marker in prefix for marker in ['not ', 'not a ', 'not an ', 'is not ', 'isn\'t ', 'no ']):
+            if any(marker in prefix for marker in ['not ', 'not a ', 'not an ', 'is not ', "isn't ", 'no ']):
                 continue
             bad_phrases.append(match.group(0))
     overclaims: list[str] = []

@@ -8,13 +8,21 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 
 
 def run(cmd: list[str], cwd: Path, *, env: dict[str, str], check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
     print('$', ' '.join(str(item) for item in cmd))
     print(proc.stdout)
     if check and proc.returncode:
@@ -57,7 +65,11 @@ def main() -> int:
     repo = init_repo('long-session-', test_env)
     run([sys.executable, str(AGENT), 'config', 'backend', 'mock', '--workspace', str(repo)], repo, env=test_env)
 
-    start = run([sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(repo)], repo, env=test_env)
+    start = run(
+        [sys.executable, str(AGENT), 'start', 'prepare this project for public release', '--workspace', str(repo)],
+        repo,
+        env=test_env,
+    )
     assert 'Done.' in start.stdout or 'Needs attention.' in start.stdout
     assert_no_internal(start.stdout)
     state_path = repo / '.zoo-agent' / 'session' / 'session_state.json'

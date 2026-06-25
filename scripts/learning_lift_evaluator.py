@@ -11,14 +11,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cross_project_store import load_store, store_dir  # noqa: E402
-from runtime_common import load_json, project_root, write_json  # noqa: E402
-
+from cross_project_store import load_store, store_dir
+from runtime_common import load_json, project_root, write_json
 
 READY = 'pass'
 FIX = 'fix_before_098'
 FAIL = 'fail'
-PRIVACY_RE = re.compile(r'(SHOULD-NOT-BE-READ|FAKE_TOKEN_12345|sk-[A-Za-z0-9]{12,}|raw backend log that should not be stored|C:\\Users\\|D:\\AI_)', re.IGNORECASE)
+PRIVACY_RE = re.compile(
+    r'(SHOULD-NOT-BE-READ|FAKE_TOKEN_12345|sk-[A-Za-z0-9]{12,}|raw backend log that should not be stored|C:\\Users\\|D:\\AI_)',
+    re.IGNORECASE,
+)
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -59,7 +61,9 @@ def artifact_presence(project: Path) -> dict[str, bool]:
     }
 
 
-def evaluate_lift(project: Path, *, comparison_path: Path | None = None, output_path: Path | None = None) -> dict[str, Any]:
+def evaluate_lift(
+    project: Path, *, comparison_path: Path | None = None, output_path: Path | None = None
+) -> dict[str, Any]:
     comparison = load_json(comparison_path or dogfood_dir(project) / 'baseline_comparison.json')
     rows = [item for item in comparison.get('comparisons') or [] if isinstance(item, dict)]
     summary = comparison.get('summary') if isinstance(comparison.get('summary'), dict) else {}
@@ -70,11 +74,15 @@ def evaluate_lift(project: Path, *, comparison_path: Path | None = None, output_
     safety_score = 1.0 if rows and all(item.get('safety_boundary_preserved') for item in rows) else 0.0
     privacy_bad, privacy_hits = privacy_violation(project)
     privacy_score = 0.0 if privacy_bad else 1.0
-    negative = int(summary.get('projects_with_negative_lift') or 0) > 0 or any(item.get('negative_lift_detected') for item in rows)
+    negative = int(summary.get('projects_with_negative_lift') or 0) > 0 or any(
+        item.get('negative_lift_detected') for item in rows
+    )
     unsafe = safety_score < 1.0
     presence = artifact_presence(project)
     missing = [name for name, exists in presence.items() if not exists]
-    learning_lift = round((next_score + release_score + worker_score + failure_score + privacy_score + safety_score) / 6, 3)
+    learning_lift = round(
+        (next_score + release_score + worker_score + failure_score + privacy_score + safety_score) / 6, 3
+    )
     failed_checks = []
     if next_score < 0.80:
         failed_checks.append('next_action_lift_below_threshold')

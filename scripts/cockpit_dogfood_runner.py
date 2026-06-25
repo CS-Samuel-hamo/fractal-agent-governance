@@ -10,11 +10,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from cockpit_demo_fixture_builder import build_demo_fixture  # noqa: E402
-from cockpit_quality_gate import run_quality_gate  # noqa: E402
-from cockpit_renderer import render_cockpit  # noqa: E402
-from cockpit_ux_report_generator import generate_report  # noqa: E402
-from runtime_common import project_root, utc_now, write_json  # noqa: E402
+from cockpit_demo_fixture_builder import build_demo_fixture
+from cockpit_quality_gate import run_quality_gate
+from cockpit_renderer import render_cockpit
+from cockpit_ux_report_generator import generate_report
+from runtime_common import project_root, utc_now, write_json
 
 
 def readiness_from_quality(quality: dict[str, Any], report_payload: dict[str, Any]) -> dict[str, Any]:

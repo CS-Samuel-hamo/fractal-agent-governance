@@ -13,7 +13,9 @@ def main() -> int:
     assert docs['zone'] == 'trusted'
     assert docs['autopilot_mode'] == 'auto'
 
-    guarded = classify_trust_zone(title='Change public API response', target_files=['src/api/routes.py'], risk_level='medium')
+    guarded = classify_trust_zone(
+        title='Change public API response', target_files=['src/api/routes.py'], risk_level='medium'
+    )
     assert guarded['zone'] == 'guarded'
     assert guarded['standard_mode'] == 'preview'
     assert guarded['autopilot_mode'] == 'auto'
@@ -24,7 +26,9 @@ def main() -> int:
     assert blocked['standard_mode'] == 'needs_attention'
     assert blocked['autopilot_mode'] == 'needs_attention'
 
-    high = classify_trust_zone(title='Change database migration', target_files=['migrations/001.sql'], risk_level='high')
+    high = classify_trust_zone(
+        title='Change database migration', target_files=['migrations/001.sql'], risk_level='high'
+    )
     assert high['zone'] == 'blocked'
     print('autopilot trust zone tests passed')
     return 0

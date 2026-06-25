@@ -10,12 +10,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from project_map_builder import build_project_map, render_markdown  # noqa: E402
-from project_map_schema import map_dir  # noqa: E402
-from runtime_common import project_root, write_json  # noqa: E402
-from session_cockpit_sync import sync_cockpit  # noqa: E402
-from session_digest_generator import latest_checkpoint  # noqa: E402
-from session_state_store import load_session_state, lock_status, save_session_state  # noqa: E402
+from project_map_builder import build_project_map, render_markdown
+from project_map_schema import map_dir
+from runtime_common import project_root, write_json
+from session_cockpit_sync import sync_cockpit
+from session_digest_generator import latest_checkpoint
+from session_state_store import load_session_state, lock_status, save_session_state
 
 
 def recovery_report(project: Path) -> dict[str, Any]:
@@ -32,15 +32,50 @@ def recovery_report(project: Path) -> dict[str, Any]:
         'reason': '',
     }
     if meta.get('corrupted'):
-        report.update({'recovery_needed': True, 'recovery_status': 'needs_attention', 'safe_to_continue': False, 'reason': 'session_state_corrupted'})
+        report.update(
+            {
+                'recovery_needed': True,
+                'recovery_status': 'needs_attention',
+                'safe_to_continue': False,
+                'reason': 'session_state_corrupted',
+            }
+        )
     elif not state:
-        report.update({'recovery_needed': True, 'recovery_status': 'needs_attention', 'safe_to_continue': False, 'reason': 'no_session_state'})
+        report.update(
+            {
+                'recovery_needed': True,
+                'recovery_status': 'needs_attention',
+                'safe_to_continue': False,
+                'reason': 'no_session_state',
+            }
+        )
     elif state.get('status') in {'failed'}:
-        report.update({'recovery_needed': True, 'recovery_status': 'needs_attention', 'safe_to_continue': False, 'reason': 'last_session_failed'})
+        report.update(
+            {
+                'recovery_needed': True,
+                'recovery_status': 'needs_attention',
+                'safe_to_continue': False,
+                'reason': 'last_session_failed',
+            }
+        )
     if lock.get('locked') and lock.get('stale'):
-        report.update({'recovery_needed': True, 'recovery_status': 'recovered', 'safe_to_continue': True, 'reason': 'stale_lock_recovered'})
+        report.update(
+            {
+                'recovery_needed': True,
+                'recovery_status': 'recovered',
+                'safe_to_continue': True,
+                'reason': 'stale_lock_recovered',
+            }
+        )
     elif lock.get('locked') and not lock.get('stale'):
-        report.update({'recovery_needed': True, 'recovery_status': 'needs_attention', 'safe_to_continue': False, 'reason': 'session_locked'})
+        report.update(
+            {
+                'recovery_needed': True,
+                'recovery_status': 'needs_attention',
+                'safe_to_continue': False,
+                'reason': 'session_locked',
+            }
+        )
     return report
 
 
@@ -58,7 +93,14 @@ def recover_session(project: Path) -> dict[str, Any]:
         report.update({'recovery_needed': True, 'recovery_status': 'recovered', 'reason': 'project_map_rebuilt'})
     sync = sync_cockpit(project)
     if sync.get('status') == 'failed' and report.get('safe_to_continue'):
-        report.update({'recovery_needed': True, 'recovery_status': 'needs_attention', 'safe_to_continue': False, 'reason': 'cockpit_sync_failed'})
+        report.update(
+            {
+                'recovery_needed': True,
+                'recovery_status': 'needs_attention',
+                'safe_to_continue': False,
+                'reason': 'cockpit_sync_failed',
+            }
+        )
     state, _ = load_session_state(project)
     if state and report.get('recovery_needed'):
         state['resume_available'] = bool(report.get('safe_to_continue'))

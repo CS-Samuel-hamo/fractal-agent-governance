@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 LEAF_STATES = {
     'ready_for_codex_execution',
     'needs_refinement',
@@ -201,7 +200,11 @@ def leaf_resolution_policy(
         )
 
     if verdict in {'BLOCKED_BACKEND_UNHEALTHY', 'BLOCKED_TEST_POLICY_UNKNOWN', 'READY_FOR_MANUAL_REVIEW'}:
-        reason = 'backend_not_ready' if backend_status not in {'healthy', 'healthy_with_warnings'} else 'manual_or_test_policy_required'
+        reason = (
+            'backend_not_ready'
+            if backend_status not in {'healthy', 'healthy_with_warnings'}
+            else 'manual_or_test_policy_required'
+        )
         return resolution_record(
             leaf,
             leaf_state='should_defer',
@@ -229,4 +232,3 @@ def leaf_resolution_policy(
         readiness=readiness,
         max_refinements=max_refinements,
     )
-

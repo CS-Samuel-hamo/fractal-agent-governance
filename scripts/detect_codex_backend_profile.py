@@ -14,8 +14,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 KNOWN_RISKS = [
     'local_command_execution_risk',
@@ -45,8 +44,7 @@ def run_version(timeout: int = 2) -> dict[str, Any]:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
             env={**os.environ, 'PYTHONIOENCODING': 'utf-8', 'NO_COLOR': '1'},
         )
@@ -162,7 +160,11 @@ def main() -> int:
 
     project = project_root(args.workspace)
     profile = build_profile(project, codex_home=args.codex_home, health_ttl_minutes=args.health_ttl_minutes)
-    output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'backend' / 'codex-backend-profile.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else project / '.zoo-agent' / 'backend' / 'codex-backend-profile.json'
+    )
     write_json(output, profile)
     print(json.dumps(profile, ensure_ascii=True, indent=2))
     return 0

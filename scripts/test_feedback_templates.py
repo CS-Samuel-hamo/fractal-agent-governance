@@ -7,9 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_template_validator import validate  # noqa: E402
-from public_docs_leakage_scanner import scan_texts  # noqa: E402
-from public_launch_packager import FEEDBACK_TEMPLATES  # noqa: E402
+from feedback_template_validator import validate
+from public_docs_leakage_scanner import scan_texts
+from public_launch_packager import FEEDBACK_TEMPLATES
 
 
 def test_issue_templates_exist() -> None:
@@ -22,13 +22,21 @@ def test_feedback_templates_collect_product_feedback() -> None:
     assert report['recommendation'] == 'pass', report
     assert report['feedback_template_score'] >= 0.9, report
     assert not report['privacy_warnings'], report
-    combined = '\n'.join((ROOT / rel).read_text(encoding='utf-8-sig', errors='replace') for rel in FEEDBACK_TEMPLATES if rel.endswith('.md'))
+    combined = '\n'.join(
+        (ROOT / rel).read_text(encoding='utf-8-sig', errors='replace')
+        for rel in FEEDBACK_TEMPLATES
+        if rel.endswith('.md')
+    )
     for phrase in ['Project Map', 'Autopilot', 'Cockpit', 'release / PR']:
         assert phrase.lower() in combined.lower()
 
 
 def test_feedback_templates_are_privacy_safe() -> None:
-    texts = {rel: (ROOT / rel).read_text(encoding='utf-8-sig', errors='replace') for rel in FEEDBACK_TEMPLATES if rel.endswith('.md')}
+    texts = {
+        rel: (ROOT / rel).read_text(encoding='utf-8-sig', errors='replace')
+        for rel in FEEDBACK_TEMPLATES
+        if rel.endswith('.md')
+    }
     report = scan_texts(texts)
     assert report['safe'] is True, report
 

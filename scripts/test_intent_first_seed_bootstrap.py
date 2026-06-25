@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
 import sys
 import tempfile
-import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from map_task_selector import select_next_action  # noqa: E402
-from pipeline_planner import build_plan  # noqa: E402
-from pipeline_verifier import verdict_from_execution  # noqa: E402
-from project_map_builder import build_project_map  # noqa: E402
-from runtime_common import write_json  # noqa: E402
-from codex_exec_adapter import build_command as build_codex_command  # noqa: E402
+from codex_exec_adapter import build_command as build_codex_command
+from map_task_selector import select_next_action
+from pipeline_planner import build_plan
+from pipeline_verifier import verdict_from_execution
+from project_map_builder import build_project_map
+from runtime_common import write_json
 
 
 def repo(name: str) -> Path:
@@ -64,7 +64,9 @@ def test_root_seed_prompt_only() -> None:
     evidence = payload['evidence']['evidence']
     action = select_next_action(project)
     assert_true(any(item.get('evidence_type') == 'seed_prompt' for item in evidence), 'seed evidence missing')
-    assert_true(any(item.get('module_id') == 'module-seed-prompt' for item in payload['map']['modules']), 'seed module missing')
+    assert_true(
+        any(item.get('module_id') == 'module-seed-prompt' for item in payload['map']['modules']), 'seed module missing'
+    )
     assert_true(action['selected_action_id'] == 'action-seed-docs-bootstrap', 'seed action not selected')
     assert_true(action['risk_level'] == 'low', 'seed action risk should be low')
     assert_true(action['autopilot_eligible'] is True, 'seed action should be autopilot eligible')
@@ -118,7 +120,10 @@ def test_seed_prompt_injection_attempt() -> None:
 
 def test_research_seed_prompt() -> None:
     project = repo('research-seed')
-    seed(project, text='Build a paper research workflow with citations, literature map, evidence plan, and reviewer risks.')
+    seed(
+        project,
+        text='Build a paper research workflow with citations, literature map, evidence plan, and reviewer risks.',
+    )
     action = selected(project, 'read project_beginning_prompt.md')
     assert_true('docs/research_workflow.md' in action['target_files'], 'research workflow target missing')
 
@@ -156,7 +161,9 @@ def test_existing_project_with_src_tests() -> None:
     (project / 'tests' / 'test_app.py').write_text('def test_ok(): assert True\n', encoding='utf-8')
     payload = write_map(project, 'improve readiness')
     action = select_next_action(project)
-    assert_true(any(item.get('module_id') == 'module-source' for item in payload['map']['modules']), 'source module missing')
+    assert_true(
+        any(item.get('module_id') == 'module-source' for item in payload['map']['modules']), 'source module missing'
+    )
     assert_true(action.get('action_source') != 'seed_prompt', 'normal project should not become seed prompt project')
 
 
@@ -208,7 +215,10 @@ def test_feature_flag_disables_fallback() -> None:
             os.environ.pop('AGENT_ENABLE_INTENT_FIRST_BOOTSTRAP', None)
         else:
             os.environ['AGENT_ENABLE_INTENT_FIRST_BOOTSTRAP'] = old
-    assert_true(action['reason'] == 'no_executable_map_backed_next_action_available', 'feature flag did not restore old behavior')
+    assert_true(
+        action['reason'] == 'no_executable_map_backed_next_action_available',
+        'feature flag did not restore old behavior',
+    )
 
 
 def test_job_inbox_explains_seed_prompt() -> None:
@@ -220,8 +230,7 @@ def test_job_inbox_explains_seed_prompt() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise AssertionError(f'agent command failed\nstdout={proc.stdout}\nstderr={proc.stderr}')
@@ -231,8 +240,7 @@ def test_job_inbox_explains_seed_prompt() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if inbox.returncode:
         raise AssertionError(f'agent inbox failed\nstdout={inbox.stdout}\nstderr={inbox.stderr}')
@@ -254,8 +262,7 @@ def test_seed_starter_docs_are_created_once() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if proc.returncode:
         raise AssertionError(f'agent command failed\nstdout={proc.stdout}\nstderr={proc.stderr}')
@@ -268,24 +275,34 @@ def test_seed_starter_docs_are_created_once() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if inbox.returncode:
         raise AssertionError(f'agent inbox failed\nstdout={inbox.stdout}\nstderr={inbox.stderr}')
-    assert_true('Status:\npaused' in inbox.stdout or 'Create literature matrix template' in inbox.stdout, 'starter docs job should expose the next queued seed action')
+    assert_true(
+        'Status:\npaused' in inbox.stdout or 'Create literature matrix template' in inbox.stdout,
+        'starter docs job should expose the next queued seed action',
+    )
     cont = subprocess.run(
         [sys.executable, str(AGENT), 'continue', '--workspace', str(project)],
         cwd=project,
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
-    assert_true(cont.returncode == 0, f'continue after starter docs should run next seed action\nstdout={cont.stdout}\nstderr={cont.stderr}')
-    assert_true((project / 'README.md').read_text(encoding='utf-8') == readme_before, 'continue should not overwrite starter docs')
-    assert_true((project / 'docs' / 'literature_matrix_template.md').exists(), 'continue should create the next queued seed document')
+    assert_true(
+        cont.returncode == 0,
+        f'continue after starter docs should run next seed action\nstdout={cont.stdout}\nstderr={cont.stderr}',
+    )
+    assert_true(
+        (project / 'README.md').read_text(encoding='utf-8') == readme_before,
+        'continue should not overwrite starter docs',
+    )
+    assert_true(
+        (project / 'docs' / 'literature_matrix_template.md').exists(),
+        'continue should create the next queued seed document',
+    )
 
 
 def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
@@ -301,8 +318,7 @@ def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if first.returncode:
         raise AssertionError(f'first agent command failed\nstdout={first.stdout}\nstderr={first.stderr}')
@@ -315,8 +331,7 @@ def test_preview_seed_job_can_be_superseded_by_new_goal() -> None:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if second.returncode:
         raise AssertionError(f'second agent command failed\nstdout={second.stdout}\nstderr={second.stderr}')
@@ -348,7 +363,9 @@ def test_chinese_bounded_research_doc_edit_is_fast_actual_candidate() -> None:
     assert_true(classification['signals']['bounded_doc_edit'] is True, 'Chinese bounded docs edit was not detected')
     assert_true(classification['path'] == 'fast', 'bounded docs edit should stay on the fast path')
     assert_true(classification['task_scale'] == 'small', 'bounded docs edit should not be treated as a big task')
-    assert_true(plan['execution_plan']['mode'] == 'actual_allowed', 'bounded docs apply should be eligible for actual execution')
+    assert_true(
+        plan['execution_plan']['mode'] == 'actual_allowed', 'bounded docs apply should be eligible for actual execution'
+    )
 
 
 def test_non_git_workspace_codex_command_skips_git_repo_check() -> None:

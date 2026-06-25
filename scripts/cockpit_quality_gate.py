@@ -11,8 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, project_root, utc_now, write_json
 
 INTERNAL_TERMS = [
     'eval',
@@ -61,7 +60,9 @@ def external_dependency_detected(html: str) -> bool:
 
 def raw_json_detected(html: str) -> bool:
     lowered = html.lower()
-    return '<pre' in lowered or '"schema_version"' in lowered or '"project":' in lowered or 'cockpit_data.json' in lowered
+    return (
+        '<pre' in lowered or '"schema_version"' in lowered or '"project":' in lowered or 'cockpit_data.json' in lowered
+    )
 
 
 def score_report(html: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -133,7 +134,9 @@ def score_report(html: str, data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run_quality_gate(project: Path, *, html_path: Path | None = None, data_path: Path | None = None, output: Path | None = None) -> dict[str, Any]:
+def run_quality_gate(
+    project: Path, *, html_path: Path | None = None, data_path: Path | None = None, output: Path | None = None
+) -> dict[str, Any]:
     html_path = html_path or project / '.zoo-agent' / 'cockpit' / 'index.html'
     data_path = data_path or project / '.zoo-agent' / 'cockpit' / 'cockpit_data.json'
     output = output or project / '.zoo-agent' / 'cockpit_dogfood' / 'cockpit_quality_report.json'
@@ -166,7 +169,17 @@ def main() -> int:
         data_path=Path(args.data).resolve() if args.data else None,
         output=Path(args.output).resolve() if args.output else None,
     )
-    print(json.dumps({'status': 'ok', 'recommendation': payload['recommendation'], 'cockpit_quality_score': payload['cockpit_quality_score']}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                'status': 'ok',
+                'recommendation': payload['recommendation'],
+                'cockpit_quality_score': payload['cockpit_quality_score'],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

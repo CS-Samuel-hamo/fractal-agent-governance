@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def dogfood_dir(project: Path) -> Path:
@@ -34,9 +34,9 @@ def build_replay(trace: dict[str, Any]) -> str:
             continue
         lines.extend(
             [
-                f"## {_line(run.get('scenario')).replace('_', ' ').title()}",
+                f'## {_line(run.get("scenario")).replace("_", " ").title()}',
                 '',
-                f"- result: {_line(run.get('scenario_result'))}",
+                f'- result: {_line(run.get("scenario_result"))}',
             ]
         )
         for step in run.get('steps') or []:
@@ -45,19 +45,19 @@ def build_replay(trace: dict[str, Any]) -> str:
             lines.extend(
                 [
                     '',
-                    f"### Step {step.get('step', 0)}",
-                    f"- command: `{_line(step.get('command'))}`",
-                    f"- before: {_line(step.get('session_status_before'))}",
-                    f"- selected action: {_line(step.get('selected_action'))}",
-                    f"- source: {_line(step.get('selected_action_source'))}",
-                    f"- checkpoint: {'created' if step.get('checkpoint_created') else 'not needed'}",
-                    f"- outcome: {_line(step.get('execution_outcome'))}",
-                    f"- after: {_line(step.get('session_status_after'))}",
-                    f"- project map updated: {'yes' if step.get('project_map_updated') else 'no'}",
-                    f"- digest updated: {'yes' if step.get('digest_updated') else 'no'}",
-                    f"- cockpit synced: {'yes' if step.get('cockpit_synced') else 'no'}",
-                    f"- attention required: {'yes' if step.get('attention_required') else 'no'}",
-                    f"- resume available: {'yes' if step.get('resume_available') else 'no'}",
+                    f'### Step {step.get("step", 0)}',
+                    f'- command: `{_line(step.get("command"))}`',
+                    f'- before: {_line(step.get("session_status_before"))}',
+                    f'- selected action: {_line(step.get("selected_action"))}',
+                    f'- source: {_line(step.get("selected_action_source"))}',
+                    f'- checkpoint: {"created" if step.get("checkpoint_created") else "not needed"}',
+                    f'- outcome: {_line(step.get("execution_outcome"))}',
+                    f'- after: {_line(step.get("session_status_after"))}',
+                    f'- project map updated: {"yes" if step.get("project_map_updated") else "no"}',
+                    f'- digest updated: {"yes" if step.get("digest_updated") else "no"}',
+                    f'- cockpit synced: {"yes" if step.get("cockpit_synced") else "no"}',
+                    f'- attention required: {"yes" if step.get("attention_required") else "no"}',
+                    f'- resume available: {"yes" if step.get("resume_available") else "no"}',
                 ]
             )
             if step.get('attention_required'):
@@ -85,7 +85,11 @@ def main() -> int:
     args = parser.parse_args()
     project = project_root(args.workspace)
     path = run_replay(project, trace_path=Path(args.trace).resolve() if args.trace else None)
-    print(json.dumps({'status': 'ok', 'replay': '.zoo-agent/session_dogfood/session_replay.md'}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'replay': '.zoo-agent/session_dogfood/session_replay.md'}, ensure_ascii=False, indent=2
+        )
+    )
     return 0 if path.exists() else 1
 
 

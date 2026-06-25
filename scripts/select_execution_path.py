@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from execution_policy import DEFAULT_DENIED_FILES, ExecutionPolicyInput, select_execution_path  # noqa: E402
+from execution_policy import DEFAULT_DENIED_FILES, ExecutionPolicyInput, select_execution_path
 
 
 def main() -> int:
@@ -22,7 +22,11 @@ def main() -> int:
     ap.add_argument('--denied-file', action='append', default=DEFAULT_DENIED_FILES)
     ap.add_argument('--test-command', action='append', default=[])
     ap.add_argument('--changed-file-estimate', type=int, default=0)
-    ap.add_argument('--force-path', default='', choices=['', 'optimistic_worker', 'planned_worker', 'fractal_governed', 'human_gate'])
+    ap.add_argument(
+        '--force-path',
+        default='',
+        choices=['', 'optimistic_worker', 'planned_worker', 'fractal_governed', 'human_gate'],
+    )
     ap.add_argument('--governance-level', type=int, choices=[0, 1, 2, 3, 4], default=None)
     ap.add_argument('--output', default='')
     args = ap.parse_args()

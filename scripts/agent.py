@@ -1,16 +1,65 @@
 #!/usr/bin/env python3
+"""CLI entry point for the AI Project Operator.
+
+This module is the thin entry point for the `agent` command. It sets up
+argument parsing, normalizes user input, and delegates to command handlers
+in agent_commands.py. Shared utilities live in agent_utils.py.
+"""
+
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import shlex
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
+
+from agent_commands import (
+    aggregate_big,
+    ask,
+    backend_command,
+    bootstrap,
+    cockpit_command,
+    codex_health,
+    config_command,
+    continue_command,
+    debug_command,
+    decompose_big,
+    do_command,
+    global_loop,
+    goal_command,
+    goal_loop,
+    integration_check,
+    learning_command,
+    loop_command,
+    map_command,
+    pipeline,
+    plan_big,
+    reroute,
+    review,
+    rollback,
+    run,
+    session_command,
+    standards,
+    start_command,
+    status,
+    stop_command,
+    undo_command,
+    workers_command,
+)
+from agent_commands_release import (
+    alpha_command,
+    feedback_command,
+    launch_command,
+    postlaunch_command,
+    pr_command,
+    publish_command,
+    release_command,
+)
+from agent_utils import print_json, user_task_result
+from runtime_common import project_root
 
 VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8-sig').strip() if (ROOT / 'VERSION').exists() else '1.0.0-alpha.1'
 
@@ -46,14 +95,15 @@ KNOWN_COMMANDS = {
     'loop',
     'plan-big',
     'decompose',
-    'feedback',
     'aggregate',
     'integration-check',
     'goal-loop',
     'global-loop',
     'learning',
     'launch',
+    'feedback',
 }
+
 COMMAND_TYPO_SUGGESTIONS = {
     'rum': '"your task"',
     'runn': '"your task"',
@@ -67,1887 +117,6 @@ COMMAND_TYPO_SUGGESTIONS = {
     'goals': '"your task"',
 }
 
-from runtime_common import initialize_loop, load_json, project_root, set_active_goal, utc_now, write_json  # noqa: E402
-from check_project_readiness import analyze_project_readiness  # noqa: E402
-from update_runtime_metrics import update_metrics  # noqa: E402
-from backend_registry import read_backend_selection  # noqa: E402
-from job_controller import continue_job, show_job_inbox, start_or_update_job, stop_job, undo_job  # noqa: E402
-from bounded_docs_writer import apply_docs_patch  # noqa: E402
-from job_state_store import append_job_event, default_job, load_current_job, save_current_job, write_job_digest  # noqa: E402
-from prompt_intent_router import classify_prompt  # noqa: E402
-from preview_artifact_writer import write_preview_artifact  # noqa: E402
-from project_map_builder import build_project_map, render_markdown  # noqa: E402
-from project_map_schema import map_dir  # noqa: E402
-from project_progress_overview import render_interaction_summary  # noqa: E402
-from seed_action_queue import init_queue as init_seed_queue  # noqa: E402
-from seed_action_queue import load_queue as load_seed_queue  # noqa: E402
-from seed_action_queue import mark_action as mark_seed_action  # noqa: E402
-from seed_action_queue import next_pending_action as next_seed_action  # noqa: E402
-from seed_action_queue import run_batch as run_seed_batch  # noqa: E402
-from seed_action_queue import run_next as run_next_seed_action  # noqa: E402
-
-
-def run_command(command: list[str], cwd: Path) -> int:
-    proc = subprocess.run(command, cwd=cwd)
-    return proc.returncode
-
-
-def run_command_capture(command: list[str], cwd: Path) -> dict:
-    env = os.environ.copy()
-    env.setdefault('PYTHONIOENCODING', 'utf-8')
-    env.setdefault('PYTHONUTF8', '1')
-    proc = subprocess.run(
-        command,
-        cwd=cwd,
-        env=env,
-        text=True,
-        encoding='utf-8',
-        errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return {
-        'command': [str(item) for item in command],
-        'cwd': str(cwd),
-        'returncode': proc.returncode,
-        'stdout': proc.stdout,
-        'stderr': proc.stderr,
-    }
-
-
-def delegate(script_name: str, args_list: list[str]) -> int:
-    return run_command([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
-
-
-def delegate_capture(script_name: str, args_list: list[str]) -> dict:
-    return run_command_capture([sys.executable, str(ROOT / 'scripts' / script_name), *args_list], ROOT)
-
-
-def parse_json_output(result: dict) -> dict:
-    raw = str(result.get('stdout') or '{}').strip()
-    if not raw.startswith('{'):
-        return {}
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-
-
-def safe_print_text(text: str) -> None:
-    output = f'{text}\n' if not str(text).endswith('\n') else str(text)
-    encoding = sys.stdout.encoding or 'utf-8'
-    try:
-        sys.stdout.write(output)
-    except UnicodeEncodeError:
-        sys.stdout.buffer.write(output.encode(encoding, errors='replace'))
-
-
-def print_json(payload: dict) -> None:
-    safe_print_text(json.dumps(payload, ensure_ascii=False, indent=2))
-
-
-def clean_progress(value: object) -> str:
-    if isinstance(value, (int, float)):
-        return f'{max(0, min(int(value), 100))}%'
-    text = str(value or '').strip()
-    if not text:
-        return 'unknown'
-    return text if text.endswith('%') else text
-
-
-def workspace_arg(workspace: str) -> str:
-    return str(project_root(workspace))
-
-
-def bootstrap_lock_path(project: Path) -> Path:
-    return project / '.zoo-agent' / 'bootstrap.lock'
-
-
-def is_bootstrapped(project: Path) -> bool:
-    return (project / '.zoo-agent' / 'runtime-v4.json').exists() or bootstrap_lock_path(project).exists()
-
-
-def is_git_repo(project: Path) -> bool:
-    result = run_command_capture(['git', 'rev-parse', '--show-toplevel'], project)
-    return result.get('returncode') == 0
-
-
-def is_empty_project_dir(project: Path) -> bool:
-    return not any(item.name not in {'.', '..'} for item in project.iterdir())
-
-
-def detect_profile(project: Path) -> dict:
-    source_roots = [name for name in ['src', 'app', 'lib', 'packages', 'services', 'backend', 'frontend'] if (project / name).is_dir()]
-    test_roots = [name for name in ['tests', 'test', 'spec', 'frontend/tests', 'backend/tests'] if (project / name).is_dir()]
-    manifests = [name for name in ['package.json', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'pom.xml'] if (project / name).exists()]
-    return {
-        'schema_version': '1.0',
-        'generated_by': 'agent.py bootstrap',
-        'generated_at': utc_now(),
-        'workspace': str(project),
-        'project_kind': 'existing_git_project' if is_git_repo(project) else 'new_or_non_git_project',
-        'source_roots': source_roots,
-        'test_roots': test_roots,
-        'manifests': manifests,
-        'runtime_dirs': ['.zoo-agent'],
-        'scan_policy': {
-            'content_scan': 'metadata_only',
-            'secret_contents_read': False,
-            'excluded_patterns': ['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**', '.codex/**'],
-        },
-    }
-
-
-def readiness_for_profile(project: Path, profile: dict, *, initialized_git: bool = False, base_readiness: dict | None = None) -> dict:
-    readiness = base_readiness or analyze_project_readiness(project)
-    blockers = []
-    warnings = []
-    next_actions = []
-    if not is_git_repo(project):
-        blockers.append('workspace_is_not_git_repo')
-        next_actions.append('Run agent bootstrap --new or initialize git explicitly if this is a new project.')
-    if not profile.get('source_roots'):
-        warnings.append('source_roots_not_detected')
-    if not profile.get('test_roots'):
-        warnings.append('test_roots_not_detected')
-        next_actions.append('Add or document a test command before relying on merge readiness.')
-    if not (project / 'AGENTS.md').exists() and not (project / 'AGENTS.md.new').exists():
-        warnings.append('project_instructions_missing')
-    legacy = {
-        'schema_version': '1.0',
-        'generated_by': 'agent.py bootstrap',
-        'generated_at': utc_now(),
-        'workspace': str(project),
-        'safe_for_bootstrap': readiness.get('safe_for_bootstrap', not blockers),
-        'safe_for_level_0_1_trial': readiness.get('safe_for_level_0_1_trial', not blockers),
-        'safe_for_codex_actual_run': readiness.get('safe_for_codex_actual_run', False),
-        'blockers': readiness.get('blockers', []),
-        'blocking_issues': blockers,
-        'warnings': warnings,
-        'next_actions': next_actions or ['Run agent "fix typo in README" for a bounded dry-run/fast-path trial.'],
-        'initialized_git': initialized_git,
-        'codex_cli_detected': bool(shutil_which('codex')),
-    }
-    typed_blocking = [item.get('type') for item in readiness.get('blockers', []) if item.get('severity') == 'blocking']
-    typed_warnings = [item.get('type') for item in readiness.get('blockers', []) if item.get('severity') == 'warning']
-    legacy['blocking_issues'] = sorted(set([*blockers, *[str(item) for item in typed_blocking if item]]))
-    legacy['warnings'] = sorted(set([*warnings, *[str(item) for item in typed_warnings if item]]))
-    if readiness.get('next_actions'):
-        legacy['next_actions'] = readiness['next_actions']
-    return legacy
-
-
-def shutil_which(binary: str) -> str:
-    from shutil import which
-
-    return which(binary) or ''
-
-
-def write_text_if_missing(path: Path, content: str, actions: list[dict], *, reason: str) -> None:
-    if path.exists():
-        actions.append({'action': 'preserve_existing', 'path': str(path), 'reason': reason})
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding='utf-8')
-    actions.append({'action': 'write_missing', 'path': str(path), 'reason': reason})
-
-
-def write_gitignore_patch(project: Path, actions: list[dict]) -> None:
-    patch = project / '.gitignore.agent.patch'
-    if patch.exists():
-        actions.append({'action': 'preserve_existing', 'path': str(patch), 'reason': 'gitignore patch already exists'})
-        return
-    content = '\n'.join(
-        [
-            '# Proposed agent runtime ignores. Review before applying.',
-            '+.zoo-agent/tmp/',
-            '+.zoo-agent/worktrees/',
-            '+.codex/',
-            '+.codex-home/',
-            '+__pycache__/',
-            '+.pytest_cache/',
-            '',
-        ]
-    )
-    patch.write_text(content, encoding='utf-8')
-    actions.append({'action': 'write_proposal', 'path': str(patch), 'reason': '.gitignore exists; wrote patch proposal'})
-
-
-def write_roo_rules_proposal(project: Path, actions: list[dict]) -> None:
-    rules_dir = project / '.roo' / 'rules'
-    if not rules_dir.exists():
-        return
-    proposal = project / '.roo' / 'rules.new' / '00-cli-first-agent-runtime.md'
-    if proposal.exists():
-        actions.append({'action': 'preserve_existing', 'path': str(proposal), 'reason': 'roo rules proposal already exists'})
-        return
-    proposal.parent.mkdir(parents=True, exist_ok=True)
-    proposal.write_text(
-        '# CLI-first Agent Runtime Proposal\n\n'
-        '- CLI is the primary runtime entrypoint.\n'
-        '- Codex CLI is execution backend only.\n'
-        '- Do not read secrets or auto-merge/push.\n',
-        encoding='utf-8',
-    )
-    actions.append({'action': 'write_proposal', 'path': str(proposal), 'reason': '.roo/rules exists; wrote .new proposal'})
-
-
-def write_bootstrap_report(project: Path, profile: dict, readiness: dict, actions: list[dict], *, already_bootstrapped: bool) -> None:
-    lines = [
-        '# Agent Bootstrap Report',
-        '',
-        f'- version: {VERSION}',
-        f'- workspace: {project}',
-        f'- already_bootstrapped: {str(already_bootstrapped).lower()}',
-        f'- safe_for_level_0_1_trial: {str(readiness.get("safe_for_level_0_1_trial")).lower()}',
-        f'- blocking_issues: {", ".join(readiness.get("blocking_issues") or []) or "none"}',
-        f'- warnings: {", ".join(readiness.get("warnings") or []) or "none"}',
-        '',
-        '## Detected Profile',
-        '',
-        f'- source_roots: {", ".join(profile.get("source_roots") or []) or "none"}',
-        f'- test_roots: {", ".join(profile.get("test_roots") or []) or "none"}',
-        f'- manifests: {", ".join(profile.get("manifests") or []) or "none"}',
-        '',
-        '## Next Actions',
-        '',
-    ]
-    lines.extend(f'- {item}' for item in readiness.get('next_actions') or [])
-    lines.extend(['', '## Actions', ''])
-    lines.extend(f'- {item.get("action")}: {item.get("path", "")} ({item.get("reason", "")})' for item in actions)
-    path = project / '.zoo-agent' / 'bootstrap-report.md'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-
-
-def print_bootstrap_output(report: dict, *, debug: bool = False) -> None:
-    if debug:
-        print_json(report)
-        return
-    status = str(report.get('status') or 'unknown')
-    if report.get('already_bootstrapped'):
-        progress = 'already bootstrapped'
-        result = 'ready'
-    elif status == 'dry_run':
-        progress = 'dry_run'
-        result = 'bootstrap dry-run'
-    elif status.startswith('blocked') or status.endswith('failed'):
-        progress = 'blocked'
-        result = status
-    else:
-        progress = 'ready' if status == 'ready' else 'ready_with_warnings'
-        result = status
-    print_json({'goal': 'workspace setup', 'progress': progress, 'result': result})
-
-
-def prepare_bootstrap_workspace(project: Path, args) -> tuple[int, dict]:
-    entries = list(project.iterdir())
-    git_repo = is_git_repo(project)
-    if git_repo:
-        return 0, {'status': 'existing_git_repo', 'initialized_git': False}
-    if not entries:
-        if args.dry_run:
-            return 0, {'status': 'would_initialize_new_git_repo', 'initialized_git': False}
-        result = run_command_capture(['git', 'init'], project)
-        if result.get('returncode') != 0:
-            return 20, {'status': 'git_init_failed', 'initialized_git': False, 'git_init': result}
-        return 0, {'status': 'initialized_new_git_repo', 'initialized_git': True, 'git_init': result}
-    if args.new or args.force_new_project:
-        if args.dry_run:
-            return 0, {'status': 'would_initialize_non_empty_new_git_repo', 'initialized_git': False}
-        result = run_command_capture(['git', 'init'], project)
-        if result.get('returncode') != 0:
-            return 20, {'status': 'git_init_failed', 'initialized_git': False, 'git_init': result}
-        return 0, {'status': 'initialized_non_empty_new_git_repo', 'initialized_git': True, 'git_init': result}
-    return 20, {
-        'status': 'blocked_non_git_non_empty_directory',
-        'initialized_git': False,
-        'message': 'Directory is non-empty and is not a git repo. Pass --new or --force-new-project to initialize explicitly.',
-    }
-
-
-def write_onboarding_artifacts(project: Path, args, *, initialized_git: bool, already_bootstrapped: bool, base_readiness: dict | None = None) -> dict:
-    actions: list[dict] = []
-    base_readiness = base_readiness or analyze_project_readiness(project)
-    if initialized_git or args.new or args.force_new_project or not any(project.iterdir()):
-        write_text_if_missing(project / 'README.md', '# New Agent Project\n\nBootstrapped for CLI-first AI coding runtime.\n', actions, reason='new project README')
-        write_text_if_missing(
-            project / '.gitignore',
-            '\n'.join(['.zoo-agent/tmp/', '.zoo-agent/worktrees/', '.codex/', '.codex-home/', '__pycache__/', '.pytest_cache/', '']) ,
-            actions,
-            reason='new project gitignore',
-        )
-        write_text_if_missing(project / '.zoo-agent' / 'TASKS.md', '# Tasks\n\n- [ ] Define the first bounded coding task.\n', actions, reason='new project task draft')
-    elif (project / '.gitignore').exists():
-        write_gitignore_patch(project, actions)
-
-    write_roo_rules_proposal(project, actions)
-    profile = detect_profile(project)
-    readiness = readiness_for_profile(project, profile, initialized_git=initialized_git, base_readiness=base_readiness)
-    write_json(project / '.zoo-agent' / 'project-profile.json', profile)
-    write_json(project / '.zoo-agent' / 'project-readiness.json', readiness)
-    write_bootstrap_report(project, profile, readiness, actions, already_bootstrapped=already_bootstrapped)
-    return {'actions': actions, 'project_profile': profile, 'project_readiness': readiness}
-
-
-def bootstrap(args) -> int:
-    project = project_root(args.workspace)
-    marker_path = project / '.zoo-agent' / 'runtime-v4.json'
-    lock_path = bootstrap_lock_path(project)
-    prepare_code, prepare_report = prepare_bootstrap_workspace(project, args)
-    if prepare_code != 0:
-        print_bootstrap_output({'status': prepare_report.get('status'), 'workspace': str(project), **prepare_report}, debug=getattr(args, 'debug', False))
-        return prepare_code
-    if args.dry_run:
-        print_bootstrap_output(
-            {
-                'status': 'dry_run',
-                'workspace': str(project),
-                'version': VERSION,
-                'workspace_preparation': prepare_report,
-                'would_create_or_update': [
-                    str(marker_path),
-                    str(lock_path),
-                    str(project / '.zoo-agent' / 'project-profile.json'),
-                    str(project / '.zoo-agent' / 'project-readiness.json'),
-                    str(project / '.zoo-agent' / 'bootstrap-report.md'),
-                    str(project / 'AGENTS.md'),
-                ],
-            },
-            debug=getattr(args, 'debug', False),
-        )
-        return 0
-    initial_readiness = analyze_project_readiness(project)
-    missing_artifacts = [
-        str(path)
-        for path in [
-            project / 'AGENTS.md',
-            project / '.zoo-agent' / 'code-standards.json',
-            project / '.zoo-agent' / 'project-map.json',
-            project / '.zoo-agent' / 'project-map.md',
-            project / '.zoo-agent' / 'project-profile.json',
-            project / '.zoo-agent' / 'project-readiness.json',
-            project / '.zoo-agent' / 'bootstrap-report.md',
-        ]
-        if not path.exists()
-    ]
-    if lock_path.exists() and not args.force and not args.refresh_instructions and not args.dry_run and not missing_artifacts:
-        report = {
-            'status': 'already_bootstrapped',
-            'workspace': str(project),
-            'runtime_marker': str(marker_path),
-            'lock': str(lock_path),
-            'already_bootstrapped': True,
-            'missing_artifacts': missing_artifacts,
-            'message': 'already bootstrapped; bootstrap.lock exists and no project files were overwritten.',
-        }
-        print_bootstrap_output(report, debug=getattr(args, 'debug', False))
-        return 0
-
-    already_bootstrapped = marker_path.exists() and not args.force
-    if already_bootstrapped:
-        marker = load_json(marker_path)
-        goal = {'goal_id': args.goal_id or marker.get('goal_id', ''), '_path': ''}
-    else:
-        goal = set_active_goal(
-            project,
-            args.goal or 'Operate this project through the CLI-first AI Agent Runtime with bounded Codex execution.',
-            goal_id=args.goal_id,
-            success_criteria=args.success_criteria,
-            constraints=args.constraint,
-            activate=True,
-            source='agent.py bootstrap',
-        )
-        loop_state = initialize_loop(project, max_iteration=args.max_iteration, source='agent.py bootstrap')
-        update_metrics(project, path='fast', status='bootstrap_initialized')
-        marker = {
-            'schema_version': '4.0',
-            'generated_by': 'agent.py bootstrap',
-            'generated_at': utc_now(),
-            'workspace': str(project),
-            'entrypoints': {
-                'bootstrap': 'agent bootstrap',
-                'run': 'agent run <input>',
-                'fast': 'agent run --fast <input>',
-                'parallel': 'agent run --parallel <input>',
-                'governed': 'agent run --governed <input>',
-            },
-            'runtime_model': {
-                'cli_runtime': 'task routing, goal, loop, execution control',
-                'codex_cli': 'execution backend',
-                'gpt': 'decision layer',
-                'deepseek': 'cheap worker',
-                'zoo_code': 'optional UI layer',
-            },
-            'goal_id': goal.get('goal_id'),
-            'loop_state': loop_state,
-        }
-        write_json(marker_path, marker)
-
-    legacy_result = None
-    if args.with_project_bootstrap:
-        command = [sys.executable, str(ROOT / 'scripts' / 'agent_bootstrap.py'), '--project', str(project), '--mode', args.mode]
-        if args.goal:
-            command.extend(['--goal', args.goal])
-        if args.codex_home:
-            command.extend(['--codex-home', args.codex_home])
-        if args.dry_run:
-            command.append('--dry-run')
-        legacy_result = run_command(command, ROOT)
-
-    instruction_args = ['--workspace', str(project)]
-    if args.refresh_instructions:
-        instruction_args.append('--refresh')
-    if args.dry_run:
-        instruction_args.append('--dry-run')
-    instruction_capture = delegate_capture('init_project_instructions.py', instruction_args)
-    instruction_result = int(instruction_capture.get('returncode') or 0)
-
-    map_args = ['--workspace', str(project), '--refresh', '--promote-if-missing']
-    if args.dry_run:
-        map_args.append('--dry-run')
-    map_capture = delegate_capture('check_project_map_alignment.py', map_args)
-    map_result = int(map_capture.get('returncode') or 0)
-    onboarding = write_onboarding_artifacts(
-        project,
-        args,
-        initialized_git=bool(prepare_report.get('initialized_git')),
-        already_bootstrapped=already_bootstrapped,
-        base_readiness=initial_readiness,
-    )
-
-    report = {
-        'status': 'ready' if legacy_result in {None, 0} and instruction_result == 0 and map_result in {0, 10} else 'ready_with_bootstrap_warnings',
-        'version': VERSION,
-        'workspace': str(project),
-        'runtime_marker': str(marker_path),
-        'lock': str(lock_path),
-        'already_bootstrapped': already_bootstrapped,
-        'workspace_preparation': prepare_report,
-        'goal_id': goal.get('goal_id'),
-        'goal_path': goal.get('_path', ''),
-        'loop_state_path': str(project / '.zoo-agent' / 'loop_state.json'),
-        'with_project_bootstrap': args.with_project_bootstrap,
-        'project_bootstrap_returncode': legacy_result,
-        'instruction_init_returncode': instruction_result,
-        'project_map_returncode': map_result,
-        'safe_for_level_0_1_trial': onboarding.get('project_readiness', {}).get('safe_for_level_0_1_trial', False),
-        'blocking_issues': onboarding.get('project_readiness', {}).get('blocking_issues', []),
-        'warnings': onboarding.get('project_readiness', {}).get('warnings', []),
-        'next_actions': onboarding.get('project_readiness', {}).get('next_actions', []),
-        'onboarding_actions': onboarding.get('actions', []),
-    }
-    if getattr(args, 'debug', False):
-        report['instruction_init_stdout'] = instruction_capture.get('stdout', '')
-        report['instruction_init_stderr'] = instruction_capture.get('stderr', '')
-        report['project_map_stdout'] = map_capture.get('stdout', '')
-        report['project_map_stderr'] = map_capture.get('stderr', '')
-    if not args.dry_run and report['status'] == 'ready':
-        write_json(
-            lock_path,
-            {
-                'schema_version': '4.0',
-                'generated_by': 'agent.py bootstrap',
-                'generated_at': utc_now(),
-                'workspace': str(project),
-                'runtime_marker': str(marker_path),
-                'goal_id': goal.get('goal_id'),
-            },
-        )
-    print_bootstrap_output(report, debug=getattr(args, 'debug', False))
-    return 0 if report['status'] == 'ready' else 10
-
-
-def ensure_bootstrap_before_run(args) -> None:
-    project = project_root(args.workspace)
-    if is_bootstrapped(project):
-        return
-    return
-
-
-def legacy_run(args) -> int:
-    ensure_bootstrap_before_run(args)
-    command = [
-        sys.executable,
-        str(ROOT / 'scripts' / 'route_task.py'),
-        '--workspace',
-        workspace_arg(args.workspace),
-        '--legacy-runtime',
-    ]
-    if args.run_id:
-        command.extend(['--run-id', args.run_id])
-    if args.task_id:
-        command.extend(['--task-id', args.task_id])
-    if args.goal_id:
-        command.extend(['--goal-id', args.goal_id])
-    if args.fast:
-        command.append('--fast')
-    if args.parallel:
-        command.append('--parallel')
-    if args.governed:
-        command.append('--governed')
-    if args.dry_run:
-        command.append('--dry-run')
-    if args.worker_dry_run:
-        command.append('--worker-dry-run')
-    if args.allow_ambiguous_fast:
-        command.append('--allow-ambiguous-fast')
-    if args.no_execute_governed_workers:
-        command.append('--no-execute-governed-workers')
-    if args.discard_failed_worktree:
-        command.append('--discard-failed-worktree')
-    if args.ephemeral:
-        command.append('--ephemeral')
-    if args.skip_health_check:
-        command.append('--skip-health-check')
-    for flag, value in [
-        ('--changed-file-estimate', args.changed_file_estimate),
-        ('--max-workers', args.max_workers),
-        ('--timeout-seconds', args.timeout_seconds),
-        ('--no-output-timeout-seconds', args.no_output_timeout_seconds),
-        ('--test-timeout-seconds', args.test_timeout_seconds),
-        ('--max-retries', args.max_retries),
-        ('--max-iteration', args.max_iteration),
-    ]:
-        command.extend([flag, str(value)])
-    for flag, value in [
-        ('--sandbox', args.sandbox),
-        ('--profile', args.profile),
-        ('--codex-home', args.codex_home),
-        ('--start-point', args.start_point),
-    ]:
-        if value:
-            command.extend([flag, value])
-    for item in args.allowed_file:
-        command.extend(['--allowed-file', item])
-    for item in args.denied_file:
-        command.extend(['--denied-file', item])
-    for item in args.test_command:
-        command.extend(['--test-command', item])
-    command.extend(['--input-text', ' '.join(args.input).strip()])
-    return run_command(command, ROOT)
-
-
-def run(args) -> int:
-    force_path = ''
-    if getattr(args, 'fast', False):
-        force_path = 'fast'
-    elif getattr(args, 'parallel', False):
-        force_path = 'parallel'
-    elif getattr(args, 'governed', False):
-        force_path = 'governed'
-    if getattr(args, 'legacy_runtime', False):
-        return legacy_run(args)
-    return pipeline(
-        argparse.Namespace(
-            workspace=args.workspace,
-            run_id=args.run_id,
-            task_id=args.task_id,
-            goal_id=args.goal_id,
-            allowed_file=args.allowed_file,
-            denied_file=args.denied_file,
-            force_path=force_path,
-            max_iterations=args.max_iteration,
-            dry_run=args.dry_run,
-            allow_actual=not args.dry_run and not args.worker_dry_run,
-            sandbox=args.sandbox,
-            codex_home=args.codex_home,
-            backend=args.backend,
-            timeout_seconds=args.timeout_seconds,
-            max_retries=args.max_retries,
-            debug=getattr(args, 'debug', False),
-            input=args.input,
-        )
-    )
-
-
-def pipeline(args) -> int:
-    ensure_bootstrap_before_run(args)
-    project = project_root(args.workspace)
-    selected_backend = str(getattr(args, 'backend', '') or read_backend_selection(project))
-    command = [
-        sys.executable,
-        str(ROOT / 'scripts' / 'pipeline_loop.py'),
-        '--workspace',
-        str(project),
-        '--max-iterations',
-        str(args.max_iterations),
-        '--sandbox',
-        args.sandbox,
-        '--timeout-seconds',
-        str(args.timeout_seconds),
-        '--max-retries',
-        str(getattr(args, 'max_retries', 0)),
-        '--backend',
-        selected_backend,
-    ]
-    if args.run_id:
-        command.extend(['--run-id', args.run_id])
-    if getattr(args, 'task_id', ''):
-        command.extend(['--task-id', args.task_id])
-    if args.goal_id:
-        command.extend(['--goal-id', args.goal_id])
-    if args.force_path:
-        command.extend(['--force-path', args.force_path])
-    if args.dry_run:
-        command.append('--dry-run')
-    if args.allow_actual:
-        command.append('--allow-actual')
-    if args.codex_home:
-        command.extend(['--backend-option', f'codex_home={args.codex_home}'])
-    for item in args.allowed_file:
-        command.extend(['--allowed-file', item])
-    for item in args.denied_file:
-        command.extend(['--denied-file', item])
-    command.extend(args.input)
-    proc = run_command_capture(command, ROOT)
-    payload: dict = {}
-    stdout = str(proc.get('stdout') or '').strip()
-    if stdout.startswith('{'):
-        try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError:
-            payload = {}
-    if getattr(args, 'debug', False):
-        if stdout:
-            print(stdout)
-        else:
-            print_json({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')})
-        return int(proc.get('returncode') or 0)
-    if proc.get('returncode') != 0:
-        print_json({'goal': ' '.join(args.input).strip(), 'progress': 'blocked', 'result': 'error'})
-        return int(proc.get('returncode') or 1)
-    product = {
-        'goal': ' '.join(args.input).strip(),
-        'progress': 'complete' if payload.get('converged') else 'in_progress',
-        'result': payload.get('final_verdict') or 'unknown',
-    }
-    print_json(product)
-    return 0
-
-
-def plan_big(args) -> int:
-    run_id = args.run_id or 'run-big-task'
-    text = ' '.join(args.input).strip()
-    command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id, '--input-text', text]
-    if args.goal_id:
-        command.extend(['--goal-id', args.goal_id])
-    result = delegate('generate_big_task_contract.py', command)
-    delegate('render_big_task_plan.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
-    return result
-
-
-def decompose_big(args) -> int:
-    run_id = args.run_id or 'run-big-task'
-    text = ' '.join(args.input).strip()
-    if text:
-        command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id, '--input-text', text]
-        if args.goal_id:
-            command.extend(['--goal-id', args.goal_id])
-        result = delegate('generate_big_task_contract.py', command)
-        if result not in {0, 10}:
-            return result
-    command = ['--workspace', workspace_arg(args.workspace), '--run-id', run_id]
-    if args.allow_leaf_actual:
-        command.append('--allow-leaf-actual')
-    result = delegate('decompose_big_task_to_leaf_contracts.py', command)
-    if result != 0:
-        return result
-    delegate('check_leaf_task_contracts.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
-    delegate('schedule_leaf_execution.py', ['--workspace', workspace_arg(args.workspace), '--run-id', run_id])
-    return result
-
-
-def aggregate_big(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--max-iterations', str(args.max_iterations)]
-    if args.goal_id:
-        command.extend(['--goal-id', args.goal_id])
-    return delegate('run_parent_aggregation_gate.py', command)
-
-
-def goal_loop(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--max-iterations', str(args.max_iterations)]
-    if args.goal_id:
-        command.extend(['--goal-id', args.goal_id])
-    if args.no_advance:
-        command.append('--no-advance')
-    if args.no_next_goal_suggestions:
-        command.append('--no-next-goal-suggestions')
-    return delegate('goal_loop_engine.py', command)
-
-
-def global_loop(args) -> int:
-    command = [
-        '--workspace',
-        workspace_arg(args.workspace),
-        '--max-iterations',
-        str(args.max_iterations),
-        '--max-continuous-goal-iterations',
-        str(args.max_continuous_goal_iterations),
-    ]
-    if args.backend_health:
-        command.extend(['--backend-health', args.backend_health])
-    if args.no_advance:
-        command.append('--no-advance')
-    return delegate('global_loop_engine.py', command)
-
-
-def integration_check(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id]
-    if args.yes:
-        command.append('--yes')
-    else:
-        command.append('--dry-run')
-    return delegate('create_integration_worktree.py', command)
-
-
-def start_command(args) -> int:
-    project = project_root(args.workspace)
-    goal = ' '.join(args.goal).strip()
-    if not goal:
-        print_json(user_task_result(task='', mode='blocked', result='please describe the project goal'))
-        return 2
-    if getattr(args, 'debug', False):
-        result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--mode', args.mode, '--start', goal])
-        print(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    payload = start_or_update_job(project, goal, mode=args.mode, max_steps=args.max_steps, backend=args.backend, steps=getattr(args, 'steps', 0))
-    print(str(payload.get('message') or '').strip())
-    print('\nTip: next time you can just run:')
-    print(f'agent "{goal}"')
-    return 0 if payload.get('status') != 'blocked' else 2
-
-
-def stop_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'debug', False):
-        result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--stop'])
-        print(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    payload = stop_job(project)
-    print(str(payload.get('message') or '').strip())
-    return 0
-
-
-def continue_command(args) -> int:
-    project = project_root(args.workspace)
-    _migrate_legacy_seed_preview_queue(project)
-    queue = load_seed_queue(project)
-    if queue.get('actions') and next_seed_action(project):
-        job = load_current_job(project)
-        goal = str((job or {}).get('goal') or queue.get('goal') or '')
-        result = run_seed_batch(project, goal=goal, max_steps=3)
-        _record_seed_queue_job(project, goal=goal, queue_result=result)
-        changed = [str(item) for item in result.get('changed_files') or []]
-        remaining = int(result.get('remaining') or 0)
-        pending = next_seed_action(project)
-        status = 'Needs attention' if result.get('status') == 'needs_attention' else 'Done'
-        next_text = 'agent continue' if pending else 'agent "<next project goal>"'
-        actions = [str(item.get('title') or item.get('action_id') or '') for item in result.get('actions') or [] if isinstance(item, dict)]
-        why = 'Continued the seed prompt project through a safe reviewable batch.'
-        if actions:
-            why = f'Completed batch: {", ".join(actions)}.'
-        print(
-            _public_report_with_overview(
-                project,
-                status=status,
-                goal=goal,
-                changed_files=changed,
-                why=why,
-                next_action=next_text,
-                attention='; '.join(str(item.get('reason') or item) for item in result.get('blocked') or [] if isinstance(item, dict)) if result.get('status') == 'needs_attention' else '',
-                stop_reason=str(result.get('stop_reason') or 'reviewable_batch_complete'),
-            )
-        )
-        return 0
-    if queue.get('actions') and not next_seed_action(project):
-        job = load_current_job(project)
-        goal = str((job or {}).get('goal') or queue.get('goal') or '')
-        print(
-            _public_report_with_overview(
-                project,
-                status='Done',
-                goal=goal,
-                changed_files=[],
-                why='All safe starter actions from the seed prompt are complete.',
-                next_action='Give the next prompt when you want to keep developing the project.',
-                stop_reason='queue_completed',
-            )
-        )
-        return 0
-    steps = getattr(args, 'steps', 0) or args.max_steps or 1
-    payload = continue_job(project, mode=args.mode, steps=steps, backend=args.backend)
-    print(str(payload.get('message') or '').strip())
-    return 0
-
-
-def status(args) -> int:
-    project = project_root(args.workspace)
-    if not getattr(args, 'debug', False) and not getattr(args, 'no_write', False):
-        payload = show_job_inbox(project)
-        print(str(payload.get('message') or '').strip())
-        print('\nTip: `agent` also shows this inbox.')
-        return 0
-    session_result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--status'])
-    session_payload = parse_json_output(session_result)
-    if session_payload and not getattr(args, 'debug', False):
-        print_json(
-            {
-                'task': session_payload.get('task') or 'session',
-                'mode': 'status',
-                'result': session_payload.get('result') or 'Session: status: unknown; digest: .zoo-agent/session/session_digest.md; cockpit: .zoo-agent/cockpit/index.html',
-            }
-        )
-        return int(session_result.get('returncode') or 0)
-    session = load_json(project / '.zoo-agent' / 'autopilot' / 'session.json')
-    progress_payload = load_json(project / '.zoo-agent' / 'autopilot' / 'progress.json')
-    cockpit_path = project / '.zoo-agent' / 'cockpit' / 'index.html'
-    cockpit_hint = ' Project Cockpit: .zoo-agent/cockpit/index.html' if cockpit_path.exists() else ' Run `agent cockpit` to generate a local Project Cockpit.'
-    if session and not getattr(args, 'debug', False):
-        task = str(session.get('goal') or 'project')
-        result_text = str(session.get('status') or progress_payload.get('status') or 'doing')
-        result_text = f'{result_text};{cockpit_hint}'
-        print_json({'task': task, 'mode': 'status', 'result': result_text})
-        return 0
-    command = ['--workspace', workspace_arg(args.workspace)]
-    if args.run_id:
-        command.extend(['--run-id', args.run_id])
-    if args.no_write:
-        command.append('--no-write')
-    result = delegate_capture('runtime_status.py', command)
-    payload = parse_json_output(result)
-    if getattr(args, 'debug', False):
-        safe_print_text(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    goals = ((payload.get('goal_state') or {}).get('goals') or []) if isinstance(payload.get('goal_state'), dict) else []
-    active = next((item for item in goals if item.get('status') == 'active'), {}) if isinstance(goals, list) else {}
-    task_text = str(active.get('goal') or active.get('goal_id') or 'status')
-    progress = clean_progress(active.get('progress', 0) if active else 0)
-    summary = payload.get('status') or 'unknown'
-    if active:
-        summary = f'{summary}; progress {progress}'
-    summary = f'{summary};{cockpit_hint}'
-    print_json({'task': task_text, 'mode': 'status', 'result': summary})
-    return int(result.get('returncode') or 0)
-
-
-def cockpit_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'dogfood', False):
-        result = delegate_capture('cockpit_dogfood_runner.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        readiness = str(payload.get('readiness_value') or 'unknown')
-        print_json(
-            {
-                'task': 'project cockpit dogfood',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f'Report: .zoo-agent/cockpit_dogfood/cockpit_ux_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    result = delegate_capture('cockpit_renderer.py', ['--workspace', str(project)])
-    if getattr(args, 'debug', False):
-        print(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    if result.get('returncode') != 0:
-        print_json({'task': 'project cockpit', 'mode': 'blocked', 'result': 'could not generate Project Cockpit'})
-        return int(result.get('returncode') or 1)
-    print_json({'task': 'project cockpit', 'mode': 'ready', 'result': 'Open: .zoo-agent/cockpit/index.html; Then: agent status, agent continue, agent stop, agent undo'})
-    return 0
-
-
-def session_command(args) -> int:
-    project = project_root(args.workspace)
-    if not getattr(args, 'dogfood', False):
-        print_json({'task': 'session', 'mode': 'blocked', 'result': 'unknown session command'})
-        return 2
-    result = delegate_capture('session_dogfood_runner.py', ['--workspace', str(project)])
-    if getattr(args, 'debug', False):
-        print(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    payload = parse_json_output(result)
-    readiness = ((payload.get('readiness') or {}).get('readiness')) or 'NOT_READY'
-    print_json(
-        {
-            'task': 'session dogfood',
-            'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-            'result': f'Report: .zoo-agent/session_dogfood/session_product_report.md; readiness: {readiness}',
-        }
-    )
-    return int(result.get('returncode') or 0)
-
-
-def workers_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'real_dogfood', False):
-        result = delegate_capture('real_worker_dogfood_runner.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        readiness = ((payload.get('readiness') or {}).get('readiness')) or 'NOT_READY'
-        print_json(
-            {
-                'task': 'real worker dogfood',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f'Report: .zoo-agent/real_worker_dogfood/project_operator_value_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'dogfood', False):
-        result = delegate_capture('worker_router_dogfood_runner.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        readiness = ((payload.get('readiness') or {}).get('readiness')) or 'NOT_READY'
-        print_json(
-            {
-                'task': 'workers dogfood',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f'Report: .zoo-agent/worker_dogfood/worker_router_product_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'doctor', False):
-        result = delegate_capture('worker_doctor.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'list', False):
-        result = delegate_capture('worker_registry.py', ['--workspace', str(project), '--list'])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        workers = [item for item in payload.get('workers') or [] if item.get('available')]
-        labels = ', '.join(str(item.get('worker_type') or item.get('name') or 'worker') for item in workers) or 'none available'
-        print_json({'task': 'workers list', 'mode': 'ready', 'result': f'Available worker roles: {labels}'})
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'route_demo', False):
-        result = delegate_capture('worker_router.py', ['--workspace', str(project), '--route-demo'])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        print_json(
-            {
-                'task': 'workers route demo',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f"Selected: {payload.get('worker_role') or 'Worker'}; routing: .zoo-agent/workers/routing_decision.json",
-            }
-        )
-        return int(result.get('returncode') or 0)
-    print_json({'task': 'workers', 'mode': 'blocked', 'result': 'unknown workers command'})
-    return 2
-
-
-def learning_command(args) -> int:
-    project = project_root(args.workspace)
-    common = ['--workspace', str(project)]
-    if getattr(args, 'import_artifacts', False):
-        command = [*common]
-        if getattr(args, 'source', ''):
-            command.extend(['--source', str(project_root(args.source))])
-        result = delegate_capture('learning_artifact_importer.py', command)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'local learning import',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': 'Import report: .zoo-agent/learning/cross_project/import_report.json',
-            }
-        )
-        return int(result.get('returncode') or 0)
-
-    if getattr(args, 'build', False):
-        steps = [
-            ('learning_artifact_importer.py', common),
-            ('next_action_pattern_miner.py', common),
-            ('release_readiness_template_builder.py', common),
-            ('worker_performance_memory.py', common),
-            ('failure_taxonomy_builder.py', common),
-            ('cross_project_insight_engine.py', common),
-            ('learning_feedback_applier.py', common),
-            ('cross_project_learning_report_generator.py', common),
-        ]
-        final_payload = {}
-        for script, command in steps:
-            result = delegate_capture(script, command)
-            if getattr(args, 'debug', False):
-                print(str(result.get('stdout') or '').strip())
-            if result.get('returncode') != 0:
-                print_json({'task': 'local learning build', 'mode': 'blocked', 'result': f'{script} failed'})
-                return int(result.get('returncode') or 1)
-            if script == 'cross_project_learning_report_generator.py':
-                final_payload = parse_json_output(result)
-        status_value = str(final_payload.get('status') or 'PARTIALLY_READY')
-        print_json(
-            {
-                'task': 'local learning build',
-                'mode': 'ready' if status_value == 'CROSS_PROJECT_LEARNING_097_READY' else 'partial',
-                'result': f'Report: .zoo-agent/learning/cross_project/cross_project_learning_report.md; status: {status_value}',
-            }
-        )
-        return 0
-
-    if getattr(args, 'report', False):
-        result = delegate_capture('cross_project_learning_report_generator.py', common)
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'local learning report',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f"Report: .zoo-agent/learning/cross_project/cross_project_learning_report.md; status: {payload.get('status') or 'unknown'}",
-            }
-        )
-        return int(result.get('returncode') or 0)
-
-    if getattr(args, 'doctor', False):
-        init = delegate_capture('cross_project_store.py', common)
-        report = delegate_capture('cross_project_learning_report_generator.py', common)
-        payload = parse_json_output(report)
-        if getattr(args, 'debug', False):
-            print(str(init.get('stdout') or '').strip())
-            print(str(report.get('stdout') or '').strip())
-            return int(report.get('returncode') or init.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'local learning doctor',
-                'mode': 'ready' if report.get('returncode') == 0 else 'blocked',
-                'result': f"Store: .zoo-agent/learning/cross_project; status: {payload.get('status') or 'unknown'}",
-            }
-        )
-        return int(report.get('returncode') or init.get('returncode') or 0)
-
-    if getattr(args, 'dogfood', False):
-        result = delegate_capture('cross_project_learning_dogfood_runner.py', common)
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        readiness = str(payload.get('readiness_value') or 'NOT_READY')
-        print_json(
-            {
-                'task': 'local learning dogfood',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f'Report: .zoo-agent/learning_dogfood/learning_product_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-
-    print_json({'task': 'local learning', 'mode': 'blocked', 'result': 'unknown learning command'})
-    return 2
-
-
-def run_release_pack(project: Path, *, debug: bool = False, pr_only: bool = False) -> tuple[int, dict]:
-    common = ['--workspace', str(project)]
-    steps = []
-    if not pr_only:
-        steps.extend(
-            [
-                'git_context_detector.py',
-                'release_readiness_template_builder.py',
-                'github_readiness_detector.py',
-                'release_readiness_evaluator.py',
-                'release_notes_generator.py',
-                'changelog_draft_generator.py',
-                'release_action_plan_generator.py',
-            ]
-        )
-    else:
-        steps.extend(['git_context_detector.py', 'github_readiness_detector.py', 'release_readiness_evaluator.py'])
-    steps.extend(['pr_plan_generator.py', 'pr_draft_generator.py'])
-
-    final_payload: dict = {}
-    for script in steps:
-        result = delegate_capture(script, common)
-        if debug:
-            print(str(result.get('stdout') or '').strip())
-        if result.get('returncode') != 0:
-            return int(result.get('returncode') or 1), {'failed_script': script}
-        if script == 'pr_draft_generator.py':
-            final_payload = parse_json_output(result)
-
-    first_report = delegate_capture('release_workflow_report_generator.py', common)
-    if debug:
-        print(str(first_report.get('stdout') or '').strip())
-    safety = delegate_capture('github_workflow_safety_gate.py', common)
-    if debug:
-        print(str(safety.get('stdout') or '').strip())
-    if safety.get('returncode') != 0:
-        return int(safety.get('returncode') or 1), parse_json_output(safety)
-    report = delegate_capture('release_workflow_report_generator.py', common)
-    if debug:
-        print(str(report.get('stdout') or '').strip())
-    if report.get('returncode') != 0:
-        return int(report.get('returncode') or 1), parse_json_output(report)
-    cockpit = delegate_capture('cockpit_renderer.py', common)
-    if debug:
-        print(str(cockpit.get('stdout') or '').strip())
-    if cockpit.get('returncode') != 0:
-        return int(cockpit.get('returncode') or 1), parse_json_output(cockpit)
-    final_payload.update(parse_json_output(report))
-    return 0, final_payload
-
-
-def release_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'dogfood', False):
-        result = delegate_capture('release_workflow_dogfood_runner.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        readiness = str(payload.get('readiness_value') or 'NOT_READY')
-        print_json(
-            {
-                'task': 'release workflow dogfood',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f'Report: .zoo-agent/release_dogfood/release_product_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'safety_check', False):
-        result = delegate_capture('github_workflow_safety_gate.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        print_json(
-            {
-                'task': 'release safety check',
-                'mode': 'ready' if payload.get('safe') else 'blocked',
-                'result': 'Safety report: .zoo-agent/release/github_workflow_safety_report.json',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    code, payload = run_release_pack(project, debug=getattr(args, 'debug', False), pr_only=False)
-    status = str(payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown')
-    print_json(
-        {
-            'task': 'release workflow',
-            'mode': 'ready' if code == 0 else 'blocked',
-            'result': f'Release pack: .zoo-agent/release/release_workflow_report.md; status: {status}; next: agent cockpit or agent pr',
-        }
-    )
-    return code
-
-
-def pr_command(args) -> int:
-    project = project_root(args.workspace)
-    code, payload = run_release_pack(project, debug=getattr(args, 'debug', False), pr_only=True)
-    status = str(payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown')
-    print_json(
-        {
-            'task': 'pr draft',
-            'mode': 'ready' if code == 0 else 'blocked',
-            'result': f'PR draft: .zoo-agent/release/pr_draft.md; status: {status}',
-        }
-    )
-    return code
-
-
-def alpha_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'package', False):
-        demo = delegate_capture('demo_fixture_packager.py', ['--workspace', str(project)])
-        result = delegate_capture('public_alpha_packager.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(demo.get('stdout') or '').strip())
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or demo.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public alpha package',
-                'mode': 'ready' if result.get('returncode') == 0 and demo.get('returncode') == 0 else 'blocked',
-                'result': 'Manifest: .zoo-agent/public_alpha/public_alpha_package_manifest.json',
-            }
-        )
-        return int(result.get('returncode') or demo.get('returncode') or 0)
-    if getattr(args, 'audit', False) or getattr(args, 'report', False):
-        result = delegate_capture('public_alpha_report_generator.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public alpha audit',
-                'mode': 'ready' if readiness == 'READY_FOR_100_PUBLIC_ALPHA_RELEASE' else 'blocked',
-                'result': f'Report: .zoo-agent/public_alpha/public_alpha_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    print_json({'task': 'public alpha', 'mode': 'blocked', 'result': 'unknown alpha command'})
-    return 2
-
-
-def publish_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'package', False):
-        result = delegate_capture('public_release_packager.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public release package',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': 'Manifest: .zoo-agent/public_release/public_release_package_manifest.json',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'preflight', False):
-        result = delegate_capture('public_release_gate.py', ['--workspace', str(project)])
-        if result.get('returncode') == 0:
-            preflight = delegate_capture('release_tag_preflight.py', ['--workspace', str(project)])
-        else:
-            preflight = {'returncode': 0, 'stdout': '{}'}
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            print(str(preflight.get('stdout') or '').strip())
-            return int(result.get('returncode') or preflight.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public release preflight',
-                'mode': 'ready' if payload.get('recommendation') == 'pass' else 'blocked',
-                'result': f"Gate: .zoo-agent/public_release/public_release_gate.json; recommendation: {payload.get('recommendation') or 'unknown'}",
-            }
-        )
-        return int(result.get('returncode') or preflight.get('returncode') or 0)
-    if getattr(args, 'report', False):
-        result = delegate_capture('public_release_report_generator.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public release report',
-                'mode': 'ready' if readiness == 'READY_TO_PUBLISH_GITHUB_ALPHA' else 'blocked',
-                'result': f'Report: .zoo-agent/public_release/public_release_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    print_json({'task': 'public release', 'mode': 'blocked', 'result': 'unknown publish command'})
-    return 2
-
-
-def launch_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'package', False):
-        result = delegate_capture('public_launch_packager.py', ['--workspace', str(project)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public launch package',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': 'Package: .zoo-agent/public_launch/public_launch_package.json',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'smoke', False):
-        result = delegate_capture('post_publish_smoke_test.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public launch smoke',
-                'mode': 'ready' if payload.get('post_publish_smoke_passed') else 'blocked',
-                'result': 'Smoke report: .zoo-agent/public_launch/post_publish_smoke_report.json',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'audit', False):
-        result = delegate_capture('public_launch_audit.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public launch audit',
-                'mode': 'ready' if payload.get('recommendation') == 'pass' else 'blocked',
-                'result': f"Audit: .zoo-agent/public_launch/public_launch_audit.json; recommendation: {payload.get('recommendation') or 'unknown'}",
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'report', False):
-        result = delegate_capture('launch_report_generator.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'public launch report',
-                'mode': 'ready' if readiness == 'READY_FOR_MANUAL_GITHUB_PUBLISH' else 'blocked',
-                'result': f'Report: .zoo-agent/public_launch/public_launch_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    print_json({'task': 'public launch', 'mode': 'blocked', 'result': 'unknown launch command'})
-    return 2
-
-
-def postlaunch_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'verify', False):
-        result = delegate_capture('post_publish_remote_verifier.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        mode = 'ready' if payload.get('remote_verification_passed') or payload.get('tree_equal') else 'blocked'
-        print_json(
-            {
-                'task': 'post-launch remote verification',
-                'mode': mode,
-                'result': 'Report: .zoo-agent/post_launch/remote_publish_verification.json',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'branch_audit', False):
-        result = delegate_capture('branch_hygiene_audit.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        recommendation = payload.get('recommendation') or 'unknown'
-        print_json(
-            {
-                'task': 'post-launch branch hygiene',
-                'mode': 'ready' if recommendation in {'pass', 'manual_action_needed'} else 'blocked',
-                'result': f'Branch report: .zoo-agent/post_launch/branch_hygiene_report.json; recommendation: {recommendation}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'report', False):
-        result = delegate_capture('post_publish_report_generator.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'post-launch report',
-                'mode': 'ready' if readiness == 'READY_FOR_POST_LAUNCH_FEEDBACK_TRIAGE' else 'blocked',
-                'result': f'Report: .zoo-agent/post_launch/post_publish_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    print_json({'task': 'post-launch', 'mode': 'blocked', 'result': 'unknown postlaunch command'})
-    return 2
-
-
-def feedback_command(args) -> int:
-    project = project_root(args.workspace)
-    if getattr(args, 'triage', False):
-        result = delegate_capture('feedback_triage_engine.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        recommendation = payload.get('recommendation') or 'unknown'
-        print_json(
-            {
-                'task': 'feedback triage',
-                'mode': 'ready' if recommendation != 'fix_feedback_pipeline' else 'blocked',
-                'result': f'Triage report: .zoo-agent/feedback/feedback_triage_report.json; recommendation: {recommendation}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'signals', False):
-        result = delegate_capture('feedback_signal_classifier.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'feedback signals',
-                'mode': 'ready' if result.get('returncode') == 0 else 'blocked',
-                'result': f"Signals: .zoo-agent/feedback/feedback_signal_report.json; count: {len(payload.get('signals') or [])}",
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if getattr(args, 'report', False):
-        result = delegate_capture('post_launch_feedback_report_generator.py', ['--workspace', str(project)])
-        payload = parse_json_output(result)
-        readiness = payload.get('status') or payload.get('readiness', {}).get('readiness') or 'unknown'
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        print_json(
-            {
-                'task': 'feedback report',
-                'mode': 'ready' if readiness in {'READY_FOR_104_PATCH_PLANNING', 'COLLECT_MORE_FEEDBACK_FIRST'} else 'blocked',
-                'result': f'Report: .zoo-agent/feedback/post_launch_feedback_report.md; readiness: {readiness}',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    print_json({'task': 'feedback', 'mode': 'blocked', 'result': 'unknown feedback command'})
-    return 2
-
-
-def rollback(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace), '--run-id', args.run_id, '--task-id', args.task_id]
-    if args.dry_run or not args.yes:
-        command.append('--dry-run')
-    if args.yes:
-        command.append('--yes')
-    if args.confirm_current_branch:
-        command.append('--confirm-current-branch')
-    result = delegate_capture('rollback_task.py', command)
-    if getattr(args, 'debug', False):
-        print(str(result.get('stdout') or '').strip())
-        return int(result.get('returncode') or 0)
-    payload = parse_json_output(result)
-    status = str(payload.get('status') or ('ok' if result.get('returncode') == 0 else 'error'))
-    progress = 'dry_run' if status == 'dry_run' else status
-    print_json({'goal': 'rollback plan', 'progress': progress, 'result': 'rollback ready' if result.get('returncode') == 0 else 'rollback error'})
-    return int(result.get('returncode') or 0)
-
-
-def reroute(args) -> int:
-    command = [
-        '--workspace',
-        workspace_arg(args.workspace),
-        '--run-id',
-        args.run_id,
-        '--task-id',
-        args.task_id,
-        '--path',
-        args.path,
-        '--timeout-seconds',
-        str(args.timeout_seconds),
-    ]
-    for flag, value in [
-        ('--new-run-id', args.new_run_id),
-        ('--new-task-id', args.new_task_id),
-        ('--input-text', args.input_text),
-        ('--goal-id', args.goal_id),
-        ('--codex-home', args.codex_home),
-        ('--profile', args.profile),
-    ]:
-        if value:
-            command.extend([flag, value])
-    if args.dry_run:
-        command.append('--dry-run')
-    if args.worker_dry_run:
-        command.append('--worker-dry-run')
-    if args.no_execute_governed_workers:
-        command.append('--no-execute-governed-workers')
-    if args.discard_failed_worktree:
-        command.append('--discard-failed-worktree')
-    return delegate('reroute_task.py', command)
-
-
-def map_command(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace)]
-    if args.map_action == 'refresh':
-        command.append('--refresh')
-    elif args.map_action == 'promote':
-        command.append('--promote')
-    if args.promote_if_missing:
-        command.append('--promote-if-missing')
-    if args.dry_run:
-        command.append('--dry-run')
-    return delegate('check_project_map_alignment.py', command)
-
-
-def standards(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace)]
-    if args.standards_action == 'check':
-        command.append('--check')
-    elif args.standards_action == 'promote':
-        command.append('--promote')
-    if args.refresh:
-        command.append('--refresh')
-    if args.dry_run:
-        command.append('--dry-run')
-    return delegate('init_project_instructions.py', command)
-
-
-def review(args) -> int:
-    project = project_root(args.workspace)
-    run_id = args.run_id or latest_run_id(project)
-    if not run_id:
-        print('No run_id supplied and no local run was found.', file=sys.stderr)
-        return 2
-    command = ['--workspace', str(project), '--run-id', run_id]
-    for enabled, flag in [
-        (args.governance_only, '--governance-only'),
-        (args.allow_missing_tests, '--allow-missing-tests'),
-        (args.allow_open_risks, '--allow-open-risks'),
-        (args.allow_task_board_warnings, '--allow-task-board-warnings'),
-        (args.allow_project_readiness_blocks, '--allow-project-readiness-blocks'),
-        (args.allow_architecture_blocks, '--allow-architecture-blocks'),
-        (args.accept_parent_aggregation, '--accept-parent-aggregation'),
-    ]:
-        if enabled:
-            command.append(flag)
-    return delegate('runtime_review.py', command)
-
-
-def goal_command(args) -> int:
-    if args.goal_action == 'set':
-        if not str(args.goal or '').strip():
-            print_json({'goal': '', 'progress': 'blocked', 'result': 'missing goal'})
-            return 2
-        command = ['--workspace', workspace_arg(args.workspace), '--goal', args.goal]
-        if args.goal_id:
-            command.extend(['--goal-id', args.goal_id])
-        command.extend(['--priority', str(args.priority)])
-        for item in args.resource:
-            command.extend(['--resource', item])
-        for item in args.depends_on:
-            command.extend(['--depends-on', item])
-        for item in args.success_criteria:
-            command.extend(['--success-criteria', item])
-        for item in args.constraint:
-            command.extend(['--constraint', item])
-        for item in args.non_goal:
-            command.extend(['--non-goal', item])
-        command.extend(['--risk-tolerance', args.risk_tolerance])
-        if args.no_activate:
-            command.append('--no-activate')
-        result = delegate_capture('set_goal.py', command)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        goal_payload = payload.get('goal') if isinstance(payload.get('goal'), dict) else {}
-        print_json(
-            {
-                'goal': goal_payload.get('goal') or args.goal,
-                'progress': 'active' if payload.get('active') is not False else 'paused',
-                'result': 'goal set' if result.get('returncode') == 0 else 'error',
-            }
-        )
-        return int(result.get('returncode') or 0)
-    if args.goal_action == 'clear':
-        result = delegate_capture('set_goal.py', ['--workspace', workspace_arg(args.workspace), '--clear'])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-        else:
-            print_json({'goal': 'none', 'progress': 'cleared', 'result': 'goal cleared'})
-        return int(result.get('returncode') or 0)
-    if args.goal_action == 'list':
-        result = delegate_capture('goal_state_manager.py', ['list', '--workspace', workspace_arg(args.workspace)])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        goals = payload.get('goals') if isinstance(payload.get('goals'), list) else []
-        active = next((item for item in goals if item.get('status') == 'active'), {}) if goals else {}
-        print_json({'goal': active.get('goal') or f'{len(goals)} goals', 'progress': clean_progress(active.get('progress', 0) if active else 0), 'result': f'{len(goals)} goals'})
-        return int(result.get('returncode') or 0)
-    if args.goal_action in {'pause', 'resume', 'complete', 'backlog', 'block'}:
-        if not args.goal_id:
-            print(f'goal {args.goal_action} requires --goal-id.', file=sys.stderr)
-            return 2
-        result = delegate_capture('goal_state_manager.py', [args.goal_action, '--workspace', workspace_arg(args.workspace), '--goal-id', args.goal_id])
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-        else:
-            print_json({'goal': args.goal_id, 'progress': args.goal_action, 'result': f'goal {args.goal_action}'})
-        return int(result.get('returncode') or 0)
-    if args.goal_action == 'schedule':
-        command = [
-            '--workspace',
-            workspace_arg(args.workspace),
-            '--max-continuous-iterations',
-            str(args.max_continuous_iterations),
-        ]
-        if args.backend_health:
-            command.extend(['--backend-health', args.backend_health])
-        if args.multi_goal_mode:
-            command.append('--multi-goal-mode')
-        return delegate('goal_scheduler.py', command)
-    if args.goal_action == 'conflicts':
-        command = ['--workspace', workspace_arg(args.workspace)]
-        if args.apply:
-            command.append('--apply')
-        return delegate('goal_conflict_detector.py', command)
-    command = ['--workspace', workspace_arg(args.workspace)]
-    if args.goal_id:
-        command.extend(['--goal-id', args.goal_id])
-    if args.goal_action in {'status', 'show'}:
-        result = delegate_capture('get_goal.py', command)
-        if getattr(args, 'debug', False):
-            print(str(result.get('stdout') or '').strip())
-            return int(result.get('returncode') or 0)
-        payload = parse_json_output(result)
-        goal_payload = payload.get('goal') if isinstance(payload.get('goal'), dict) else {}
-        print_json({'goal': goal_payload.get('goal') or 'no active goal', 'progress': 'active' if payload.get('active') else 'inactive', 'result': payload.get('status') or 'unknown'})
-        return int(result.get('returncode') or 0)
-    print(f'Unsupported goal action: {args.goal_action}', file=sys.stderr)
-    return 2
-
-
-def loop_command(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace)]
-    if args.run_id:
-        command.extend(['--run-id', args.run_id])
-    if hasattr(args, 'max_iterations'):
-        command.extend(['--max-iterations', str(args.max_iterations)])
-    if args.loop_action == 'reset':
-        command.append('--reset')
-    elif args.loop_action == 'stop':
-        command.append('--stop')
-    elif args.loop_action == 'set':
-        command.append('--set-max')
-    elif args.loop_action == 'explain':
-        return delegate('check_loop_convergence.py', ['--workspace', workspace_arg(args.workspace)])
-    elif args.loop_action == 'status':
-        pass
-    else:
-        print(f'Unsupported loop action: {args.loop_action}', file=sys.stderr)
-        return 2
-    return delegate('loop_controller.py', command)
-
-
-def codex_health(args) -> int:
-    command = [
-        '--workspace',
-        workspace_arg(args.workspace),
-        '--mode',
-        args.mode,
-        '--timeout-seconds',
-        str(args.timeout_seconds),
-        '--no-output-timeout-seconds',
-        str(args.no_output_timeout_seconds),
-    ]
-    if args.codex_home:
-        command.extend(['--codex-home', args.codex_home])
-    if args.skip_real_codex:
-        command.append('--skip-real-codex')
-    return delegate('check_codex_backend_health.py', command)
-
-
-def backend_command(args) -> int:
-    command = ['--workspace', workspace_arg(args.workspace)]
-    if args.backend_action == 'switch':
-        command.extend(['--select', args.name])
-    elif args.backend_action == 'health':
-        command.append('--health')
-    elif args.backend_action == 'list':
-        command.append('--list')
-    else:
-        print(f'Unsupported backend action: {args.backend_action}', file=sys.stderr)
-        return 2
-    result = delegate_capture('backend_registry.py', command)
-    if result.get('returncode') != 0:
-        product = {'status': 'failed', 'result': 'backend command failed'}
-        if args.backend_action == 'switch':
-            product = {
-                'status': 'failed',
-                'selected_backend': '',
-                'available_backends': ['codex', 'dry_run', 'mock'],
-                'result': f'unknown backend: {args.name}',
-            }
-        print(json.dumps(product, ensure_ascii=False, indent=2))
-        return int(result.get('returncode') or 1)
-    raw = str(result.get('stdout') or '{}').strip()
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        payload = {}
-    if args.backend_action == 'switch':
-        product = {'status': 'ok', 'selected_backend': payload.get('backend'), 'result': 'backend switched'}
-    elif args.backend_action == 'health':
-        product = {'status': 'ok', 'result': 'backend health checked', 'backends': payload.get('backends', {})}
-    else:
-        product = {
-            'status': 'ok',
-            'selected_backend': payload.get('selected', ''),
-            'available_backends': payload.get('backends', []),
-        }
-    print(json.dumps(product, ensure_ascii=False, indent=2))
-    return 0
-
-
-def latest_run_id(project: Path) -> str:
-    runs = project / '.zoo-agent' / 'runs'
-    if not runs.exists():
-        return ''
-    candidates = [path for path in runs.iterdir() if path.is_dir()]
-    if not candidates:
-        return ''
-    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)[0].name
-
-
-def make_run_namespace(workspace: str, text: str, *, dry_run: bool = False):
-    return argparse.Namespace(
-        workspace=workspace,
-        input=[text],
-        run_id='',
-        task_id='',
-        goal_id='',
-        allowed_file=[],
-        denied_file=[],
-        test_command=[],
-        changed_file_estimate=0,
-        fast=False,
-        parallel=False,
-        governed=False,
-        max_workers=2,
-        sandbox='workspace-write',
-        profile='',
-        codex_home='',
-        backend='',
-        timeout_seconds=360,
-        no_output_timeout_seconds=600,
-        test_timeout_seconds=0,
-        max_retries=0,
-        max_iteration=10,
-        start_point='HEAD',
-        discard_failed_worktree=False,
-        ephemeral=False,
-        worker_dry_run=False,
-        skip_health_check=False,
-        allow_ambiguous_fast=False,
-        no_execute_governed_workers=False,
-        dry_run=dry_run,
-        debug=False,
-    )
-
-
-def interactive_help() -> str:
-    return '\n'.join(
-        [
-            'Try:',
-            '  fix README typo',
-            '  improve onboarding docs --preview',
-            '  agent status',
-            '  agent undo',
-            '  /exit',
-        ]
-    )
-
-
-def interactive_shell(workspace: str = '.') -> int:
-    project = project_root(workspace)
-    dry_run = os.environ.get('AGENT_INTERACTIVE_DRY_RUN') == '1'
-    print(interactive_help())
-    while True:
-        try:
-            line = input('agent> ').strip()
-        except EOFError:
-            print()
-            return 0
-
-        if not line:
-            continue
-        if line in {'/exit', 'exit', 'quit'}:
-            return 0
-        if line == '/help':
-            print(interactive_help())
-            continue
-
-        try:
-            parts = shlex.split(line)
-        except ValueError as exc:
-            print(f'Could not parse command: {exc}')
-            continue
-
-        if not parts:
-            continue
-
-        command = parts[0]
-        try:
-            if command == '/status':
-                status(argparse.Namespace(workspace=str(project), run_id='', no_write='--no-write' in parts[1:], debug=False))
-            elif command == '/review':
-                review(argparse.Namespace(workspace=str(project), run_id=parts[1] if len(parts) > 1 else ''))
-            elif command == '/reroute':
-                if len(parts) < 4:
-                    print('Usage: /reroute <run-id> <task-id> <fast|parallel|governed>')
-                    continue
-                reroute(
-                    argparse.Namespace(
-                        workspace=str(project),
-                        run_id=parts[1],
-                        task_id=parts[2],
-                        path=parts[3],
-                        timeout_seconds=360,
-                        new_run_id='',
-                        new_task_id='',
-                        input_text='',
-                        goal_id='',
-                        codex_home='',
-                        profile='',
-                        dry_run=False,
-                        worker_dry_run=False,
-                        no_execute_governed_workers=False,
-                        discard_failed_worktree=False,
-                    )
-                )
-            elif command == '/rollback':
-                if len(parts) < 3:
-                    print('Usage: /rollback <run-id> <task-id> [--yes]')
-                    continue
-                rollback(
-                    argparse.Namespace(
-                        workspace=str(project),
-                        run_id=parts[1],
-                        task_id=parts[2],
-                        dry_run='--yes' not in parts[3:],
-                        yes='--yes' in parts[3:],
-                        confirm_current_branch='--confirm-current-branch' in parts[3:],
-                    )
-                )
-            elif command == '/goal':
-                if len(parts) < 2:
-                    goal_command(argparse.Namespace(goal_action='show', workspace=str(project), goal_id=''))
-                else:
-                    goal_command(
-                        argparse.Namespace(
-                            goal_action='set',
-                            workspace=str(project),
-                            goal=' '.join(parts[1:]),
-                            goal_id='',
-                            success_criteria=[],
-                            constraint=[],
-                            non_goal=[],
-                            risk_tolerance='low',
-                            priority=50,
-                            resource=[],
-                            depends_on=[],
-                            no_activate=False,
-                        )
-                    )
-            elif command == '/loop':
-                action = parts[1] if len(parts) > 1 else 'status'
-                loop_command(argparse.Namespace(loop_action=action, workspace=str(project), run_id='', max_iterations=5))
-            elif command.startswith('/'):
-                print('Unknown command. Use /help.')
-            else:
-                run(make_run_namespace(str(project), line, dry_run=dry_run))
-        except subprocess.CalledProcessError as exc:
-            print(f'Command failed with exit code {exc.returncode}')
-
 
 def normalize_argv(argv: list[str]) -> list[str]:
     if not argv:
@@ -1955,20 +124,25 @@ def normalize_argv(argv: list[str]) -> list[str]:
     first = argv[0]
     if first in {'-h', '--help'}:
         return argv
-    if first == 'goal' and len(argv) > 1 and argv[1] not in {
-        'set',
-        'show',
-        'status',
-        'clear',
-        'list',
-        'pause',
-        'resume',
-        'complete',
-        'backlog',
-        'block',
-        'schedule',
-        'conflicts',
-    }:
+    if (
+        first == 'goal'
+        and len(argv) > 1
+        and argv[1]
+        not in {
+            'set',
+            'show',
+            'status',
+            'clear',
+            'list',
+            'pause',
+            'resume',
+            'complete',
+            'backlog',
+            'block',
+            'schedule',
+            'conflicts',
+        }
+    ):
         return ['goal', 'set', *argv[1:]]
     if first not in KNOWN_COMMANDS and not first.startswith('-'):
         return ['ask', *argv]
@@ -2042,9 +216,13 @@ def product_subcommand_help(argv: list[str]) -> str:
         if command == 'debug':
             return 'usage: agent debug status|trace|backend ...\n\nAdvanced diagnostics only.\n'
         if command == 'run':
-            return 'usage: agent "<task>" [--preview|--apply]\n\nThis compatibility command is hidden from normal use.\n'
+            return (
+                'usage: agent "<task>" [--preview|--apply]\n\nThis compatibility command is hidden from normal use.\n'
+            )
         if command == 'pipeline':
-            return 'usage: agent "<task>" [--preview|--apply]\n\nThis compatibility command is hidden from normal use.\n'
+            return (
+                'usage: agent "<task>" [--preview|--apply]\n\nThis compatibility command is hidden from normal use.\n'
+            )
         if command == 'goal':
             return 'usage: agent "<task>" [--preview|--apply]\n\nGoals are handled automatically in normal use.\n'
         if command == 'status':
@@ -2060,605 +238,60 @@ def product_subcommand_help(argv: list[str]) -> str:
     return ''
 
 
-def user_task_result(*, task: str, mode: str, result: str) -> dict:
-    return {'task': task, 'mode': mode, 'result': result}
-
-
-def actual_execution_issue(project: Path, backend: str) -> str:
-    normalized = str(backend or '').strip().lower()
-    if normalized in {'dry_run', 'dry-run', 'dryrun'}:
-        return f'{normalized} backend is preview/test only; switch to an actual code worker or run with --preview'
-    if normalized == 'codex':
-        try:
-            from codex_worker_adapter_hardened import codex_health  # noqa: WPS433
-
-            health = codex_health(project)
-        except Exception as exc:  # pragma: no cover - defensive diagnostics only
-            return f'actual execution worker check failed: {type(exc).__name__}; run agent workers --doctor'
-        if not health.get('supports_actual_execution'):
-            reason = str(health.get('reason') or health.get('health') or 'codex worker unavailable')
-            return f'actual execution worker unavailable: {reason}; run agent workers --doctor'
-    return ''
-
-
-def pipeline_failure_summary(payload: dict, proc: dict) -> str:
-    if payload:
-        verdict = str(payload.get('final_verdict') or payload.get('status') or '').strip()
-        reason = str(payload.get('reason') or payload.get('result') or '').strip()
-        if verdict and reason:
-            return f'{verdict}: {reason}'
-        if verdict:
-            return verdict
-        if reason:
-            return reason
-    stderr = str(proc.get('stderr') or '').strip()
-    if stderr:
-        return stderr.splitlines()[-1][:240]
-    stdout = str(proc.get('stdout') or '').strip()
-    if stdout:
-        return stdout.splitlines()[-1][:240]
-    return 'could not complete; run agent workers --doctor or agent debug status'
-
-
-def _record_unified_job(project: Path, *, goal: str, status: str, changed_files: list[str], next_action: str = '', attention_reason: str = '') -> None:
-    job_status = 'completed' if status == 'Done' else ('needs_attention' if status in {'Needs attention', 'Not applied'} else 'active')
-    job = default_job(project, goal=goal)
-    job.update(
-        {
-            'status': job_status,
-            'last_action': 'unified_prompt_entry',
-            'last_changed_files': changed_files,
-            'next_action': next_action,
-            'attention_required': job_status == 'needs_attention',
-            'attention_reason': attention_reason,
-        }
-    )
-    save_current_job(project, job)
-    append_job_event(project, 'unified_prompt_entry', {'job_id': job.get('job_id', ''), 'status': job_status, 'changed_files': changed_files})
-    write_job_digest(project, job)
-
-
-def _record_seed_queue_job(project: Path, *, goal: str, queue_result: dict) -> dict:
-    remaining = int(queue_result.get('remaining') or 0)
-    pending = next_seed_action(project)
-    job = load_current_job(project) or default_job(project, goal=goal)
-    queue_status = str(queue_result.get('status') or '')
-    job_status = 'needs_attention' if queue_status == 'needs_attention' else ('paused' if remaining else 'completed')
-    job.update(
-        {
-            'goal': goal,
-            'status': job_status,
-            'last_action': str((queue_result.get('action') or {}).get('action_id') or 'seed_action_queue'),
-            'last_changed_files': queue_result.get('changed_files') or [],
-            'next_action': str(pending.get('title') or ('Give the next prompt' if not remaining else 'Continue seed prompt action queue')),
-            'attention_required': job_status == 'needs_attention',
-            'attention_reason': 'seed prompt batch needs attention' if job_status == 'needs_attention' else '',
-            'cockpit_path': '.zoo-agent/cockpit/index.html',
-            'digest_path': '.zoo-agent/jobs/job_digest.md',
-        }
-    )
-    save_current_job(project, job)
-    append_job_event(
-        project,
-        'seed_queue_step_finished',
-        {
-            'job_id': job.get('job_id', ''),
-            'action_id': (queue_result.get('action') or {}).get('action_id', ''),
-            'remaining': remaining,
-            'changed_files': queue_result.get('changed_files') or [],
-        },
-    )
-    write_job_digest(project, job)
-    return job
-
-
-def _write_project_map_for_prompt(project: Path, goal: str) -> None:
-    project_map, state, evidence = build_project_map(project, main_goal=goal)
-    out_dir = map_dir(project)
-    write_json(out_dir / 'project_map.json', project_map)
-    write_json(out_dir / 'project_state.json', state)
-    write_json(out_dir / 'map_evidence.json', evidence)
-    md = out_dir / 'project_map.md'
-    md.parent.mkdir(parents=True, exist_ok=True)
-    md.write_text(render_markdown(project_map), encoding='utf-8')
-
-
-def _same_prompt(left: str, right: str) -> bool:
-    return ' '.join((left or '').lower().split()) == ' '.join((right or '').lower().split())
-
-
-def _active_job_blocks_unified_prompt(project: Path, prompt: str) -> str:
-    existing = load_current_job(project)
-    if not existing or existing.get('status') != 'active':
-        return ''
-    if _same_prompt(str(existing.get('goal') or ''), prompt):
-        return ''
-    return str(existing.get('goal') or 'current project job')
-
-
-def _public_report(project: Path, *, status: str, goal: str, changed_files: list[str] | None = None, why: str = '', next_action: str = '', attention: str = '', stop_reason: str = '') -> str:
-    return '\n'.join(
-        render_interaction_summary(
-            project,
-            status=status,
-            goal=goal,
-            changed_files=changed_files or [],
-            why=why,
-            next_action=next_action,
-            attention=attention,
-            stop_reason=stop_reason,
-        )
-    )
-
-
-def _public_report_with_overview(project: Path, *, status: str, goal: str, changed_files: list[str] | None = None, why: str = '', next_action: str = '', attention: str = '', stop_reason: str = '') -> str:
-    return _public_report(project, status=status, goal=goal, changed_files=changed_files, why=why, next_action=next_action, attention=attention, stop_reason=stop_reason)
-
-
-def _one_off_report(
-    project: Path,
-    *,
-    status: str,
-    goal: str,
-    changed_files: list[str] | None = None,
-    why: str = '',
-    next_action: str = '',
-    attention: str = '',
-    preview_path: str = '',
-) -> str:
-    return '\n'.join(
-        render_interaction_summary(
-            project,
-            status=status,
-            goal=goal,
-            changed_files=changed_files or [],
-            why=why,
-            next_action=next_action,
-            attention=attention,
-            preview_path=preview_path,
-            stop_reason='one_off_task_complete',
-            one_off=True,
-        )
-    )
-
-
-def _run_direct_docs_prompt(project: Path, text: str, target_files: list[str], *, project_step: bool = False) -> tuple[int, str]:
-    result = apply_docs_patch(project, objective=text, target_files=target_files)
-    changed = [str(item) for item in result.get('changed_files') or []]
-    blocked = result.get('blocked') or []
-    skipped = result.get('skipped') or []
-    if blocked and not changed:
-        reason = '; '.join(f'{item.get("path")}: {item.get("reason")}' for item in blocked if isinstance(item, dict)) or 'unsafe documentation target'
-        _record_unified_job(project, goal=text, status='Not applied', changed_files=[], attention_reason=reason)
-        return 2, _public_report_with_overview(
-            project,
-            status='Not applied',
-            goal=text,
-            changed_files=[],
-            why='The requested target is outside the safe documentation area.',
-            next_action='Name a README.md or docs/*.md file, or review the target path.',
-            attention=reason,
-            stop_reason='unsafe_or_unsupported_target',
-        )
-    status = 'Working' if project_step else 'Done'
-    if changed:
-        why = 'The prompt named safe documentation targets, so Agent applied one safe document update.'
-    elif skipped:
-        why = 'The requested document update was already present.'
-    else:
-        why = str(result.get('summary') or 'No file changes were needed.')
-    if not project_step:
-        _record_unified_job(project, goal=text, status='Done', changed_files=changed, next_action='Give another prompt when you want the next change.')
-    next_action = 'Run agent to review the current job, or give the next prompt.' if project_step else 'Give another prompt when you want the next change.'
-    return 0, _public_report_with_overview(project, status=status, goal=text, changed_files=changed, why=why, next_action=next_action, stop_reason='reviewable_batch_complete')
-
-
-def _run_seed_queue_prompt(project: Path, text: str, intent: dict[str, object]) -> tuple[int, str]:
-    _write_project_map_for_prompt(project, text)
-    init_seed_queue(
-        project,
-        goal=text,
-        source_file=str(intent.get('seed_file') or 'project_beginning_prompt.md'),
-        research='docs/research_workflow.md' in [str(item) for item in intent.get('target_files') or []],
-    )
-    result = run_seed_batch(project, goal=text, max_steps=3)
-    _record_seed_queue_job(project, goal=text, queue_result=result)
-    changed = [str(item) for item in result.get('changed_files') or []]
-    remaining = int(result.get('remaining') or 0)
-    status = 'Needs attention' if result.get('status') == 'needs_attention' else 'Done'
-    pending = next_seed_action(project)
-    next_text = 'agent continue' if pending else 'agent "<next project goal>"'
-    why = 'Completed the first reviewable project package from the seed prompt.' if remaining else 'Completed all safe starter actions from the seed prompt.'
-    return 0, _public_report_with_overview(
-        project,
-        status=status,
-        goal=text,
-        changed_files=changed,
-        why=why,
-        next_action=next_text,
-        attention='; '.join(str(item.get('reason') or item) for item in result.get('blocked') or [] if isinstance(item, dict)) if result.get('status') == 'needs_attention' else '',
-        stop_reason=str(result.get('stop_reason') or 'reviewable_batch_complete'),
-    )
-
-
-def _run_preview_artifact_prompt(project: Path, text: str) -> tuple[int, str]:
-    payload = write_preview_artifact(project, objective=text)
-    preview_path = str(payload.get('preview_path') or '.zoo-agent/previews/preview.md')
-    message = _one_off_report(
-        project,
-        status='Done',
-        goal=text,
-        changed_files=[],
-        why='Generated a temporary local preview without changing the current project goal.',
-        next_action=f'Open {preview_path}, then run agent for the project overview.',
-        preview_path=preview_path,
-    )
-    return 0, message
-
-
-def _migrate_legacy_seed_preview_queue(project: Path) -> bool:
-    queue = load_seed_queue(project)
-    if queue.get('actions'):
-        return False
-    job = load_current_job(project)
-    selected = load_json(project / '.zoo-agent' / 'autopilot' / 'selected_next_action.json')
-    if not job or selected.get('action_id') != 'action-seed-docs-bootstrap':
-        return False
-    if not (selected.get('preview_only') or selected.get('execution_mode') == 'preview'):
-        return False
-    source_file = str(selected.get('source_file') or 'project_beginning_prompt.md')
-    targets = [str(item) for item in selected.get('target_files') or []]
-    if not targets or not all((project / target).exists() for target in targets):
-        return False
-    queue = init_seed_queue(project, goal=str(job.get('goal') or selected.get('title') or ''), source_file=source_file, research='docs/research_workflow.md' in targets)
-    starter = next((item for item in queue.get('actions') or [] if isinstance(item, dict) and item.get('action_id') == 'seed-starter-docs'), {})
-    if starter:
-        mark_seed_action(project, 'seed-starter-docs', status='completed', changed_files=targets)
-    append_job_event(project, 'legacy_seed_preview_queue_migrated', {'job_id': job.get('job_id', ''), 'source_file': source_file})
-    return True
-
-
-def run_unified_prompt(args, text: str) -> int:
-    project = project_root(args.workspace)
-    intent = classify_prompt(project, text, allowed_files=getattr(args, 'allowed_file', []))
-    intent_name = str(intent.get('intent') or '')
-    blocking_job = _active_job_blocks_unified_prompt(project, text)
-    if blocking_job and intent_name in {'single_step_edit', 'seed_prompt_execution'}:
-        print(
-            _public_report_with_overview(
-                project,
-                status='Needs attention',
-                goal=text,
-                changed_files=[],
-                why='Another project job is currently active.',
-                next_action='Run agent to inspect it, or agent stop before switching tasks.',
-                attention=f'Current job: {blocking_job}',
-                stop_reason='active_job_requires_review',
-            )
-        )
-        return 2
-    if intent_name == 'unsafe_or_needs_confirmation':
-        reason = str(intent.get('reason') or 'high-risk operation')
-        _record_unified_job(project, goal=text, status='Needs attention', changed_files=[], attention_reason=reason)
-        print(
-            _public_report_with_overview(
-                project,
-                status='Needs attention',
-                goal=text,
-                changed_files=[],
-                why='The prompt asks for an operation that should not run automatically.',
-                next_action='Revise the prompt to remove the risky operation, or handle it manually.',
-                attention=reason,
-                stop_reason='safety_boundary',
-            )
-        )
-        return 2
-    if intent_name == 'preview_artifact':
-        code, message = _run_preview_artifact_prompt(project, text)
-        print(message)
-        return code
-    if intent_name == 'single_step_edit' and intent.get('execution_mode') == 'direct_docs_apply':
-        code, message = _run_direct_docs_prompt(project, text, [str(item) for item in intent.get('target_files') or []])
-        print(message)
-        return code
-    if intent_name == 'seed_prompt_execution':
-        code, message = _run_seed_queue_prompt(project, text, intent)
-        print(message)
-        return code
-    if intent_name == 'project_goal':
-        payload = start_or_update_job(project, text, steps=1)
-        status = 'Needs attention' if payload.get('status') == 'blocked' else 'Working'
-        attention = '' if status == 'Working' else 'An existing running job needs to be stopped before switching goals.'
-        print(
-            _public_report_with_overview(
-                project,
-                status=status,
-                goal=text,
-                changed_files=[],
-                why=str(intent.get('reason') or 'The prompt describes a project goal.'),
-                next_action='Run agent to review progress, or agent continue to move the job forward.',
-                attention=attention,
-                stop_reason='project_job_started' if status == 'Working' else 'active_job_requires_review',
-            )
-        )
-        return 0 if status == 'Working' else 2
-    reason = str(intent.get('reason') or 'No safe target file or project seed prompt was identified.')
-    _record_unified_job(project, goal=text, status='Needs attention', changed_files=[], attention_reason=reason)
-    print(
-        _public_report_with_overview(
-            project,
-            status='Needs attention',
-            goal=text,
-            changed_files=[],
-            why=reason,
-            next_action='Name the file to change, or add project_beginning_prompt.md and run the prompt again.',
-            attention=reason,
-            stop_reason='unclear_target',
-        )
-    )
-    return 2
-
-
-def _run_one_off_prompt(project: Path, text: str, *, allowed_files: list[str] | None = None) -> tuple[int, str]:
-    intent = classify_prompt(project, text, allowed_files=allowed_files or [])
-    intent_name = str(intent.get('intent') or '')
-    if intent_name == 'unsafe_or_needs_confirmation':
-        reason = str(intent.get('reason') or 'high-risk operation')
-        return 2, _one_off_report(
-            project,
-            status='Needs attention',
-            goal=text,
-            changed_files=[],
-            why='The one-off request asks for an operation that should not run automatically.',
-            next_action='Revise the request to remove the risky operation, or handle it manually.',
-            attention=reason,
-        )
-    if intent_name == 'single_step_edit' and intent.get('execution_mode') == 'direct_docs_apply':
-        result = apply_docs_patch(project, objective=text, target_files=[str(item) for item in intent.get('target_files') or []])
-        changed = [str(item) for item in result.get('changed_files') or []]
-        blocked = [item for item in result.get('blocked') or [] if isinstance(item, dict)]
-        skipped = [item for item in result.get('skipped') or [] if isinstance(item, dict)]
-        if blocked and not changed:
-            reason = '; '.join(f'{item.get("path")}: {item.get("reason")}' for item in blocked) or 'unsupported target'
-            return 2, _one_off_report(
-                project,
-                status='Not applied',
-                goal=text,
-                changed_files=[],
-                why='The requested target is outside the safe documentation area.',
-                next_action='Use README.md or a docs/*.md / docs/*.txt file, or run agent for project-level work.',
-                attention=reason,
-            )
-        if changed:
-            why = 'The request named safe documentation targets, so Agent applied a bounded one-off document update.'
-        elif skipped:
-            why = 'The requested document update was already present.'
-        else:
-            why = str(result.get('summary') or 'No file changes were needed.')
-        attention = ''
-        if blocked:
-            attention = '; '.join(f'{item.get("path")}: {item.get("reason")}' for item in blocked)
-        return 0, _one_off_report(
-            project,
-            status='Done',
-            goal=text,
-            changed_files=changed,
-            why=why,
-            next_action='Review with git diff, then run agent for the project overview.',
-            attention=attention,
-        )
-    payload = write_preview_artifact(project, objective=text)
-    preview_path = str(payload.get('preview_path') or '.zoo-agent/previews/preview.md')
-    why = 'You used agent do, so Agent kept this separate from the current project goal.'
-    if intent_name in {'seed_prompt_execution', 'project_goal'}:
-        why = 'This looks like project-level work; agent do kept it as an independent preview instead of replacing the current project goal.'
-    return 0, _one_off_report(
-        project,
-        status='Done',
-        goal=text,
-        changed_files=[],
-        why=why,
-        next_action='Open the preview, then use agent "<project goal>" if you want to steer the main project.',
-        preview_path=preview_path,
-    )
-
-
-def do_command(args) -> int:
-    text = ' '.join(args.input).strip()
-    if not text:
-        print(
-            _one_off_report(
-                project_root(args.workspace),
-                status='Needs attention',
-                goal='',
-                changed_files=[],
-                why='No one-off task was provided.',
-                next_action='Run agent do "<one-off task>".',
-                attention='missing task',
-            )
-        )
-        return 2
-    project = project_root(args.workspace)
-    code, message = _run_one_off_prompt(project, text, allowed_files=getattr(args, 'allowed_file', []))
-    print(message)
-    return code
-
-
-def ask(args) -> int:
-    if args.preview and args.apply:
-        print_json(user_task_result(task=' '.join(args.input).strip(), mode='blocked', result='choose either --preview or --apply, not both'))
-        return 2
-    text = ' '.join(args.input).strip()
-    if not text:
-        print_json(user_task_result(task='', mode='blocked', result='please describe what you want done'))
-        return 2
-    project = project_root(args.workspace)
-    if not args.preview and not args.apply and not args.allowed_file:
-        return run_unified_prompt(args, text)
-    mode = 'apply' if args.apply else 'preview'
-    ensure_bootstrap_before_run(args)
-    selected_backend = str(read_backend_selection(project))
-    if mode == 'apply':
-        issue = actual_execution_issue(project, selected_backend)
-        if issue:
-            print_json(user_task_result(task=text, mode='blocked', result=issue))
-            return 2
-    command = [
-        sys.executable,
-        str(ROOT / 'scripts' / 'pipeline_loop.py'),
-        '--workspace',
-        str(project),
-        '--max-iterations',
-        '1',
-        '--sandbox',
-        'workspace-write',
-        '--timeout-seconds',
-        '360',
-        '--max-retries',
-        '2',
-        '--backend',
-        selected_backend,
-    ]
-    if mode == 'preview':
-        command.append('--dry-run')
-    else:
-        command.append('--allow-actual')
-    for item in args.allowed_file:
-        command.extend(['--allowed-file', item])
-    command.append(text)
-    proc = run_command_capture(command, ROOT)
-    stdout = str(proc.get('stdout') or '').strip()
-    payload: dict = {}
-    if stdout.startswith('{'):
-        try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError:
-            payload = {}
-    if getattr(args, 'debug', False):
-        safe_print_text(stdout if stdout else json.dumps({'returncode': proc.get('returncode'), 'stderr': proc.get('stderr', '')}, ensure_ascii=False, indent=2))
-        return int(proc.get('returncode') or 0)
-    if proc.get('returncode') != 0:
-        print_json(user_task_result(task=text, mode='blocked', result=pipeline_failure_summary(payload, proc)))
-        return int(proc.get('returncode') or 1)
-    result = str(payload.get('final_verdict') or ('PREVIEW_READY' if mode == 'preview' else 'APPLIED'))
-    if mode == 'preview' and result == 'DRY_RUN_COMPLETE':
-        result = 'PREVIEW_READY'
-    if mode == 'apply' and result != 'COMPLETED':
-        print_json(user_task_result(task=text, mode='blocked', result=f'not applied: {result}'))
-        return 1
-    if mode == 'apply':
-        fallbacks = {str(item) for item in payload.get('fallback_used') or []}
-        changed = [str(item) for item in payload.get('changed_files') or []]
-        if fallbacks & {'bounded_docs_writer', 'remote_openai_worker'}:
-            result = 'Applied via safe docs fallback'
-            if changed:
-                result = f'{result}: {", ".join(changed)}'
-    print_json(user_task_result(task=text, mode=mode, result=result))
-    return 0
-
-
-def undo_command(args) -> int:
-    mode = 'apply' if getattr(args, 'apply', False) else 'preview'
-    if getattr(args, 'preview', False) and getattr(args, 'apply', False):
-        print_json(user_task_result(task='undo', mode='blocked', result='choose either --preview or --apply, not both'))
-        return 2
-    project = project_root(args.workspace)
-    session_result = delegate_capture('session_runtime_engine.py', ['--workspace', str(project), '--undo', '--json'])
-    session_payload = parse_json_output(session_result)
-    try:
-        from job_state_store import sync_job_from_session, write_job_digest  # noqa: WPS433
-
-        job = sync_job_from_session(project)
-        write_job_digest(project, job)
-    except Exception:
-        pass
-    checkpoint = session_payload.get('checkpoint') if isinstance(session_payload.get('checkpoint'), dict) else {}
-    if checkpoint:
-        print_json(user_task_result(task='undo', mode=mode, result=f'checkpoint available: {checkpoint.get("checkpoint_id")}'))
-        return 0
-    latest = latest_run_id(project)
-    if not latest:
-        print_json(user_task_result(task='undo', mode=mode, result='nothing to undo'))
-        return 0
-    if mode == 'preview':
-        print_json(user_task_result(task='undo', mode='preview', result='undo preview ready'))
-        return 0
-    print_json(user_task_result(task='undo', mode='blocked', result='automatic undo apply is not available yet; preview only'))
-    return 2
-
-
-def config_command(args) -> int:
-    if args.config_action == 'backend':
-        result = backend_command(argparse.Namespace(backend_action='switch', name=args.name, workspace=args.workspace))
-        return result
-    print_json({'status': 'failed', 'result': 'unknown config command'})
-    return 2
-
-
-def debug_command(args) -> int:
-    if args.debug_action == 'status':
-        return status(argparse.Namespace(workspace=args.workspace, run_id='', no_write=True, debug=True))
-    if args.debug_action == 'trace':
-        project = project_root(args.workspace)
-        latest = latest_run_id(project)
-        if not latest:
-            print_json({'status': 'empty', 'result': 'no trace available'})
-            return 0
-        trace = project / '.zoo-agent' / 'runs' / latest / 'pipeline' / 'pipeline-loop.json'
-        if trace.exists():
-            print(trace.read_text(encoding='utf-8'))
-            return 0
-        print_json({'status': 'missing', 'result': 'trace not found'})
-        return 0
-    if args.debug_action == 'backend':
-        if args.backend_debug_action == 'list':
-            return backend_command(argparse.Namespace(backend_action='list', workspace=args.workspace))
-        if args.backend_debug_action == 'switch':
-            return backend_command(argparse.Namespace(backend_action='switch', name=args.name, workspace=args.workspace))
-        if args.backend_debug_action == 'health':
-            return backend_command(argparse.Namespace(backend_action='health', workspace=args.workspace))
-    print_json({'status': 'failed', 'result': 'unknown debug command'})
-    return 2
-
-
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+
     if not raw_argv:
+        from job_controller import show_job_inbox
+
         payload = show_job_inbox(project_root('.'))
         print(str(payload.get('message') or '').strip())
         return 0
+
     if raw_argv in (['-h'], ['--help']):
         print(product_help())
         return 0
+
     subcommand_help = product_subcommand_help(raw_argv)
     if subcommand_help:
         print(subcommand_help)
         return 0
+
     suggestion = COMMAND_TYPO_SUGGESTIONS.get(raw_argv[0].lower()) if raw_argv else ''
     if suggestion:
-        print_json(user_task_result(task='command help', mode='blocked', result=f'unknown command: {raw_argv[0]}; try: agent {suggestion}'))
+        print_json(
+            user_task_result(
+                task='command help', mode='blocked', result=f'unknown command: {raw_argv[0]}; try: agent {suggestion}'
+            )
+        )
         return 2
+
     raw_argv = normalize_argv(raw_argv)
 
     parser = argparse.ArgumentParser(prog='agent', description='AI task runner: ask -> preview -> apply.')
     parser.add_argument('--version', action='version', version=f'agent {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
 
+    # -- ask (default route for bare prompts)
     ask_parser = sub.add_parser('ask', help=argparse.SUPPRESS)
     ask_parser.add_argument('input', nargs='*')
     ask_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
-    ask_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
+    ask_parser.add_argument(
+        '-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[]
+    )
     ask_parser.add_argument('--preview', action='store_true')
     ask_parser.add_argument('--apply', action='store_true')
     ask_parser.add_argument('--debug', action='store_true')
     ask_parser.set_defaults(handler=ask)
 
+    # -- do
     do_parser = sub.add_parser('do', help='Run an independent one-off task.')
     do_parser.add_argument('input', nargs='*')
     do_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     do_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
     do_parser.set_defaults(handler=do_command)
 
+    # -- bootstrap
     bootstrap_parser = sub.add_parser('bootstrap', help='Initialize CLI-first runtime state once.')
     bootstrap_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     bootstrap_parser.add_argument('--goal', default='')
@@ -2668,8 +301,12 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap_parser.add_argument('--max-iteration', type=int, default=10)
     bootstrap_parser.add_argument('--with-project-bootstrap', action='store_true')
     bootstrap_parser.add_argument('--mode', choices=['auto', 'existing', 'new'], default='auto')
-    bootstrap_parser.add_argument('--new', action='store_true', help='Explicitly initialize a non-empty non-git directory as a new project.')
-    bootstrap_parser.add_argument('--force-new-project', action='store_true', help='Explicitly allow git init for a non-empty non-git directory.')
+    bootstrap_parser.add_argument(
+        '--new', action='store_true', help='Explicitly initialize a non-empty non-git directory as a new project.'
+    )
+    bootstrap_parser.add_argument(
+        '--force-new-project', action='store_true', help='Explicitly allow git init for a non-empty non-git directory.'
+    )
     bootstrap_parser.add_argument('--codex-home', default='')
     bootstrap_parser.add_argument('--dry-run', action='store_true')
     bootstrap_parser.add_argument('--force', action='store_true')
@@ -2677,13 +314,16 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap_parser.add_argument('--debug', action='store_true')
     bootstrap_parser.set_defaults(handler=bootstrap)
 
+    # -- run
     run_parser = sub.add_parser('run', help='Run a task and return a concise result.')
     run_parser.add_argument('input', nargs='*')
     run_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     run_parser.add_argument('--run-id', default='')
     run_parser.add_argument('--task-id', default='')
     run_parser.add_argument('--goal-id', default='')
-    run_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
+    run_parser.add_argument(
+        '-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[]
+    )
     run_parser.add_argument('--denied-file', action='append', default=[])
     run_parser.add_argument('--test-command', action='append', default=[])
     run_parser.add_argument('--changed-file-estimate', type=int, default=0)
@@ -2707,24 +347,33 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument('--skip-health-check', action='store_true')
     run_parser.add_argument('--allow-ambiguous-fast', action='store_true')
     run_parser.add_argument('--no-execute-governed-workers', action='store_true')
-    run_parser.add_argument('--legacy-runtime', action='store_true', help='Compatibility/debug only: use the pre-pipeline route_task runtime.')
+    run_parser.add_argument(
+        '--legacy-runtime',
+        action='store_true',
+        help='Compatibility/debug only: use the pre-pipeline route_task runtime.',
+    )
     run_parser.add_argument('--debug', action='store_true', help='Show full internal runtime output.')
     run_parser.add_argument('--dry-run', action='store_true')
     run_parser.set_defaults(handler=run)
 
+    # -- pipeline
     pipeline_parser = sub.add_parser('pipeline', help='Run a task through the product pipeline and return a result.')
     pipeline_parser.add_argument('input', nargs='*')
     pipeline_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     pipeline_parser.add_argument('--run-id', default='')
     pipeline_parser.add_argument('--task-id', default='')
     pipeline_parser.add_argument('--goal-id', default='')
-    pipeline_parser.add_argument('-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[])
+    pipeline_parser.add_argument(
+        '-f', '--file', '--only', '--allowed-file', dest='allowed_file', action='append', default=[]
+    )
     pipeline_parser.add_argument('--denied-file', action='append', default=[])
     pipeline_parser.add_argument('--force-path', choices=['', 'fast', 'parallel', 'governed'], default='')
     pipeline_parser.add_argument('--max-iterations', type=int, default=1)
     pipeline_parser.add_argument('--dry-run', action='store_true')
     pipeline_parser.add_argument('--allow-actual', action='store_true')
-    pipeline_parser.add_argument('--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write')
+    pipeline_parser.add_argument(
+        '--sandbox', choices=['read-only', 'workspace-write', 'danger-full-access'], default='workspace-write'
+    )
     pipeline_parser.add_argument('--codex-home', default='')
     pipeline_parser.add_argument('--backend', default='')
     pipeline_parser.add_argument('--timeout-seconds', type=int, default=360)
@@ -2732,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument('--debug', action='store_true', help='Show full internal runtime output.')
     pipeline_parser.set_defaults(handler=pipeline)
 
+    # -- plan-big (suppressed)
     plan_big_parser = sub.add_parser('plan-big', help=argparse.SUPPRESS)
     plan_big_parser.add_argument('input', nargs='*')
     plan_big_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
@@ -2739,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     plan_big_parser.add_argument('--goal-id', default='')
     plan_big_parser.set_defaults(handler=plan_big)
 
+    # -- decompose (suppressed)
     decompose_parser = sub.add_parser('decompose', help=argparse.SUPPRESS)
     decompose_parser.add_argument('input', nargs='*')
     decompose_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
@@ -2747,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
     decompose_parser.add_argument('--allow-leaf-actual', action='store_true')
     decompose_parser.set_defaults(handler=decompose_big)
 
+    # -- aggregate (suppressed)
     aggregate_parser = sub.add_parser('aggregate', help=argparse.SUPPRESS)
     aggregate_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     aggregate_parser.add_argument('--run-id', required=True)
@@ -2754,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
     aggregate_parser.add_argument('--max-iterations', type=int, default=10)
     aggregate_parser.set_defaults(handler=aggregate_big)
 
+    # -- goal-loop (suppressed)
     goal_loop_parser = sub.add_parser('goal-loop', help=argparse.SUPPRESS)
     goal_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     goal_loop_parser.add_argument('--run-id', required=True)
@@ -2763,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
     goal_loop_parser.add_argument('--no-next-goal-suggestions', action='store_true')
     goal_loop_parser.set_defaults(handler=goal_loop)
 
+    # -- global-loop (suppressed)
     global_loop_parser = sub.add_parser('global-loop', help=argparse.SUPPRESS)
     global_loop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     global_loop_parser.add_argument('--max-iterations', type=int, default=100)
@@ -2771,12 +425,16 @@ def main(argv: list[str] | None = None) -> int:
     global_loop_parser.add_argument('--no-advance', action='store_true')
     global_loop_parser.set_defaults(handler=global_loop)
 
+    # -- integration-check (suppressed)
     integration_parser = sub.add_parser('integration-check', help=argparse.SUPPRESS)
     integration_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     integration_parser.add_argument('--run-id', required=True)
-    integration_parser.add_argument('--yes', action='store_true', help='Actually create the isolated integration worktree.')
+    integration_parser.add_argument(
+        '--yes', action='store_true', help='Actually create the isolated integration worktree.'
+    )
     integration_parser.set_defaults(handler=integration_check)
 
+    # -- start
     start_parser = sub.add_parser('start', help='Start map-backed project progress.')
     start_parser.add_argument('goal', nargs='*')
     start_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
@@ -2787,6 +445,7 @@ def main(argv: list[str] | None = None) -> int:
     start_parser.add_argument('--debug', action='store_true')
     start_parser.set_defaults(handler=start_command)
 
+    # -- continue
     continue_parser = sub.add_parser('continue', help='Continue the current project session.')
     continue_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     continue_parser.add_argument('--mode', choices=['preview', 'standard', 'autopilot'], default='standard')
@@ -2795,11 +454,13 @@ def main(argv: list[str] | None = None) -> int:
     continue_parser.add_argument('--backend', default='')
     continue_parser.set_defaults(handler=continue_command)
 
+    # -- stop
     stop_parser = sub.add_parser('stop', help='Stop the current project session.')
     stop_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     stop_parser.add_argument('--debug', action='store_true')
     stop_parser.set_defaults(handler=stop_command)
 
+    # -- status
     status_parser = sub.add_parser('status', help='Show workspace runtime status.')
     status_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     status_parser.add_argument('--run-id', default='')
@@ -2807,12 +468,14 @@ def main(argv: list[str] | None = None) -> int:
     status_parser.add_argument('--debug', action='store_true')
     status_parser.set_defaults(handler=status)
 
+    # -- cockpit
     cockpit_parser = sub.add_parser('cockpit', help='Generate a local Project Cockpit.')
     cockpit_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     cockpit_parser.add_argument('--dogfood', action='store_true', help=argparse.SUPPRESS)
     cockpit_parser.add_argument('--debug', action='store_true')
     cockpit_parser.set_defaults(handler=cockpit_command)
 
+    # -- release
     release_parser = sub.add_parser('release', help='Generate a local release workflow pack.')
     release_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     release_parser.add_argument('--doctor', action='store_true', help=argparse.SUPPRESS)
@@ -2821,11 +484,13 @@ def main(argv: list[str] | None = None) -> int:
     release_parser.add_argument('--debug', action='store_true')
     release_parser.set_defaults(handler=release_command)
 
+    # -- pr
     pr_parser = sub.add_parser('pr', help='Generate a local PR draft.')
     pr_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     pr_parser.add_argument('--debug', action='store_true')
     pr_parser.set_defaults(handler=pr_command)
 
+    # -- alpha (suppressed)
     alpha_parser = sub.add_parser('alpha', help=argparse.SUPPRESS)
     alpha_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     alpha_parser.add_argument('--audit', action='store_true')
@@ -2834,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     alpha_parser.add_argument('--debug', action='store_true')
     alpha_parser.set_defaults(handler=alpha_command)
 
+    # -- publish (suppressed)
     publish_parser = sub.add_parser('publish', help=argparse.SUPPRESS)
     publish_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     publish_parser.add_argument('--preflight', action='store_true')
@@ -2842,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
     publish_parser.add_argument('--debug', action='store_true')
     publish_parser.set_defaults(handler=publish_command)
 
+    # -- launch (suppressed)
     launch_parser = sub.add_parser('launch', help=argparse.SUPPRESS)
     launch_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     launch_parser.add_argument('--package', action='store_true')
@@ -2851,6 +518,7 @@ def main(argv: list[str] | None = None) -> int:
     launch_parser.add_argument('--debug', action='store_true')
     launch_parser.set_defaults(handler=launch_command)
 
+    # -- postlaunch (suppressed)
     postlaunch_parser = sub.add_parser('postlaunch', help=argparse.SUPPRESS)
     postlaunch_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     postlaunch_parser.add_argument('--verify', action='store_true')
@@ -2859,6 +527,7 @@ def main(argv: list[str] | None = None) -> int:
     postlaunch_parser.add_argument('--debug', action='store_true')
     postlaunch_parser.set_defaults(handler=postlaunch_command)
 
+    # -- feedback (suppressed)
     feedback_parser = sub.add_parser('feedback', help=argparse.SUPPRESS)
     feedback_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     feedback_parser.add_argument('--triage', action='store_true')
@@ -2867,12 +536,14 @@ def main(argv: list[str] | None = None) -> int:
     feedback_parser.add_argument('--debug', action='store_true')
     feedback_parser.set_defaults(handler=feedback_command)
 
+    # -- session (suppressed)
     session_parser = sub.add_parser('session', help=argparse.SUPPRESS)
     session_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     session_parser.add_argument('--dogfood', action='store_true')
     session_parser.add_argument('--debug', action='store_true')
     session_parser.set_defaults(handler=session_command)
 
+    # -- workers (suppressed)
     workers_parser = sub.add_parser('workers', help=argparse.SUPPRESS)
     workers_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     workers_parser.add_argument('--doctor', action='store_true')
@@ -2883,6 +554,7 @@ def main(argv: list[str] | None = None) -> int:
     workers_parser.add_argument('--debug', action='store_true')
     workers_parser.set_defaults(handler=workers_command)
 
+    # -- learning (suppressed)
     learning_parser = sub.add_parser('learning', help=argparse.SUPPRESS)
     learning_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     learning_parser.add_argument('--import', dest='import_artifacts', action='store_true')
@@ -2894,12 +566,14 @@ def main(argv: list[str] | None = None) -> int:
     learning_parser.add_argument('--debug', action='store_true')
     learning_parser.set_defaults(handler=learning_command)
 
+    # -- undo (suppressed)
     undo_parser = sub.add_parser('undo', help=argparse.SUPPRESS)
     undo_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     undo_parser.add_argument('--preview', action='store_true')
     undo_parser.add_argument('--apply', action='store_true')
     undo_parser.set_defaults(handler=undo_command)
 
+    # -- rollback (suppressed)
     rollback_parser = sub.add_parser('rollback', help=argparse.SUPPRESS)
     rollback_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     rollback_parser.add_argument('--run-id', required=True)
@@ -2910,6 +584,7 @@ def main(argv: list[str] | None = None) -> int:
     rollback_parser.add_argument('--debug', action='store_true')
     rollback_parser.set_defaults(handler=rollback)
 
+    # -- reroute (suppressed)
     reroute_parser = sub.add_parser('reroute', help=argparse.SUPPRESS)
     reroute_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     reroute_parser.add_argument('--run-id', required=True)
@@ -2928,6 +603,7 @@ def main(argv: list[str] | None = None) -> int:
     reroute_parser.add_argument('--dry-run', action='store_true')
     reroute_parser.set_defaults(handler=reroute)
 
+    # -- map (suppressed)
     map_parser = sub.add_parser('map', help=argparse.SUPPRESS)
     map_sub = map_parser.add_subparsers(dest='map_action', required=True)
     for action in ['check', 'refresh', 'promote']:
@@ -2937,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
         item.add_argument('--promote-if-missing', action='store_true')
         item.set_defaults(handler=map_command)
 
+    # -- standards (suppressed)
     standards_parser = sub.add_parser('standards', help=argparse.SUPPRESS)
     standards_sub = standards_parser.add_subparsers(dest='standards_action', required=True)
     for action in ['check', 'promote']:
@@ -2946,6 +623,7 @@ def main(argv: list[str] | None = None) -> int:
         item.add_argument('--dry-run', action='store_true')
         item.set_defaults(handler=standards)
 
+    # -- review (suppressed)
     review_parser = sub.add_parser('review', help=argparse.SUPPRESS)
     review_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     review_parser.add_argument('--run-id', default='')
@@ -2958,6 +636,7 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument('--accept-parent-aggregation', action='store_true')
     review_parser.set_defaults(handler=review)
 
+    # -- backend
     backend_parser = sub.add_parser('backend', help='List, switch, and check execution backends.')
     backend_sub = backend_parser.add_subparsers(dest='backend_action', required=True)
     backend_list = backend_sub.add_parser('list', help='List available backends.')
@@ -2971,6 +650,7 @@ def main(argv: list[str] | None = None) -> int:
     backend_health.add_argument('--workspace', '--project', dest='workspace', default='.')
     backend_health.set_defaults(handler=backend_command)
 
+    # -- config (suppressed)
     config_parser = sub.add_parser('config', help=argparse.SUPPRESS)
     config_sub = config_parser.add_subparsers(dest='config_action', required=True)
     config_backend = config_sub.add_parser('backend')
@@ -2978,6 +658,7 @@ def main(argv: list[str] | None = None) -> int:
     config_backend.add_argument('--workspace', '--project', dest='workspace', default='.')
     config_backend.set_defaults(handler=config_command)
 
+    # -- debug (suppressed)
     debug_parser = sub.add_parser('debug', help=argparse.SUPPRESS)
     debug_sub = debug_parser.add_subparsers(dest='debug_action', required=True)
     debug_status = debug_sub.add_parser('status')
@@ -2999,6 +680,7 @@ def main(argv: list[str] | None = None) -> int:
     debug_backend_health.add_argument('--workspace', '--project', dest='workspace', default='.')
     debug_backend_health.set_defaults(handler=debug_command)
 
+    # -- goal
     goal_parser = sub.add_parser('goal', help='Set or inspect the current goal.')
     goal_sub = goal_parser.add_subparsers(dest='goal_action', required=True)
     goal_set = goal_sub.add_parser('set')
@@ -3038,6 +720,7 @@ def main(argv: list[str] | None = None) -> int:
     goal_conflicts.add_argument('--apply', action='store_true')
     goal_conflicts.set_defaults(handler=goal_command)
 
+    # -- loop (suppressed)
     loop_parser = sub.add_parser('loop', help=argparse.SUPPRESS)
     loop_sub = loop_parser.add_subparsers(dest='loop_action', required=True)
     for action in ['status', 'reset', 'stop', 'explain']:
@@ -3052,6 +735,7 @@ def main(argv: list[str] | None = None) -> int:
     loop_set.add_argument('--max-iterations', type=int, default=5)
     loop_set.set_defaults(handler=loop_command)
 
+    # -- codex-health (suppressed)
     health_parser = sub.add_parser('codex-health', help=argparse.SUPPRESS)
     health_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
     health_parser.add_argument('--mode', choices=['quick', 'full'], default='full')

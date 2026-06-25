@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, project_root  # noqa: E402
+from runtime_common import load_json, project_root
 
 
 def main() -> int:
@@ -25,21 +25,21 @@ def main() -> int:
     lines = [
         '# Codex Backend Report',
         '',
-        f"- backend: {profile.get('backend', 'codex_cli')}",
-        f"- version: {profile.get('version', '')}",
-        f"- platform: {profile.get('platform', '')}",
-        f"- health_status: {profile.get('health_status', 'unknown')}",
-        f"- allow_fast_actual: {profile.get('recommended_usage', {}).get('allow_fast_actual')}",
-        f"- allow_parallel_actual: {profile.get('recommended_usage', {}).get('allow_parallel_actual')}",
-        f"- quick_health: {quick.get('verdict', 'missing')}",
-        f"- full_health: {full.get('verdict', 'missing')}",
+        f'- backend: {profile.get("backend", "codex_cli")}',
+        f'- version: {profile.get("version", "")}',
+        f'- platform: {profile.get("platform", "")}',
+        f'- health_status: {profile.get("health_status", "unknown")}',
+        f'- allow_fast_actual: {profile.get("recommended_usage", {}).get("allow_fast_actual")}',
+        f'- allow_parallel_actual: {profile.get("recommended_usage", {}).get("allow_parallel_actual")}',
+        f'- quick_health: {quick.get("verdict", "missing")}',
+        f'- full_health: {full.get("verdict", "missing")}',
         '',
         '## Known Risks',
         '',
     ]
-    lines.extend([f"- {item}" for item in profile.get('known_risks') or []] or ['- none'])
+    lines.extend([f'- {item}' for item in profile.get('known_risks') or []] or ['- none'])
     lines.extend(['', '## Fallbacks', ''])
-    lines.extend([f"- {item}" for item in profile.get('fallbacks') or []] or ['- none'])
+    lines.extend([f'- {item}' for item in profile.get('fallbacks') or []] or ['- none'])
     output = Path(args.output).resolve() if args.output else backend / 'codex-backend-report.md'
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text('\n'.join(lines) + '\n', encoding='utf-8')

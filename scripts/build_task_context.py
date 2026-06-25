@@ -190,7 +190,7 @@ def render_markdown(context: dict[str, Any]) -> str:
     compatibility = durable.get('architecture_compatibility') or {}
     resolver = durable.get('source_of_truth_resolver') or {}
     lines = [
-        f"# Task Context: {context.get('task_id')}",
+        f'# Task Context: {context.get("task_id")}',
         '',
         '## Current User Request',
         '',
@@ -198,18 +198,18 @@ def render_markdown(context: dict[str, Any]) -> str:
         '',
         '## Interpretation Policy',
         '',
-        f"- Default: {context.get('interpretation_policy', {}).get('default_interpretation')}",
+        f'- Default: {context.get("interpretation_policy", {}).get("default_interpretation")}',
         '- Do not classify this request as short-term or long-term before acting.',
         '- Durable project and goal state are read-only unless explicitly authorized.',
         '- Do not rewrite project mission/root goal from the current request.',
         '',
         '## Project Charter Context',
         '',
-        f"- path: {charter.get('_path', 'missing')}",
-        f"- mission: {charter.get('mission', 'unknown')}",
-        f"- product_goals: {json.dumps(charter.get('product_goals', ['unknown']), ensure_ascii=False)}",
-        f"- technical_goals: {json.dumps(charter.get('technical_goals', ['unknown']), ensure_ascii=False)}",
-        f"- non_goals: {json.dumps(charter.get('non_goals', ['unknown']), ensure_ascii=False)}",
+        f'- path: {charter.get("_path", "missing")}',
+        f'- mission: {charter.get("mission", "unknown")}',
+        f'- product_goals: {json.dumps(charter.get("product_goals", ["unknown"]), ensure_ascii=False)}',
+        f'- technical_goals: {json.dumps(charter.get("technical_goals", ["unknown"]), ensure_ascii=False)}',
+        f'- non_goals: {json.dumps(charter.get("non_goals", ["unknown"]), ensure_ascii=False)}',
         '',
     ]
     if charter.get('markdown_excerpt'):
@@ -222,25 +222,25 @@ def render_markdown(context: dict[str, Any]) -> str:
     lines += [
         '## Architecture Runtime Context',
         '',
-        f"- project_readiness: {readiness.get('safe_for_level_0_1_trial', 'unknown')}",
-        f"- codex_cli_ready: {readiness.get('codex_cli_ready', 'unknown')}",
-        f"- architecture_compatibility_status: {compatibility.get('status', 'unknown')}",
-        f"- architecture_compatibility_issues: {len(compatibility.get('issues') or []) if isinstance(compatibility.get('issues'), list) else 'unknown'}",
-        f"- source_of_truth_resolver: {resolver.get('schema_version', 'missing')}",
+        f'- project_readiness: {readiness.get("safe_for_level_0_1_trial", "unknown")}',
+        f'- codex_cli_ready: {readiness.get("codex_cli_ready", "unknown")}',
+        f'- architecture_compatibility_status: {compatibility.get("status", "unknown")}',
+        f'- architecture_compatibility_issues: {len(compatibility.get("issues") or []) if isinstance(compatibility.get("issues"), list) else "unknown"}',
+        f'- source_of_truth_resolver: {resolver.get("schema_version", "missing")}',
         '',
         '## Active Goal Context',
         '',
-        f"- path: {goal.get('_path', 'missing')}",
-        f"- goal_id: {goal.get('goal_id', 'unknown')}",
-        f"- root_goal: {goal.get('root_goal', 'unknown')}",
-        f"- success_criteria: {json.dumps(goal.get('success_criteria', ['unknown']), ensure_ascii=False)}",
-        f"- constraints: {json.dumps(goal.get('constraints', ['unknown']), ensure_ascii=False)}",
+        f'- path: {goal.get("_path", "missing")}',
+        f'- goal_id: {goal.get("goal_id", "unknown")}',
+        f'- root_goal: {goal.get("root_goal", "unknown")}',
+        f'- success_criteria: {json.dumps(goal.get("success_criteria", ["unknown"]), ensure_ascii=False)}',
+        f'- constraints: {json.dumps(goal.get("constraints", ["unknown"]), ensure_ascii=False)}',
         '',
         '## Write Policy',
         '',
     ]
     for key, value in (context.get('write_policy') or {}).items():
-        lines.append(f"- {key}: {value}")
+        lines.append(f'- {key}: {value}')
     lines.append('')
     return '\n'.join(lines)
 
@@ -256,7 +256,12 @@ def write_context(project: Path, run_id: str, task_id: str, context: dict[str, A
     latest_md = project / '.zoo-agent' / 'runs' / run_id / 'task-context.md'
     latest_json.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding='utf-8')
     latest_md.write_text(render_markdown(context), encoding='utf-8')
-    return {'json': str(json_path), 'markdown': str(md_path), 'latest_json': str(latest_json), 'latest_markdown': str(latest_md)}
+    return {
+        'json': str(json_path),
+        'markdown': str(md_path),
+        'latest_json': str(latest_json),
+        'latest_markdown': str(latest_md),
+    }
 
 
 def main() -> int:
@@ -271,14 +276,20 @@ def main() -> int:
     args = ap.parse_args()
 
     project = Path(args.workspace).resolve()
-    context = build_context(project, args.run_id, args.task_id, args.user_request, args.goal_id, args.allow_durable_state_update)
+    context = build_context(
+        project, args.run_id, args.task_id, args.user_request, args.goal_id, args.allow_durable_state_update
+    )
     paths = write_context(project, args.run_id, args.task_id, context)
     if args.output:
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding='utf-8')
         paths['output'] = str(out)
-    print(json.dumps({'status': 'ok', 'paths': paths, 'write_policy': context['write_policy']}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'paths': paths, 'write_policy': context['write_policy']}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 

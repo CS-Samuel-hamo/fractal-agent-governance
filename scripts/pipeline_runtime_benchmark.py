@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -14,8 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 AGENT = ROOT / 'scripts' / 'agent.py'
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import load_json, utc_now, write_json  # noqa: E402
-
+from runtime_common import load_json, utc_now, write_json
 
 TASKS = [
     {
@@ -25,12 +24,12 @@ TASKS = [
     },
     {
         'name': 'medium',
-        'task': "add a multiply(a, b) pure function in src/app.py and add a unit test in tests/test_app.py",
+        'task': 'add a multiply(a, b) pure function in src/app.py and add a unit test in tests/test_app.py',
         'allowed_files': ['src/app.py', 'tests/test_app.py'],
     },
     {
         'name': 'complex',
-        'task': "refactor src/app.py so add accepts numeric strings and update tests/test_app.py only",
+        'task': 'refactor src/app.py so add accepts numeric strings and update tests/test_app.py only',
         'allowed_files': ['src/app.py', 'tests/test_app.py'],
     },
 ]
@@ -45,8 +44,7 @@ def run(cmd: list[str], cwd: Path, *, timeout: int = 0) -> dict[str, Any]:
             text=True,
             encoding='utf-8',
             errors='replace',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout or None,
         )
         return {
@@ -75,7 +73,9 @@ def temp_repo(name: str) -> Path:
     (repo / 'src').mkdir()
     (repo / 'tests').mkdir()
     (repo / 'src' / 'app.py').write_text('def add(a, b):\n    return a + b\n', encoding='utf-8')
-    (repo / 'tests' / 'test_app.py').write_text('from src.app import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n', encoding='utf-8')
+    (repo / 'tests' / 'test_app.py').write_text(
+        'from src.app import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n', encoding='utf-8'
+    )
     run(['git', 'init'], repo)
     run(['git', 'config', 'user.email', 'benchmark@example.local'], repo)
     run(['git', 'config', 'user.name', 'Pipeline Benchmark'], repo)
@@ -93,8 +93,10 @@ def parse_json_or_empty(text: str) -> dict[str, Any]:
         return {}
 
 
-def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actual: bool, timeout_seconds: int, max_retries: int) -> dict[str, Any]:
-    run_id = f"bench-{task['name']}-{'dry' if dry_run else 'actual'}"
+def run_pipeline(
+    repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actual: bool, timeout_seconds: int, max_retries: int
+) -> dict[str, Any]:
+    run_id = f'bench-{task["name"]}-{"dry" if dry_run else "actual"}'
     cmd = [
         sys.executable,
         str(AGENT),
@@ -140,7 +142,7 @@ def run_pipeline(repo: Path, task: dict[str, Any], *, dry_run: bool, allow_actua
 
 
 def run_legacy_dry(repo: Path, task: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
-    run_id = f"legacy-{task['name']}-dry"
+    run_id = f'legacy-{task["name"]}-dry'
     cmd = [
         sys.executable,
         str(AGENT),
@@ -151,7 +153,7 @@ def run_legacy_dry(repo: Path, task: dict[str, Any], timeout_seconds: int) -> di
         '--run-id',
         run_id,
         '--task-id',
-        f"task-{task['name']}",
+        f'task-{task["name"]}',
         '--dry-run',
         '--legacy-runtime',
     ]
@@ -170,7 +172,9 @@ def run_legacy_dry(repo: Path, task: dict[str, Any], timeout_seconds: int) -> di
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='Benchmark the three-stage pipeline against legacy dry-run routing.')
-    parser.add_argument('--allow-actual', action='store_true', help='Allow real backend actual execution in temp repositories.')
+    parser.add_argument(
+        '--allow-actual', action='store_true', help='Allow real backend actual execution in temp repositories.'
+    )
     parser.add_argument('--timeout-seconds', type=int, default=360)
     parser.add_argument('--max-retries', type=int, default=2)
     parser.add_argument('--json-output', default='')
@@ -195,10 +199,32 @@ def main() -> int:
     results = []
     for task in TASKS:
         repo = temp_repo(task['name'])
-        dry = run_pipeline(repo, task, dry_run=True, allow_actual=False, timeout_seconds=args.timeout_seconds, max_retries=args.max_retries)
-        actual = run_pipeline(repo, task, dry_run=False, allow_actual=args.allow_actual, timeout_seconds=args.timeout_seconds, max_retries=args.max_retries)
+        dry = run_pipeline(
+            repo,
+            task,
+            dry_run=True,
+            allow_actual=False,
+            timeout_seconds=args.timeout_seconds,
+            max_retries=args.max_retries,
+        )
+        actual = run_pipeline(
+            repo,
+            task,
+            dry_run=False,
+            allow_actual=args.allow_actual,
+            timeout_seconds=args.timeout_seconds,
+            max_retries=args.max_retries,
+        )
         legacy = run_legacy_dry(repo, task, timeout_seconds=args.timeout_seconds)
-        results.append({'task_class': task['name'], 'task': task['task'], 'dry_run': dry, 'actual_run': actual, 'legacy_dry_run': legacy})
+        results.append(
+            {
+                'task_class': task['name'],
+                'task': task['task'],
+                'dry_run': dry,
+                'actual_run': actual,
+                'legacy_dry_run': legacy,
+            }
+        )
 
     pipeline_latencies = [row['dry_run']['latency_seconds'] for row in results]
     legacy_latencies = [row['legacy_dry_run']['latency_seconds'] for row in results]
@@ -218,12 +244,22 @@ def main() -> int:
             'dry_run_seconds_avg': round(sum(legacy_latencies) / max(len(legacy_latencies), 1), 3),
         },
         'backend_execution_count': sum(row.get('backend_execution_count', 0) for row in actual_rows),
-        'over_execution_rate': round(sum(1 for row in actual_rows if row.get('over_execution')) / max(len(actual_rows), 1), 4),
-        'under_execution_rate': round(sum(1 for row in actual_rows if row.get('under_execution')) / max(len(actual_rows), 1), 4),
-        'verifier_block_rate': round(sum(1 for row in actual_rows if row.get('verifier_blocked')) / max(len(actual_rows), 1), 4),
+        'over_execution_rate': round(
+            sum(1 for row in actual_rows if row.get('over_execution')) / max(len(actual_rows), 1), 4
+        ),
+        'under_execution_rate': round(
+            sum(1 for row in actual_rows if row.get('under_execution')) / max(len(actual_rows), 1), 4
+        ),
+        'verifier_block_rate': round(
+            sum(1 for row in actual_rows if row.get('verifier_blocked')) / max(len(actual_rows), 1), 4
+        ),
         'results': results,
     }
-    out = Path(args.json_output).resolve() if args.json_output else ROOT / '.tmp' / f"pipeline-runtime-benchmark-{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}.json"
+    out = (
+        Path(args.json_output).resolve()
+        if args.json_output
+        else ROOT / '.tmp' / f'pipeline-runtime-benchmark-{time.strftime("%Y%m%d-%H%M%S", time.gmtime())}.json'
+    )
     write_json(out, report)
     report['report_path'] = str(out)
     print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -13,8 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from runtime_common import project_root, safe_name, utc_now, write_json  # noqa: E402
-
+from runtime_common import project_root, safe_name, utc_now, write_json
 
 SECRET_PATTERNS = [
     '.env',
@@ -40,8 +39,7 @@ def run_git(args: list[str], cwd: Path) -> str:
         text=True,
         encoding='utf-8',
         errors='replace',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return proc.stdout if proc.returncode == 0 else ''
 
@@ -65,7 +63,9 @@ def status_paths(status_lines: list[str]) -> list[str]:
 
 def matches_any(path: str, patterns: list[str]) -> bool:
     normalized = path.replace('\\', '/')
-    return any(fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns)
+    return any(
+        fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch('/' + normalized, pattern) for pattern in patterns
+    )
 
 
 def should_skip_content(path: str, absolute: Path) -> tuple[bool, str]:
@@ -126,8 +126,12 @@ def capture(args: argparse.Namespace) -> dict[str, Any]:
         )
     )
     untracked = sorted(parse_status_path(line) for line in status if line.startswith('??') and parse_status_path(line))
-    tracked_paths = sorted(line.strip().replace('\\', '/') for line in run_git(['ls-files'], workspace).splitlines() if line.strip())
-    baseline_paths = sorted(set(status_paths(status) + diff_name_only + untracked + exact_allowed_paths(args.allowed_file or [])))
+    tracked_paths = sorted(
+        line.strip().replace('\\', '/') for line in run_git(['ls-files'], workspace).splitlines() if line.strip()
+    )
+    baseline_paths = sorted(
+        set(status_paths(status) + diff_name_only + untracked + exact_allowed_paths(args.allowed_file or []))
+    )
     file_hashes, skipped_hashes = hash_paths(workspace, baseline_paths)
 
     payload = {
@@ -153,7 +157,11 @@ def capture(args: argparse.Namespace) -> dict[str, Any]:
             'input_text': args.input_text,
         },
     }
-    output = Path(args.output).resolve() if args.output else workspace / '.zoo-agent' / 'runs' / args.run_id / 'tasks' / safe_name(args.task_id) / 'task-baseline.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else workspace / '.zoo-agent' / 'runs' / args.run_id / 'tasks' / safe_name(args.task_id) / 'task-baseline.json'
+    )
     write_json(output, payload)
     payload['path'] = str(output)
     return payload

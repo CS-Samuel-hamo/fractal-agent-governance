@@ -8,9 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from big_task_common import leaf_readiness, load_backend_profile, project_root  # noqa: E402
-from leaf_convergence_controller import resolve_one_leaf  # noqa: E402
-from runtime_common import load_json, write_json  # noqa: E402
+from big_task_common import leaf_readiness, load_backend_profile, project_root
+from leaf_convergence_controller import resolve_one_leaf
+from runtime_common import load_json, write_json
 
 
 def main() -> int:
@@ -23,7 +23,11 @@ def main() -> int:
     parser.add_argument('--leaf', default='')
     args = parser.parse_args()
     project = project_root(args.workspace)
-    leaf_path = Path(args.leaf) if args.leaf else project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-tasks' / f'{args.leaf_id}.json'
+    leaf_path = (
+        Path(args.leaf)
+        if args.leaf
+        else project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-tasks' / f'{args.leaf_id}.json'
+    )
     leaf = load_json(leaf_path)
     if not leaf:
         print('Missing leaf contract.', file=sys.stderr)
@@ -35,7 +39,13 @@ def main() -> int:
     out = project / '.zoo-agent' / 'runs' / args.run_id / 'leaf-tasks' / f'{args.leaf_id}-readiness.json'
     write_json(out, {'readiness': gate, 'resolution': resolution})
     status = 'ok' if resolution.get('status') != 'stuck' else 'convergence_failure'
-    print(json.dumps({'status': status, 'path': str(out), 'readiness': gate, 'resolution': resolution}, ensure_ascii=True, indent=2))
+    print(
+        json.dumps(
+            {'status': status, 'path': str(out), 'readiness': gate, 'resolution': resolution},
+            ensure_ascii=True,
+            indent=2,
+        )
+    )
     return 0 if status == 'ok' else 10
 
 

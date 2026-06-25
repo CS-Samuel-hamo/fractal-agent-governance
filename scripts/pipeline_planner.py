@@ -11,9 +11,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from classify_goal_domain import classify_goal  # noqa: E402
-from runtime_common import load_json, project_root, resolve_goal, safe_name, utc_now, write_json  # noqa: E402
-from task_classifier import classify  # noqa: E402
+from classify_goal_domain import classify_goal
+from runtime_common import project_root, resolve_goal, safe_name, utc_now, write_json
+from task_classifier import classify
 
 
 def extract_resources(classification: dict[str, Any], allowed_files: list[str]) -> list[dict[str, Any]]:
@@ -24,7 +24,11 @@ def extract_resources(classification: dict[str, Any], allowed_files: list[str]) 
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
-        resource_type = 'documentation_surface' if normalized.lower().endswith('.md') or normalized.startswith('docs/') else 'file_path'
+        resource_type = (
+            'documentation_surface'
+            if normalized.lower().endswith('.md') or normalized.startswith('docs/')
+            else 'file_path'
+        )
         resources.append(
             {
                 'resource_id': normalized,
@@ -60,7 +64,9 @@ def build_leaf_tasks(classification: dict[str, Any], objective: str, denied_file
     else:
         source_tasks = []
     if not source_tasks:
-        source_tasks = [{'task_id': 'task-001', 'objective': objective, 'allowed_files': classification.get('allowed_files') or []}]
+        source_tasks = [
+            {'task_id': 'task-001', 'objective': objective, 'allowed_files': classification.get('allowed_files') or []}
+        ]
     leaves: list[dict[str, Any]] = []
     for index, task in enumerate(source_tasks, start=1):
         allowed = [str(item) for item in task.get('allowed_files') or classification.get('allowed_files') or []]
@@ -68,7 +74,9 @@ def build_leaf_tasks(classification: dict[str, Any], objective: str, denied_file
             {
                 'leaf_id': f'leaf-{index:03d}',
                 'objective': str(task.get('objective') or objective),
-                'task_type': 'docs' if any(str(item).lower().endswith('.md') or str(item).startswith('docs/') for item in allowed) else 'code',
+                'task_type': 'docs'
+                if any(str(item).lower().endswith('.md') or str(item).startswith('docs/') for item in allowed)
+                else 'code',
                 'risk_level': 'low' if not (classification.get('signals') or {}).get('hard_risk_hits') else 'high',
                 'allowed_files': allowed,
                 'denied_files': denied_files,
@@ -113,7 +121,9 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         'priority': 50,
     }
     goal_domain = classify_goal(goal)
-    classification = classify(project, objective, allowed_files=args.allowed_file, denied_files=args.denied_file, force_path=args.force_path)
+    classification = classify(
+        project, objective, allowed_files=args.allowed_file, denied_files=args.denied_file, force_path=args.force_path
+    )
     allowed_files = [str(item) for item in classification.get('allowed_files') or args.allowed_file]
     resources = extract_resources(classification, allowed_files)
     leaves = build_leaf_tasks(classification, objective, args.denied_file)
@@ -175,16 +185,30 @@ def main() -> int:
     parser.add_argument('--goal-id', default='')
     parser.add_argument('--input-text', default='')
     parser.add_argument('--allowed-file', action='append', default=[])
-    parser.add_argument('--denied-file', action='append', default=['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**'])
+    parser.add_argument(
+        '--denied-file',
+        action='append',
+        default=['.env', '.env.*', '**/*.pem', '**/*.key', 'secrets/**', 'credentials/**'],
+    )
     parser.add_argument('--force-path', choices=['', 'fast', 'parallel', 'governed'], default='')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--output', default='')
     args = parser.parse_args()
     plan = build_plan(args)
     project = project_root(args.workspace)
-    output = Path(args.output).resolve() if args.output else project / '.zoo-agent' / 'runs' / plan['run_id'] / 'pipeline' / 'plan.json'
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else project / '.zoo-agent' / 'runs' / plan['run_id'] / 'pipeline' / 'plan.json'
+    )
     write_json(output, plan)
-    print(json.dumps({'status': 'ok', 'plan_json': str(output), 'run_id': plan['run_id'], 'stage': 'planner'}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {'status': 'ok', 'plan_json': str(output), 'run_id': plan['run_id'], 'stage': 'planner'},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

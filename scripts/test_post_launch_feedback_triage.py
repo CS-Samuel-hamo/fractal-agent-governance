@@ -9,10 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from feedback_iteration_planner import plan  # noqa: E402
-from feedback_priority_ranker import rank  # noqa: E402
-from feedback_triage_engine import triage  # noqa: E402
-from post_launch_feedback_report_generator import generate  # noqa: E402
+from feedback_iteration_planner import plan
+from feedback_priority_ranker import rank
+from feedback_triage_engine import triage
+from post_launch_feedback_report_generator import generate
 
 
 def test_triage_priority_iteration_report() -> None:
@@ -35,12 +35,33 @@ def test_triage_priority_iteration_report() -> None:
 
 def test_agent_feedback_hidden_command() -> None:
     project = Path(tempfile.mkdtemp(prefix='feedback-cli-'))
-    help_proc = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'], cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    help_proc = subprocess.run(
+        [sys.executable, str(ROOT / 'scripts' / 'agent.py'), '--help'],
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     assert help_proc.returncode == 0
     assert 'feedback' not in help_proc.stdout
-    triage_proc = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'feedback', '--triage', '--workspace', str(project)], cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    triage_proc = subprocess.run(
+        [sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'feedback', '--triage', '--workspace', str(project)],
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     assert triage_proc.returncode == 0, triage_proc.stdout + triage_proc.stderr
-    report_proc = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'feedback', '--report', '--workspace', str(project)], cwd=ROOT, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    report_proc = subprocess.run(
+        [sys.executable, str(ROOT / 'scripts' / 'agent.py'), 'feedback', '--report', '--workspace', str(project)],
+        cwd=ROOT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        capture_output=True,
+    )
     assert report_proc.returncode == 0, report_proc.stdout + report_proc.stderr
     assert 'READY_FOR_104_PATCH_PLANNING' in report_proc.stdout or 'COLLECT_MORE_FEEDBACK_FIRST' in report_proc.stdout
 

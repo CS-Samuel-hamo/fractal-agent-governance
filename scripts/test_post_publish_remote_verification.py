@@ -9,11 +9,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from post_publish_remote_verifier import verify  # noqa: E402
+from post_publish_remote_verifier import verify
 
 
 def run(args: list[str], cwd: Path) -> str:
-    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(args, cwd=cwd, text=True, encoding='utf-8', errors='replace', capture_output=True)
     if proc.returncode != 0:
         raise AssertionError(f'command failed {args}\nstdout={proc.stdout}\nstderr={proc.stderr}')
     return proc.stdout.strip()
@@ -42,7 +42,10 @@ def make_repo() -> tuple[Path, Path]:
     run(['git', 'push', 'origin', 'release/v1.0.0-alpha.1'], repo)
     run(['git', 'push', 'origin', 'v1.0.0-alpha.1'], repo)
     run(['git', 'checkout', 'master'], repo)
-    run(['git', 'fetch', 'origin', 'release/v1.0.0-alpha.1:refs/remotes/origin/release/v1.0.0-alpha.1', '--no-tags'], repo)
+    run(
+        ['git', 'fetch', 'origin', 'release/v1.0.0-alpha.1:refs/remotes/origin/release/v1.0.0-alpha.1', '--no-tags'],
+        repo,
+    )
     return repo, remote
 
 
