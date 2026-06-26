@@ -38,13 +38,33 @@ CAPABILITIES = [
 ]
 
 
+def _load_custom_profiles(project: Path) -> dict[str, dict[str, Any]]:
+    """Load user-defined worker profiles from .zoo-agent/workers/*.worker.json.
+
+    These extend or override the built-in profiles.
+    Each file should contain {'worker_name': ..., 'capabilities': [...], ...}.
+    """
+    workers_dir = project / '.zoo-agent' / 'workers'
+    custom: dict[str, dict[str, Any]] = {}
+    if not workers_dir.exists():
+        return custom
+    for fpath in sorted(workers_dir.glob('*.worker.json')):
+        try:
+            profile = json.loads(fpath.read_text(encoding='utf-8-sig'))
+            name = profile.get('worker_name') or fpath.stem
+            custom[name] = profile
+        except (json.JSONDecodeError, OSError):
+            continue
+    return custom
+
+
 def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
     codex = codex_health(project)
     claude = claude_health(project)
     remote_openai = remote_openai_health(project)
     codex_is_available = bool(codex.get('available'))
     claude_detected = bool(claude.get('available'))
-    return {
+    profiles = {
         'mock_worker': {
             'worker_name': 'mock_worker',
             'provider': 'mock',
@@ -228,18 +248,46 @@ def worker_profiles(project: Path | None = None) -> dict[str, dict[str, Any]]:
             'health': 'unavailable',
         },
     }
+    # Merge custom profiles from .zoo-agent/workers/*.worker.json
+    if project is not None:
+        custom = _load_custom_profiles(project)
+        profiles.update(custom)
+    return profiles
 
 
 def profile_for(worker_name: str) -> dict[str, Any]:
     return worker_profiles().get(worker_name, {})
 
 
+def _register_worker(project: Path, profile_path: str) -> dict[str, Any]:
+    """Register a worker capability profile from a JSON file."""
+    src = Path(profile_path).resolve()
+    if not src.exists():
+        return {'status': 'error', 'error': f'profile not found: {profile_path}'}
+    try:
+        profile = json.loads(src.read_text(encoding='utf-8-sig'))
+    except json.JSONDecodeError as exc:
+        return {'status': 'error', 'error': f'invalid JSON: {exc}'}
+    name = profile.get('worker_name') or src.stem
+    dst = project / '.zoo-agent' / 'workers' / f'{name}.worker.json'
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    write_json(dst, profile)
+    return {'status': 'registered', 'worker_name': name, 'profile': str(dst)}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Render worker capability profiles.')
     parser.add_argument('--workspace', default='.')
     parser.add_argument('--output', default='')
+    parser.add_argument('--register', default='', help='Register a worker profile JSON file.')
     args = parser.parse_args()
     project = project_root(args.workspace)
+
+    if args.register:
+        result = _register_worker(project, args.register)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result.get('status') == 'registered' else 1
+
     payload = {
         'schema_version': '1.0',
         'capabilities': CAPABILITIES,
