@@ -541,6 +541,36 @@ def leaf_task_type(objective: str, allowed_files: list[str]) -> str:
     return 'code'
 
 
+def recommended_worker(leaf_type: str, project: Path | None = None) -> str:
+    """Map a leaf task type to the best worker based on capabilities."""
+    try:
+        from worker_capability_profile import worker_profiles
+
+        profiles = worker_profiles(project)
+    except ImportError:
+        profiles = {}
+
+    # Strategic mapping: which worker type is best for which leaf type
+    type_to_worker = {
+        'review': 'claude_worker_stub',  # needs complex reasoning
+        'research': 'claude_worker_stub',
+        'docs': 'bounded_docs_writer',  # safe, bounded
+        'test': 'codex_worker_existing_adapter',  # fast generation
+        'config': 'codex_worker_existing_adapter',
+        'code': 'codex_worker_existing_adapter',  # general code
+    }
+    preferred = type_to_worker.get(leaf_type, 'dry_run_worker')
+
+    # Verify the preferred worker exists in available profiles
+    if preferred in profiles:
+        return preferred
+    # Fallback chain
+    for fallback in ['codex_worker_existing_adapter', 'dry_run_worker', 'mock_worker']:
+        if fallback in profiles:
+            return fallback
+    return 'dry_run_worker'
+
+
 def split_leaf_objectives(
     contract: dict[str, Any], resource_map: dict[str, Any]
 ) -> list[tuple[str, list[str], list[str]]]:
@@ -609,6 +639,7 @@ def build_leaf_contracts(
             'parent_goal_id': contract.get('goal_id'),
             'objective': objective,
             'task_type': task_type,
+            '_recommended_worker': recommended_worker(task_type, project),
             'risk_level': leaf_risk,
             'owned_resources': resources,
             'allowed_files': paths,
