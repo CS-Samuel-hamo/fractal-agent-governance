@@ -304,6 +304,30 @@ def logic_rules_panel(logic_rules: dict[str, Any]) -> str:
 {list_items(logic_rules.get('recommendations') or [], empty='No logic fix recommended right now.')}"""
 
 
+def cost_panel(cost: dict[str, Any]) -> str:
+    if not cost or not cost.get('total_calls_7d'):
+        return '<div class="empty">No AI worker usage data yet. Run some tasks to see cost breakdown.</div>'
+    total_calls = cost.get('total_calls_7d', 0)
+    total_cost = cost.get('total_cost_7d', 0.0)
+    daily = cost.get('daily', [])
+    rows = ''.join(
+        f'<tr><td>{esc(d.get("date"))}</td><td>{d.get("calls")}</td><td>${esc(d.get("cost"))}</td></tr>' for d in daily
+    )
+    by_worker = cost.get('by_worker', {})
+    worker_rows = ''.join(
+        f'<tr><td>{esc(w)}</td><td>{c}</td></tr>' for w, c in sorted(by_worker.items(), key=lambda x: -x[1])
+    )
+    return f"""<div class="stats">
+  <div class="stat"><span class="muted">7-day calls</span><b>{total_calls}</b></div>
+  <div class="stat"><span class="muted">7-day cost</span><b>${esc(total_cost)}</b></div>
+  <div class="stat"><span class="muted">Workers used</span><b>{len(by_worker)}</b></div>
+</div>
+<h3>Daily breakdown</h3>
+<table><thead><tr><th>Date</th><th>Calls</th><th>Cost</th></tr></thead><tbody>{rows}</tbody></table>
+<h3>By worker</h3>
+<table><thead><tr><th>Worker</th><th>Calls</th></tr></thead><tbody>{worker_rows}</tbody></table>"""
+
+
 def render_cockpit_html(data: dict[str, Any]) -> str:
     project = data.get('project') or {}
     session = data.get('session') or {}
@@ -492,6 +516,11 @@ code {{ border: 1px solid var(--line); background: #f8fafc; border-radius: 6px; 
     <section class="card span-12">
       <h2>Next Actions</h2>
       {action_cards(project_map.get('next_actions') or [])}
+    </section>
+
+    <section class="card span-12">
+      <h2>AI Worker Cost</h2>
+      {cost_panel(data.get('cost', {}))}
     </section>
   </section>
 </main>

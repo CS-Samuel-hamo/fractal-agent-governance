@@ -458,6 +458,12 @@ def build_cockpit_data(project: Path) -> dict[str, Any]:
     data['learning'] = build_learning_summary(project)
     data['release'] = build_release_summary(project)
     data['logic_rules'] = build_logic_rules_summary(project)
+    try:
+        from cost_dashboard import get_usage_summary
+
+        data['cost'] = get_usage_summary(project)
+    except Exception:
+        data['cost'] = {}
     return data
 
 

@@ -1,0 +1,44 @@
+# .zoarc — Policy configuration for the AI Project Operator
+# Place this file at the project root as .zoarc
+# All fields are optional; defaults are used for missing sections.
+
+routing:
+  # Route high-risk tasks to Claude for review
+  - match: {risk: high}
+    require_worker: claude_worker_stub
+    human_review: true
+
+  # Block critical-risk tasks entirely
+  - match: {risk: critical}
+    block: true
+    message: "Critical risk tasks require manual approval."
+
+  # Route documentation edits to the safe bounded docs writer
+  - match: {type: docs}
+    preferred: bounded_docs_writer
+
+  # Route test generation to Codex (fast, cheap)
+  - match: {type: test}
+    preferred: codex_worker_existing_adapter
+
+  # Route code edits to Codex by default
+  - match: {type: code}
+    preferred: codex_worker_existing_adapter
+
+  # Route complex reviews to Claude
+  - match: {type: review}
+    preferred: claude_worker_stub
+
+security:
+  # Block dangerous operations
+  - deny: {action: delete_file}
+  - deny: {action: modify_env}
+  - deny: {pattern: ".env*"}
+
+  # Warn on config changes
+  - warn: {action: modify_config}
+
+cost:
+  max_daily_calls: 50
+  max_daily_cost: 10.0
+  preferred_worker: codex_worker_existing_adapter
