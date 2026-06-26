@@ -6,9 +6,28 @@ Agent Runtime is a local-first AI Project Operator. It builds a project map, sta
 
 It is not a Codex wrapper, a Claude Code replacement, a generic AI coding CLI, or a GitHub bot. Codex, Claude Code, local scanner, mock, and dry-run modes are workers. The product is the project operator layer that keeps the project moving.
 
-Version: `v1.0.0-alpha.2`
+Version: `v1.1.0-alpha.2`
 
-Current patch level: `1.0.8-interaction-closure-new-user-guidance`
+Current patch level: `1.1.0-session-cockpit-engineering`
+
+## Quick Install
+
+```bash
+pip install zoo-agent-runtime
+# or download wheel from GitHub Releases
+```
+
+## What's New in v1.1.0
+
+- **Undo that works**: `agent undo --preview` shows changed files; `agent undo --apply --yes` reverts via git checkout
+- **Project map versioning**: every change is tracked with version history and changelog
+- **Worker Protocol**: Claude CLI receives project context and returns structured results that auto-update the map
+- **Multi-worker orchestration**: task decomposition automatically matches subtasks to the best worker
+- **Policy engine**: `.zoarc` file controls routing, security, and cost limits
+- **Audit & cost tracking**: `agent audit` and `agent stats` commands
+- **Cockpit enhancements**: merged timeline, severity badges, map version display
+- **`pip install` support**: `pip install zoo-agent-runtime`
+- **41 unit tests**, ruff lint zero errors, pre-commit hooks, GitHub Actions CI
 
 ## Quick Demo
 
@@ -16,6 +35,8 @@ Current patch level: `1.0.8-interaction-closure-new-user-guidance`
 agent "prepare this project for public release"
 agent
 agent do "show me an independent project overview"
+agent stats
+agent audit --summary
 agent release
 agent pr
 ```
