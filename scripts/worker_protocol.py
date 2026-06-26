@@ -133,14 +133,22 @@ def apply_worker_result(project: Path, result: dict[str, Any]) -> dict[str, Any]
     """Apply structured worker result back to project state.
 
     Updates the project map (versioned), session state, and next actions.
+    Runs verification gate to auto-validate changed files.
     Uses project_map_updater for versioned map updates.
     """
     from project_map_updater import update_project_map
     from runtime_common import load_json, utc_now, write_json
+    from verification_gate import verify_changes
 
     actions = []
     changed = result.get('changed_files') or []
     new_risks = result.get('new_risks') or []
+
+    # Run verification gate on changed files
+    verification = verify_changes(project, changed)
+    if not verification['overall_passed']:
+        actions.append(f'verification: {verification["summary"][:200]}')
+        result['verification'] = verification
 
     # Update project map via the versioned updater
     update_project_map(
@@ -183,4 +191,5 @@ def apply_worker_result(project: Path, result: dict[str, Any]) -> dict[str, Any]
         'changed_files': changed,
         'new_risks': len(new_risks),
         'map_version': (load_json(project / '.zoo-agent' / 'map' / 'project_map.json') or {}).get('_version'),
+        'verification': result.get('verification', {}),
     }

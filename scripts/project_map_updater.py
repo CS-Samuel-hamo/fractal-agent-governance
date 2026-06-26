@@ -93,6 +93,36 @@ def update_project_map(
             module['status'] = 'working' if verdict != 'COMPLETED' else 'complete'
             module.setdefault('evidence', []).append(update_evidence)
             module['confidence'] = min(1.0, round(float(module.get('confidence') or 0.5) + 0.05, 3))
+
+    # ── Knowledge graph accumulation (方案 B) ─────────────────────────────
+    # Track hot modules (frequently changed across sessions)
+    hot_modules = current.setdefault('_hot_modules', {})
+    for path in changed:
+        seg = path.split('/')[0]
+        if seg:
+            hot_modules[seg] = hot_modules.get(seg, 0) + 1
+    current['_hot_modules'] = dict(sorted(hot_modules.items(), key=lambda x: -x[1])[:20])
+
+    # Track failure patterns (verdicts that aren't COMPLETED)
+    failures = current.setdefault('_failure_patterns', [])
+    if verdict not in {'COMPLETED', 'DRY_RUN_COMPLETE', ''}:
+        failures.append(
+            {
+                'verdict': verdict,
+                'run_id': run_id,
+                'files': changed[:10],
+                'at': now,
+            }
+        )
+    current['_failure_patterns'] = failures[-20:]  # keep last 20
+
+    # Track change frequency per file
+    file_stats = current.setdefault('_file_stats', {})
+    for path in changed:
+        file_stats[path] = file_stats.get(path, 0) + 1
+    current['_file_stats'] = dict(sorted(file_stats.items(), key=lambda x: -x[1])[:50])
+    # ── End knowledge graph accumulation ──────────────────────────────────
+
     if action:
         action_id = str(action.get('action_id') or action.get('selected_action_id') or '')
         for item in current.get('next_actions') or []:
