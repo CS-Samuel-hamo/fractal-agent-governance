@@ -18,6 +18,8 @@
 | File | Description |
 |------|-------------|
 | [ARCHITECTURE.md](../ARCHITECTURE.md) | System architecture overview |
+| [worker-protocol.md](worker-protocol.md) | Worker Protocol specification |
+| [.zoarc.example](../.zoarc.example) | Policy engine configuration example |
 | [PRODUCT_POSITIONING.md](../PRODUCT_POSITIONING.md) | Product differentiation |
 | [SAFETY_MODEL.md](../SAFETY_MODEL.md) | Safety guarantees |
 | [KNOWN_LIMITATIONS.md](../KNOWN_LIMITATIONS.md) | Current limitations |
