@@ -98,6 +98,60 @@ def route_worker(
         mode = 'preview'
     task_id = str(task_profile.get('task_id') or 'task')
 
+    # Policy engine checks
+    try:
+        from policy_engine import check_cost_limit, check_security, evaluate_routing, load_policies
+
+        policies = load_policies(project)
+        task_type = str(task_profile.get('task_type', task_profile.get('intent', '')))
+        risk_level = str(task_profile.get('risk_level', 'low'))
+        files = [str(f) for f in task_profile.get('allowed_files', [])]
+
+        # Security check
+        sec = check_security(policies, action=str(task_profile.get('objective', '')), filepath=' '.join(files))
+        if sec.get('decision') == 'deny':
+            return {
+                'schema_version': '1.0',
+                'task_id': str(task_profile.get('task_id', 'task')),
+                'selected_worker': '',
+                'routing_reason': sec.get('reason', 'policy_blocked'),
+                'execution_allowed': False,
+                'execution_mode': 'blocked',
+                'blocked_reason': sec['reason'],
+            }
+
+        # Cost limit check
+        cost = check_cost_limit(policies, project)
+        if not cost.get('within_limit'):
+            return {
+                'schema_version': '1.0',
+                'task_id': str(task_profile.get('task_id', 'task')),
+                'selected_worker': '',
+                'routing_reason': cost.get('reason', 'cost_limit'),
+                'execution_allowed': False,
+                'execution_mode': 'blocked',
+                'blocked_reason': cost['reason'],
+            }
+
+        # Routing policy
+        policy_result = evaluate_routing(policies, task_type=task_type, risk_level=risk_level, file_patterns=files)
+        if policy_result.get('block'):
+            return {
+                'schema_version': '1.0',
+                'task_id': str(task_profile.get('task_id', 'task')),
+                'selected_worker': '',
+                'routing_reason': policy_result.get('message', 'policy_blocked'),
+                'execution_allowed': False,
+                'execution_mode': 'blocked',
+                'blocked_reason': policy_result.get('message', 'Blocked by policy'),
+            }
+        if policy_result.get('require_worker'):
+            requested = policy_result['require_worker']
+        if policy_result.get('human_review'):
+            mode = 'needs_attention'
+    except ImportError:
+        pass
+
     if task_profile.get('trust_zone') == 'blocked' or mode == 'needs_attention':
         decision = {
             'schema_version': '1.0',
