@@ -305,9 +305,25 @@ def run(args) -> int:
     )
 
 
+def _wrap_with_protocol(project: Path, task_text: str) -> str:
+    """Wrap task text with project context and protocol instructions."""
+    try:
+        from worker_protocol import build_context_prompt, build_protocol_instruction
+
+        context = build_context_prompt(project)
+        protocol = build_protocol_instruction()
+        return f'{context}\n\n## Task\n\n{task_text}\n\n{protocol}'
+    except Exception:
+        return task_text
+
+
 def pipeline(args) -> int:
     ensure_bootstrap_before_run(args)
     project = project_root(args.workspace)
+    # Wrap input with protocol context for structured output
+    if args.input:
+        raw_text = ' '.join(args.input).strip()
+        args.input = [_wrap_with_protocol(project, raw_text)] if raw_text else args.input
     selected_backend = str(getattr(args, 'backend', '') or read_backend_selection(project))
     command = [
         sys.executable,
@@ -347,6 +363,16 @@ def pipeline(args) -> int:
     proc = run_command_capture(command, ROOT)
     payload: dict = {}
     stdout = str(proc.get('stdout') or '').strip()
+
+    # Try to apply structured worker protocol result
+    try:
+        from worker_protocol import apply_worker_result, parse_worker_output
+
+        protocol_result = parse_worker_output(stdout)
+        if protocol_result:
+            apply_worker_result(project, protocol_result)
+    except Exception:
+        pass
     if stdout.startswith('{'):
         try:
             payload = json.loads(stdout)
