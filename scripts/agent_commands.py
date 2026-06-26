@@ -342,3 +342,41 @@ def standards(args) -> int:
     if args.dry_run:
         command.append('--dry-run')
     return delegate('init_project_instructions.py', command)
+
+
+def stats_command(args) -> int:
+    """Show usage statistics and cost summary."""
+    from cost_dashboard import get_usage_summary, record_call
+
+    project = project_root(args.workspace)
+    if getattr(args, 'record', False):
+        result = record_call(project, args.record_worker or 'unknown', args.record_duration or 0.0)
+        print_json({'status': 'recorded', **result})
+        return 0
+    summary = get_usage_summary(project)
+    print_json({'task': 'usage stats', 'mode': 'ready', 'result': summary})
+    return 0
+
+
+def audit_command(args) -> int:
+    """Query the audit log."""
+    from audit_log import daily_summary, log_event, query_log
+
+    project = project_root(args.workspace)
+    if getattr(args, 'summary', False):
+        result = daily_summary(project)
+        print_json({'task': 'audit summary', 'mode': 'ready', 'result': result})
+        return 0
+    if getattr(args, 'log', False):
+        event_type = args.log_event or 'manual'
+        entry = log_event(project, event_type=event_type, worker=args.log_worker or '', task=args.log_task or '')
+        print_json({'task': 'audit log', 'mode': 'logged', 'result': entry})
+        return 0
+    entries = query_log(
+        project,
+        limit=getattr(args, 'limit', 50),
+        event_type=getattr(args, 'event_type', ''),
+        worker=getattr(args, 'worker', ''),
+    )
+    print_json({'task': 'audit query', 'mode': 'ready', 'result': {'entries': entries, 'count': len(entries)}})
+    return 0

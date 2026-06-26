@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from agent_commands import (
+    audit_command,
     backend_command,
     config_command,
     learning_command,
@@ -25,6 +26,7 @@ from agent_commands import (
     rollback,
     session_command,
     standards,
+    stats_command,
     workers_command,
 )
 from agent_commands_goal import (
@@ -115,13 +117,14 @@ KNOWN_COMMANDS = {
     'learning',
     'launch',
     'feedback',
+    'stats',
+    'audit',
 }
 
 COMMAND_TYPO_SUGGESTIONS = {
     'rum': '"your task"',
     'runn': '"your task"',
     'rn': '"your task"',
-    'stats': 'status',
     'statuz': 'status',
     'pipline': '"your task"',
     'pipeine': '"your task"',
@@ -758,6 +761,27 @@ def main(argv: list[str] | None = None) -> int:
     health_parser.add_argument('--no-output-timeout-seconds', type=int, default=120)
     health_parser.add_argument('--skip-real-codex', action='store_true')
     health_parser.set_defaults(handler=codex_health)
+
+    # -- stats
+    stats_parser = sub.add_parser('stats', help='Show usage statistics and cost summary.')
+    stats_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    stats_parser.add_argument('--record', action='store_true', help=argparse.SUPPRESS)
+    stats_parser.add_argument('--record-worker', default='')
+    stats_parser.add_argument('--record-duration', type=float, default=0.0)
+    stats_parser.set_defaults(handler=stats_command)
+
+    # -- audit
+    audit_parser = sub.add_parser('audit', help='Query the audit log.')
+    audit_parser.add_argument('--workspace', '--project', dest='workspace', default='.')
+    audit_parser.add_argument('--summary', action='store_true', help='Show daily summary.')
+    audit_parser.add_argument('--limit', type=int, default=50)
+    audit_parser.add_argument('--event-type', default='')
+    audit_parser.add_argument('--worker', default='')
+    audit_parser.add_argument('--log', action='store_true', help=argparse.SUPPRESS)
+    audit_parser.add_argument('--log-event', default='')
+    audit_parser.add_argument('--log-worker', default='')
+    audit_parser.add_argument('--log-task', default='')
+    audit_parser.set_defaults(handler=audit_command)
 
     args = parser.parse_args(raw_argv)
     if args.command in {'run', 'pipeline'} and not ' '.join(args.input).strip():
