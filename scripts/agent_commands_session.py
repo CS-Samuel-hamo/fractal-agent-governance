@@ -359,25 +359,54 @@ def pipeline(args) -> int:
         command.extend(['--allowed-file', item])
     for item in args.denied_file:
         command.extend(['--denied-file', item])
-    command.extend(args.input)
-    proc = run_command_capture(command, ROOT)
-    payload: dict = {}
-    stdout = str(proc.get('stdout') or '').strip()
+    # ── Verification gate auto-repair loop (方案 C) ───────────────────────
+    MAX_VERIFY_RETRIES = 3
+    verify_attempt = 0
+    final_proc = None
+    final_payload = {}
 
-    # Try to apply structured worker protocol result
-    try:
-        from worker_protocol import apply_worker_result, parse_worker_output
+    while verify_attempt <= MAX_VERIFY_RETRIES:
+        current_cmd = list(command)
+        if verify_attempt > 0:
+            repair_text = (
+                f'The previous output had verification failures. '
+                f'Please fix all issues. '
+                f'Attempt {verify_attempt}/{MAX_VERIFY_RETRIES}.'
+            )
+            current_cmd.append(repair_text)
+        else:
+            current_cmd.extend(args.input)
 
-        protocol_result = parse_worker_output(stdout)
-        if protocol_result:
-            apply_worker_result(project, protocol_result)
-    except Exception:
-        pass
-    if stdout.startswith('{'):
+        proc = run_command_capture(current_cmd, ROOT)
+        stdout = str(proc.get('stdout') or '').strip()
+        payload: dict = {}
+        if stdout.startswith('{'):
+            try:
+                payload = json.loads(stdout)
+            except json.JSONDecodeError:
+                payload = {}
+
+        # Try to apply structured worker protocol result + verification
         try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError:
-            payload = {}
+            from worker_protocol import apply_worker_result, parse_worker_output
+
+            protocol_result = parse_worker_output(stdout)
+            if protocol_result:
+                result = apply_worker_result(project, protocol_result)
+                verification = result.get('verification', {})
+                if verification.get('overall_passed') is False:
+                    verify_attempt += 1
+                    if verify_attempt <= MAX_VERIFY_RETRIES:
+                        continue
+        except Exception:
+            pass
+
+        final_proc = proc
+        final_payload = payload
+        break
+
+    proc = final_proc or proc
+    payload = final_payload
     if getattr(args, 'debug', False):
         if stdout:
             print(stdout)
@@ -391,7 +420,10 @@ def pipeline(args) -> int:
         'goal': ' '.join(args.input).strip(),
         'progress': 'complete' if payload.get('converged') else 'in_progress',
         'result': payload.get('final_verdict') or 'unknown',
+        'verify_attempts': verify_attempt,
     }
+    if verify_attempt > 0:
+        product['verified'] = verify_attempt <= MAX_VERIFY_RETRIES
     print_json(product)
     return 0
 
